@@ -24,6 +24,14 @@ async def complete_siege(
     return await lifecycle_service.complete_siege(db, siege_id)
 
 
+@router.post("/sieges/{siege_id}/reopen", response_model=SiegeResponse)
+async def reopen_siege(
+    siege_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    return await lifecycle_service.reopen_siege(db, siege_id)
+
+
 @router.post("/sieges/{siege_id}/clone", response_model=SiegeCloneResponse, status_code=201)
 async def clone_siege(
     siege_id: int,

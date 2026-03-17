@@ -18,6 +18,7 @@ async def list_sieges(session: AsyncSession, status: SiegeStatus | None) -> list
     stmt = select(Siege)
     if status is not None:
         stmt = stmt.where(Siege.status == status)
+    stmt = stmt.order_by(Siege.date.desc())
     result = await session.execute(stmt)
     return list(result.scalars().all())
 

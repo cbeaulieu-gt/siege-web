@@ -18,7 +18,7 @@ class Siege(Base):
     __tablename__ = "siege"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    date: Mapped[date] = mapped_column(Date, nullable=False)
+    date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[SiegeStatus] = mapped_column(
         nullable=False, default=SiegeStatus.planning
     )

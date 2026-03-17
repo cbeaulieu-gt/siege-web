@@ -8,12 +8,10 @@ import {
   activateSiege,
   completeSiege,
   cloneSiege,
+  reopenSiege,
   validateSiege,
   getBuildings,
-  createBuilding,
   updateBuilding,
-  deleteBuilding,
-  getBuildingTypes,
 } from '../api/sieges';
 import {
   notifySiegeMembers,
@@ -22,7 +20,6 @@ import {
   generateImages,
 } from '../api/notifications';
 import type {
-  BuildingType,
   ValidationResult,
   NotifyResponse,
   NotificationResultItem,
@@ -31,13 +28,6 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -49,7 +39,6 @@ import {
 import { Badge } from '../components/ui/badge';
 import {
   ArrowLeft,
-  Trash2,
   LayoutGrid,
   MessageSquare,
   Users,
@@ -76,11 +65,8 @@ export default function SiegeSettingsPage() {
   const [scrollCount, setScrollCount] = useState('3');
   const [settingsError, setSettingsError] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteBuildingId, setDeleteBuildingId] = useState<number | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [activateErrors, setActivateErrors] = useState<string[]>([]);
-  const [newBuildingType, setNewBuildingType] = useState<BuildingType>('stronghold');
-  const [newBuildingNum, setNewBuildingNum] = useState('1');
 
   // Notification state
   const [notifyConfirmOpen, setNotifyConfirmOpen] = useState(false);
@@ -101,11 +87,6 @@ export default function SiegeSettingsPage() {
   const { data: buildings } = useQuery({
     queryKey: ['buildings', siegeId],
     queryFn: () => getBuildings(siegeId),
-  });
-
-  const { data: buildingTypes } = useQuery({
-    queryKey: ['buildingTypes'],
-    queryFn: getBuildingTypes,
   });
 
   // Notification batch polling — runs until all results have success !== null or status === "completed"
@@ -187,20 +168,17 @@ export default function SiegeSettingsPage() {
     },
   });
 
+  const reopenMutation = useMutation({
+    mutationFn: () => reopenSiege(siegeId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['siege', siegeId] });
+      queryClient.invalidateQueries({ queryKey: ['sieges'] });
+    },
+  });
+
   const validateMutation = useMutation({
     mutationFn: () => validateSiege(siegeId),
     onSuccess: (data) => setValidation(data),
-  });
-
-  const addBuildingMutation = useMutation({
-    mutationFn: () =>
-      createBuilding(siegeId, {
-        building_type: newBuildingType,
-        building_number: Number(newBuildingNum),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['buildings', siegeId] });
-    },
   });
 
   const updateBuildingMutation = useMutation({
@@ -213,14 +191,6 @@ export default function SiegeSettingsPage() {
     }) => updateBuilding(siegeId, buildingId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['buildings', siegeId] });
-    },
-  });
-
-  const deleteBuildingMutation = useMutation({
-    mutationFn: (buildingId: number) => deleteBuilding(siegeId, buildingId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['buildings', siegeId] });
-      setDeleteBuildingId(null);
     },
   });
 
@@ -407,61 +377,11 @@ export default function SiegeSettingsPage() {
                     Broken
                   </Label>
                 </div>
-                <button
-                  className="ml-auto text-red-500 hover:text-red-700"
-                  onClick={() => setDeleteBuildingId(b.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
               </div>
             ))}
           </div>
         )}
 
-        <div className="flex items-end gap-3">
-          <div className="space-y-1.5">
-            <Label>Type</Label>
-            <Select
-              value={newBuildingType}
-              onValueChange={(v) => setNewBuildingType(v as BuildingType)}
-            >
-              <SelectTrigger className="w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {buildingTypes?.map((bt) => (
-                  <SelectItem key={bt.value} value={bt.value}>
-                    {bt.display}
-                  </SelectItem>
-                )) ?? (
-                  <>
-                    <SelectItem value="stronghold">Stronghold</SelectItem>
-                    <SelectItem value="mana_shrine">Mana Shrine</SelectItem>
-                    <SelectItem value="magic_tower">Magic Tower</SelectItem>
-                    <SelectItem value="defense_tower">Defense Tower</SelectItem>
-                    <SelectItem value="post">Post</SelectItem>
-                  </>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Number</Label>
-            <Input
-              type="number"
-              min="1"
-              className="w-20"
-              value={newBuildingNum}
-              onChange={(e) => setNewBuildingNum(e.target.value)}
-            />
-          </div>
-          <Button
-            onClick={() => addBuildingMutation.mutate()}
-            disabled={addBuildingMutation.isPending}
-          >
-            Add Building
-          </Button>
-        </div>
       </section>
 
       {/* Lifecycle */}
@@ -495,6 +415,15 @@ export default function SiegeSettingsPage() {
               disabled={completeMutation.isPending}
             >
               Close Siege
+            </Button>
+          )}
+          {siege?.status === 'complete' && (
+            <Button
+              variant="outline"
+              onClick={() => reopenMutation.mutate()}
+              disabled={reopenMutation.isPending}
+            >
+              Reopen Siege
             </Button>
           )}
           <Button
@@ -754,35 +683,6 @@ export default function SiegeSettingsPage() {
               variant="destructive"
               onClick={() => deleteMutation.mutate()}
               disabled={deleteMutation.isPending}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Delete building dialog */}
-      <Dialog
-        open={deleteBuildingId != null}
-        onOpenChange={(open) => { if (!open) setDeleteBuildingId(null); }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Building</DialogTitle>
-            <DialogDescription>
-              Remove this building and all its positions from the siege?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeleteBuildingId(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (deleteBuildingId != null) deleteBuildingMutation.mutate(deleteBuildingId);
-              }}
-              disabled={deleteBuildingMutation.isPending}
             >
               Delete
             </Button>

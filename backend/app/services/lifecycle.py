@@ -83,6 +83,30 @@ async def complete_siege(session: AsyncSession, siege_id: int) -> Siege:
     return siege
 
 
+async def reopen_siege(session: AsyncSession, siege_id: int) -> Siege:
+    """Transition a completed siege back to planning status.
+
+    Raises:
+        404 if siege not found.
+        400 if not in complete status.
+    """
+    result = await session.execute(select(Siege).where(Siege.id == siege_id))
+    siege = result.scalar_one_or_none()
+    if siege is None:
+        raise HTTPException(status_code=404, detail="Siege not found")
+
+    if siege.status != SiegeStatus.complete:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot reopen a siege with status '{siege.status}'",
+        )
+
+    siege.status = SiegeStatus.planning
+    await session.commit()
+    await session.refresh(siege)
+    return siege
+
+
 async def clone_siege(session: AsyncSession, siege_id: int) -> Siege:
     """Deep-copy a siege into a new planning siege.
 

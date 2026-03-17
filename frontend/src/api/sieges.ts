@@ -59,6 +59,11 @@ export async function cloneSiege(id: number): Promise<Siege> {
   return res.data;
 }
 
+export async function reopenSiege(id: number): Promise<Siege> {
+  const res = await apiClient.post<Siege>(`/api/sieges/${id}/reopen`);
+  return res.data;
+}
+
 export async function validateSiege(id: number): Promise<ValidationResult> {
   const res = await apiClient.post<ValidationResult>(`/api/sieges/${id}/validate`);
   return res.data;

@@ -19,7 +19,6 @@ import {
 } from '../components/ui/table';
 import { Button } from '../components/ui/button';
 import { Checkbox } from '../components/ui/checkbox';
-import { Badge } from '../components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -251,19 +250,41 @@ export default function SiegeMembersPage() {
               {preview?.assignments.length ?? 0} members will be assigned.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-1">
-            {preview?.assignments.map((a) => (
-              <div
-                key={a.member_id}
-                className="flex items-center justify-between rounded-sm px-2 py-1 hover:bg-slate-50"
-              >
-                <span className="text-sm">{nameLookup[a.member_id] ?? `Member ${a.member_id}`}</span>
-                <Badge variant={a.attack_day === 1 ? 'blue' : 'orange'}>
-                  Day {a.attack_day}
-                </Badge>
+          {preview && (() => {
+            const day1 = preview.assignments.filter((a) => a.attack_day === 1);
+            const day2 = preview.assignments.filter((a) => a.attack_day === 2);
+            const rows = Math.max(day1.length, day2.length);
+            return (
+              <div className="grid grid-cols-2 divide-x divide-slate-200 rounded-md border border-slate-200">
+                <div>
+                  <div className="border-b border-slate-200 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Day 1 ({day1.length})
+                  </div>
+                  {Array.from({ length: rows }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="px-3 py-1.5 text-sm odd:bg-slate-50"
+                    >
+                      {day1[i] ? (nameLookup[day1[i].member_id] ?? `Member ${day1[i].member_id}`) : ''}
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <div className="border-b border-slate-200 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Day 2 ({day2.length})
+                  </div>
+                  {Array.from({ length: rows }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="px-3 py-1.5 text-sm odd:bg-slate-50"
+                    >
+                      {day2[i] ? (nameLookup[day2[i].member_id] ?? `Member ${day2[i].member_id}`) : ''}
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
+            );
+          })()}
           <DialogFooter>
             <Button variant="outline" onClick={() => setPreviewOpen(false)}>
               Cancel
