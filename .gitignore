@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+.env
+*.env.local
+
+# Node
+node_modules/
+dist/
+.next/
+out/
+*.local
+
+# Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+coverage.xml
+*.lcov
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Docker
+.dockerignore
+
+# Azure
+.azure/
+
+# Logs
+*.log
+logs/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
