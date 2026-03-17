@@ -12,6 +12,7 @@ from app.models.post_condition import PostCondition  # noqa: F401 — imported f
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 from app.models.enums import BuildingType, SiegeStatus
+from app.services import validation as validation_service
 
 
 async def activate_siege(session: AsyncSession, siege_id: int) -> Siege:
@@ -44,18 +45,13 @@ async def activate_siege(session: AsyncSession, siege_id: int) -> Siege:
     if active_result.scalar_one_or_none() is not None:
         raise HTTPException(status_code=400, detail="Another siege is already active")
 
-    # --- PHASE 3 STUB: readiness validation ---
-    # Full validation engine (16 rules, errors + warnings) is implemented in Phase 4.
-    # For now, require at least one building to prevent activating an empty siege.
-    building_result = await session.execute(
-        select(Building).where(Building.siege_id == siege_id).limit(1)
-    )
-    if building_result.scalar_one_or_none() is None:
+    # Run the full validation engine — errors block activation, warnings are informational
+    validation_result = await validation_service.validate_siege(session, siege_id)
+    if validation_result.errors:
         raise HTTPException(
             status_code=400,
-            detail="Siege must have at least one building before it can be activated",
+            detail=[e.model_dump() for e in validation_result.errors],
         )
-    # --- END STUB ---
 
     siege.status = SiegeStatus.active
     await session.commit()

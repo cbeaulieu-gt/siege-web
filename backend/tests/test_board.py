@@ -1,5 +1,6 @@
 """Endpoint tests for board, position update, and bulk assignment routes."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -7,7 +8,6 @@ from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from app.models.position import Position
 
 
 def _make_position(
@@ -16,15 +16,15 @@ def _make_position(
     member_id: int | None = None,
     is_reserve: bool = False,
     is_disabled: bool = False,
-) -> Position:
-    p = Position.__new__(Position)
-    p.id = id
-    p.building_group_id = 1
-    p.position_number = position_number
-    p.member_id = member_id
-    p.is_reserve = is_reserve
-    p.is_disabled = is_disabled
-    return p
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=id,
+        building_group_id=1,
+        position_number=position_number,
+        member_id=member_id,
+        is_reserve=is_reserve,
+        is_disabled=is_disabled,
+    )
 
 
 @pytest.fixture

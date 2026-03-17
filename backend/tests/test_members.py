@@ -1,5 +1,7 @@
 """Endpoint tests for /api/members — mocks the service layer directly."""
 
+import datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -7,7 +9,6 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 from app.models.enums import MemberRole
-from app.models.member import Member
 
 
 def _make_member(
@@ -15,17 +16,17 @@ def _make_member(
     name: str = "Alice",
     role: MemberRole = MemberRole.advanced,
     is_active: bool = True,
-) -> Member:
-    m = Member.__new__(Member)
-    m.id = id
-    m.name = name
-    m.discord_username = None
-    m.role = role
-    m.power = None
-    m.sort_value = None
-    m.is_active = is_active
-    m.created_at = __import__("datetime").datetime(2026, 1, 1, 0, 0, 0)
-    return m
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=id,
+        name=name,
+        discord_username=None,
+        role=role,
+        power=None,
+        sort_value=None,
+        is_active=is_active,
+        created_at=datetime.datetime(2026, 1, 1, 0, 0, 0),
+    )
 
 
 @pytest.fixture

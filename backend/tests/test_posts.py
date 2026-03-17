@@ -1,5 +1,6 @@
 """Endpoint tests for post management routes."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -7,20 +8,11 @@ from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from app.models.building import Building
-from app.models.post import Post
 from app.models.enums import BuildingType
 
 
-def _make_building(id: int = 10, building_number: int = 1) -> Building:
-    b = Building.__new__(Building)
-    b.id = id
-    b.siege_id = 1
-    b.building_type = BuildingType.post
-    b.building_number = building_number
-    b.level = 1
-    b.is_broken = False
-    return b
+def _make_building(id: int = 10, building_number: int = 1) -> SimpleNamespace:
+    return SimpleNamespace(id=id, siege_id=1, building_type=BuildingType.post, building_number=building_number, level=1, is_broken=False)
 
 
 def _make_post(
@@ -29,16 +21,11 @@ def _make_post(
     building_id: int = 10,
     priority: int = 1,
     description: str | None = None,
-) -> Post:
-    p = Post.__new__(Post)
-    p.id = id
-    p.siege_id = siege_id
-    p.building_id = building_id
-    p.priority = priority
-    p.description = description
-    p.active_conditions = []
-    p.building = _make_building(id=building_id)
-    return p
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=id, siege_id=siege_id, building_id=building_id, priority=priority,
+        description=description, active_conditions=[], building=_make_building(id=building_id),
+    )
 
 
 @pytest.fixture

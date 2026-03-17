@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, Integer, text
+from sqlalchemy import Date, Integer, JSON, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -29,6 +29,10 @@ class Siege(Base):
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=text("now()"), onupdate=text("now()")
     )
+    autofill_preview: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    autofill_preview_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    attack_day_preview: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    attack_day_preview_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     buildings: Mapped[list["Building"]] = relationship(back_populates="siege")
     siege_members: Mapped[list["SiegeMember"]] = relationship(back_populates="siege")

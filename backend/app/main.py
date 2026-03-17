@@ -1,8 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.attack_day import router as attack_day_router
+from app.api.autofill import router as autofill_router
 from app.api.board import router as board_router
 from app.api.buildings import router as buildings_router
+from app.api.comparison import router as comparison_router
 from app.api.health import router as health_router
 from app.api.lifecycle import router as lifecycle_router
 from app.api.members import router as members_router
@@ -10,6 +13,7 @@ from app.api.posts import router as posts_router
 from app.api.reference import router as reference_router
 from app.api.siege_members import router as siege_members_router
 from app.api.sieges import router as sieges_router
+from app.api.validation import router as validation_router
 from app.config import settings
 
 app = FastAPI(
@@ -36,3 +40,7 @@ app.include_router(siege_members_router, prefix="/api")
 app.include_router(board_router, prefix="/api")
 app.include_router(lifecycle_router, prefix="/api")
 app.include_router(posts_router, prefix="/api")
+app.include_router(validation_router, prefix="/api")
+app.include_router(autofill_router, prefix="/api")
+app.include_router(comparison_router, prefix="/api")
+app.include_router(attack_day_router, prefix="/api")

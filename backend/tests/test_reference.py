@@ -1,5 +1,6 @@
 """Endpoint tests for /api reference data endpoints."""
 
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -7,15 +8,10 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 from app.models.enums import BuildingType
-from app.models.post_condition import PostCondition
 
 
-def _make_post_condition(id: int, description: str, stronghold_level: int) -> PostCondition:
-    pc = PostCondition.__new__(PostCondition)
-    pc.id = id
-    pc.description = description
-    pc.stronghold_level = stronghold_level
-    return pc
+def _make_post_condition(id: int, description: str, stronghold_level: int) -> SimpleNamespace:
+    return SimpleNamespace(id=id, description=description, stronghold_level=stronghold_level)
 
 
 @pytest.fixture

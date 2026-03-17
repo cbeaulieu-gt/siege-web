@@ -1,6 +1,7 @@
 """Endpoint tests for /api/sieges — mocks the service layer directly."""
 
 import datetime
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -9,22 +10,21 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 from app.models.enums import SiegeStatus
-from app.models.siege import Siege
 
 
 def _make_siege(
     id: int = 1,
     status: SiegeStatus = SiegeStatus.planning,
     defense_scroll_count: int = 5,
-) -> Siege:
-    s = Siege.__new__(Siege)
-    s.id = id
-    s.date = datetime.date(2026, 3, 20)
-    s.status = status
-    s.defense_scroll_count = defense_scroll_count
-    s.created_at = datetime.datetime(2026, 1, 1, 0, 0, 0)
-    s.updated_at = datetime.datetime(2026, 1, 1, 0, 0, 0)
-    return s
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=id,
+        date=datetime.date(2026, 3, 20),
+        status=status,
+        defense_scroll_count=defense_scroll_count,
+        created_at=datetime.datetime(2026, 1, 1, 0, 0, 0),
+        updated_at=datetime.datetime(2026, 1, 1, 0, 0, 0),
+    )
 
 
 @pytest.fixture
