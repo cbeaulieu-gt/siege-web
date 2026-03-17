@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,6 +19,12 @@ from app.api.siege_members import router as siege_members_router
 from app.api.sieges import router as sieges_router
 from app.api.validation import router as validation_router
 from app.config import settings
+from app.middleware import RequestLoggingMiddleware
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
 app = FastAPI(
     title="Siege Assignment API",
@@ -25,6 +33,7 @@ app = FastAPI(
     redoc_url=None,
 )
 
+app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
