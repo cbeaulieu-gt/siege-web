@@ -182,6 +182,8 @@ def parse_members_sheet(ws) -> list[ParsedMember]:
         name = row[0] if len(row) > 0 else None
         if not name or not str(name).strip():
             continue
+        if str(name).strip().upper() == "RESERVE":
+            continue
         role_raw = str(row[1]).strip() if len(row) > 1 and row[1] is not None else ""
         power_raw = row[2] if len(row) > 2 else None
         discord_raw = row[3] if len(row) > 3 else None
@@ -497,7 +499,6 @@ async def import_file(
         return stats
 
     # 2. Parse sheets
-    print(f"  Available sheets: {wb.sheetnames}")
     try:
         members_ws = wb["Members"]
         assignments_ws = wb["Assignments"]
@@ -514,17 +515,6 @@ async def import_file(
     wb.close()
 
     print(f"  Parsed: {len(parsed_members)} members, {len(parsed_assignments)} assignments, {len(parsed_reserves)} reserves")
-
-    # Debug: dump ALL raw rows from Assignments sheet
-    wb2 = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
-    ws2 = wb2["Assignments"]
-    print("  DEBUG Assignments ALL rows:")
-    for i, row in enumerate(ws2.iter_rows(min_row=1, values_only=True)):
-        # Only print rows that have any non-None value in first 6 cols
-        first6 = row[:6] if len(row) >= 6 else row
-        if any(c is not None for c in first6):
-            print(f"    Row {i+1}: {first6}")
-    wb2.close()
 
     # 3. Upsert members
     member_name_map: dict[str, Member] = {}  # lowercase name -> Member
