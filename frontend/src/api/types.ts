@@ -1,0 +1,163 @@
+// Enums
+export type MemberRole = 'heavy_hitter' | 'advanced' | 'medium' | 'novice';
+export type SiegeStatus = 'planning' | 'active' | 'complete';
+export type BuildingType =
+  | 'stronghold'
+  | 'mana_shrine'
+  | 'magic_tower'
+  | 'defense_tower'
+  | 'post';
+
+// Members
+export interface Member {
+  id: number;
+  name: string;
+  discord_username: string | null;
+  role: MemberRole;
+  power: number | null;
+  sort_value: number;
+  is_active: boolean;
+}
+
+export interface PostCondition {
+  id: number;
+  description: string;
+  stronghold_level: number;
+}
+
+// Siege
+export interface Siege {
+  id: number;
+  date: string | null;
+  status: SiegeStatus;
+  defense_scroll_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Building
+export interface Building {
+  id: number;
+  siege_id: number;
+  building_type: BuildingType;
+  building_number: number;
+  level: number;
+  is_broken: boolean;
+}
+
+// Board types (nested hierarchy from GET /api/sieges/{id}/board)
+export interface PositionResponse {
+  id: number;
+  position_number: number;
+  member_id: number | null;
+  member_name: string | null;
+  is_reserve: boolean;
+  is_disabled: boolean;
+  has_no_assignment: boolean;
+}
+
+export interface BuildingGroupResponse {
+  id: number;
+  group_number: number;
+  slot_count: number;
+  positions: PositionResponse[];
+}
+
+export interface BuildingResponse {
+  id: number;
+  building_type: BuildingType;
+  building_number: number;
+  level: number;
+  is_broken: boolean;
+  groups: BuildingGroupResponse[];
+}
+
+export interface BoardResponse {
+  siege_id: number;
+  buildings: BuildingResponse[];
+}
+
+// SiegeMember
+export interface SiegeMember {
+  siege_id: number;
+  member_id: number;
+  member_name: string;
+  attack_day: number | null;
+  has_reserve_set: boolean | null;
+  attack_day_override: boolean;
+}
+
+// Post
+export interface PostConditionRef {
+  id: number;
+  description: string;
+  stronghold_level: number;
+}
+
+export interface Post {
+  id: number;
+  siege_id: number;
+  building_id: number;
+  building_number: number;
+  priority: number;
+  description: string | null;
+  active_conditions: PostConditionRef[];
+}
+
+// Validation
+export interface ValidationIssue {
+  rule: number;
+  message: string;
+  context: Record<string, unknown> | null;
+}
+
+export interface ValidationResult {
+  errors: ValidationIssue[];
+  warnings: ValidationIssue[];
+}
+
+// Auto-fill
+export interface AutofillAssignment {
+  position_id: number;
+  member_id: number | null;
+  is_reserve: boolean;
+}
+
+export interface AutofillPreviewResult {
+  assignments: AutofillAssignment[];
+  expires_at: string;
+}
+
+export interface AutofillApplyResult {
+  applied_count: number;
+}
+
+// Attack day
+export interface AttackDayAssignment {
+  member_id: number;
+  attack_day: number;
+}
+
+export interface AttackDayPreviewResult {
+  assignments: AttackDayAssignment[];
+  expires_at: string;
+}
+
+export interface AttackDayApplyResult {
+  applied_count: number;
+}
+
+// Reference
+export interface BuildingTypeInfo {
+  value: BuildingType;
+  display: string;
+  count: number;
+  base_group_count: number;
+  base_last_group_slots: number;
+}
+
+export interface MemberRoleInfo {
+  value: MemberRole;
+  display: string;
+  default_attack_day: number;
+}
