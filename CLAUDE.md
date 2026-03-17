@@ -25,6 +25,7 @@ Data flow: Azure AD → Easy Auth → frontend (Nginx) → `/api/*` proxy → ba
  - Use project-architect for planning
 
  - Ensure frequent git commits after major milestones or significant changes
+ - Keep an STATUS.md file with a high level summary of the state of the project and the anticipated next steps. Frequently update it W
 
 ## Common Commands
 

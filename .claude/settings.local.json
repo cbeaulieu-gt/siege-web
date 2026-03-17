@@ -11,7 +11,10 @@
       "Bash(cd:*)",
       "Bash(python:*)",
       "Bash(pip:*)",
-      "Bash(pip show:*)"
+      "Bash(pip show:*)",
+      "Bash(npm run:*)",
+      "Bash(pip install:*)",
+      "Bash(docker-compose:*)"
     ]
   },
   "hooks": {

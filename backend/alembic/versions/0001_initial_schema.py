@@ -8,6 +8,7 @@ Create Date: 2026-03-16
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 revision = "0001"
 down_revision = None
@@ -16,22 +17,24 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # --- Enum types ---
-    siege_status = sa.Enum("planning", "active", "complete", name="siegestatus")
-    building_type = sa.Enum(
+    # Create enum types via raw SQL to avoid asyncpg/checkfirst bug.
+    # Then reference them with postgresql.ENUM(create_type=False) in tables.
+    op.execute("CREATE TYPE siegestatus AS ENUM ('planning', 'active', 'complete')")
+    op.execute("CREATE TYPE buildingtype AS ENUM ('stronghold', 'mana_shrine', 'magic_tower', 'defense_tower', 'post')")
+    op.execute("CREATE TYPE memberrole AS ENUM ('heavy_hitter', 'advanced', 'medium', 'novice')")
+    op.execute("CREATE TYPE notificationbatchstatus AS ENUM ('pending', 'completed')")
+
+    siege_status = postgresql.ENUM("planning", "active", "complete", name="siegestatus", create_type=False)
+    building_type = postgresql.ENUM(
         "stronghold", "mana_shrine", "magic_tower", "defense_tower", "post",
-        name="buildingtype",
+        name="buildingtype", create_type=False,
     )
-    member_role = sa.Enum(
-        "heavy_hitter", "advanced", "medium", "novice", name="memberrole"
+    member_role = postgresql.ENUM(
+        "heavy_hitter", "advanced", "medium", "novice", name="memberrole", create_type=False,
     )
-    notification_batch_status = sa.Enum(
-        "pending", "completed", name="notificationbatchstatus"
+    notification_batch_status = postgresql.ENUM(
+        "pending", "completed", name="notificationbatchstatus", create_type=False,
     )
-    siege_status.create(op.get_bind(), checkfirst=True)
-    building_type.create(op.get_bind(), checkfirst=True)
-    member_role.create(op.get_bind(), checkfirst=True)
-    notification_batch_status.create(op.get_bind(), checkfirst=True)
 
     # 1. member
     op.create_table(
