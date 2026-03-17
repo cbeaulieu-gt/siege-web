@@ -15,7 +15,18 @@ import {
   deleteBuilding,
   getBuildingTypes,
 } from '../api/sieges';
-import type { BuildingType, ValidationResult } from '../api/types';
+import {
+  notifySiegeMembers,
+  getNotificationBatch,
+  postToChannel,
+  generateImages,
+} from '../api/notifications';
+import type {
+  BuildingType,
+  ValidationResult,
+  NotifyResponse,
+  NotificationResultItem,
+} from '../api/types';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -36,8 +47,23 @@ import {
   DialogDescription,
 } from '../components/ui/dialog';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, Trash2, LayoutGrid, MessageSquare, Users } from 'lucide-react';
+import {
+  ArrowLeft,
+  Trash2,
+  LayoutGrid,
+  MessageSquare,
+  Users,
+  GitCompare,
+  Check,
+  X,
+  Loader2,
+  AlertCircle,
+  Download,
+  Send,
+  Image,
+} from 'lucide-react';
 import { isAxiosError } from 'axios';
+import { cn } from '../lib/utils';
 
 export default function SiegeSettingsPage() {
   const { id } = useParams<{ id: string }>();
@@ -55,6 +81,17 @@ export default function SiegeSettingsPage() {
   const [newBuildingType, setNewBuildingType] = useState<BuildingType>('stronghold');
   const [newBuildingNum, setNewBuildingNum] = useState('1');
 
+  // Notification state
+  const [notifyConfirmOpen, setNotifyConfirmOpen] = useState(false);
+  const [postConfirmOpen, setPostConfirmOpen] = useState(false);
+  const [notifyBatch, setNotifyBatch] = useState<NotifyResponse | null>(null);
+  const [postChannelResult, setPostChannelResult] = useState<string | null>(null);
+  const [postChannelError, setPostChannelError] = useState<string | null>(null);
+  const [generatedImages, setGeneratedImages] = useState<{
+    assignments_image: string;
+    reserves_image: string;
+  } | null>(null);
+
   const { data: siege, isLoading: siegeLoading } = useQuery({
     queryKey: ['siege', siegeId],
     queryFn: () => getSiege(siegeId),
@@ -68,6 +105,21 @@ export default function SiegeSettingsPage() {
   const { data: buildingTypes } = useQuery({
     queryKey: ['buildingTypes'],
     queryFn: getBuildingTypes,
+  });
+
+  // Notification batch polling — runs until all results have success !== null or status === "completed"
+  const batchDone = (results: NotificationResultItem[], status: string) =>
+    status === 'completed' || results.every((r) => r.success !== null);
+
+  const { data: batchData } = useQuery({
+    queryKey: ['notificationBatch', siegeId, notifyBatch?.batch_id],
+    queryFn: () => getNotificationBatch(siegeId, notifyBatch!.batch_id),
+    enabled: notifyBatch != null,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return 3000;
+      return batchDone(data.results, data.status) ? false : 3000;
+    },
   });
 
   useEffect(() => {
@@ -171,6 +223,51 @@ export default function SiegeSettingsPage() {
     },
   });
 
+  const notifyMutation = useMutation({
+    mutationFn: () => notifySiegeMembers(siegeId),
+    onSuccess: (data) => {
+      setNotifyBatch(data);
+      setNotifyConfirmOpen(false);
+    },
+  });
+
+  const postChannelMutation = useMutation({
+    mutationFn: () => postToChannel(siegeId),
+    onSuccess: (data) => {
+      setPostChannelResult(data.status === 'ok' ? 'Posted successfully.' : (data.detail ?? 'Posted.'));
+      setPostChannelError(null);
+      setPostConfirmOpen(false);
+    },
+    onError: (err) => {
+      setPostChannelError(
+        isAxiosError(err) ? (err.response?.data?.detail ?? 'Post failed') : 'Post failed',
+      );
+      setPostChannelResult(null);
+      setPostConfirmOpen(false);
+    },
+  });
+
+  const generateImagesMutation = useMutation({
+    mutationFn: () => generateImages(siegeId),
+    onSuccess: (data) => setGeneratedImages(data),
+  });
+
+  function downloadImage(base64: string, filename: string) {
+    const byteString = atob(base64);
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+      ia[i] = byteString.charCodeAt(i);
+    }
+    const blob = new Blob([ab], { type: 'image/png' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   if (siegeLoading) {
     return <div className="py-12 text-center text-slate-500">Loading...</div>;
   }
@@ -210,6 +307,13 @@ export default function SiegeSettingsPage() {
           >
             <Users className="h-4 w-4" />
             Members
+          </Link>
+          <Link
+            to={`/sieges/${siegeId}/compare`}
+            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+          >
+            <GitCompare className="h-4 w-4" />
+            Compare
           </Link>
         </div>
       </div>
@@ -439,6 +543,183 @@ export default function SiegeSettingsPage() {
         )}
       </section>
 
+      {/* Discord Notifications */}
+      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-6">
+        <h2 className="mb-4 text-base font-semibold text-slate-900">Discord Notifications</h2>
+
+        <div className="space-y-6">
+          {/* Notify Members */}
+          <div>
+            <div className="mb-2 flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setNotifyConfirmOpen(true)}
+                disabled={notifyMutation.isPending}
+              >
+                <Send className="mr-1.5 h-4 w-4" />
+                Notify Members
+              </Button>
+              {notifyMutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+              )}
+            </div>
+            {notifyBatch && (
+              <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                <p className="mb-2 text-xs text-slate-500">
+                  Batch #{notifyBatch.batch_id} &bull; {notifyBatch.member_count} members &bull;{' '}
+                  <span
+                    className={cn(
+                      'font-medium',
+                      batchData?.status === 'completed'
+                        ? 'text-green-600'
+                        : 'text-amber-600',
+                    )}
+                  >
+                    {batchData?.status ?? notifyBatch.status}
+                  </span>
+                </p>
+                <ul className="space-y-1">
+                  {(batchData?.results ?? []).map((item) => (
+                    <li key={item.member_id} className="flex items-center gap-2 text-sm">
+                      {item.success === true && (
+                        <Check className="h-4 w-4 shrink-0 text-green-600" />
+                      )}
+                      {item.success === false && (
+                        <X className="h-4 w-4 shrink-0 text-red-600" />
+                      )}
+                      {item.discord_username === null && item.success === null && (
+                        <AlertCircle className="h-4 w-4 shrink-0 text-yellow-500" />
+                      )}
+                      {item.discord_username !== null && item.success === null && (
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-slate-400" />
+                      )}
+                      <span
+                        className={cn(
+                          item.success === true && 'text-slate-700',
+                          item.success === false && 'text-red-700',
+                          item.discord_username === null && item.success === null && 'text-yellow-700',
+                          item.discord_username !== null && item.success === null && 'text-slate-500',
+                        )}
+                      >
+                        {item.member_name}
+                        {item.discord_username === null && item.success === null
+                          ? ' — No Discord username'
+                          : null}
+                        {item.success === false && item.error
+                          ? ` — ${item.error}`
+                          : null}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Post to Discord */}
+          <div>
+            <div className="mb-2 flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPostConfirmOpen(true)}
+                disabled={postChannelMutation.isPending}
+              >
+                <MessageSquare className="mr-1.5 h-4 w-4" />
+                Post to Discord
+              </Button>
+              {postChannelMutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+              )}
+            </div>
+            {postChannelResult && (
+              <p className="mt-1 text-sm text-green-600">{postChannelResult}</p>
+            )}
+            {postChannelError && (
+              <p className="mt-1 text-sm text-red-600">{postChannelError}</p>
+            )}
+          </div>
+
+          {/* Generate Images */}
+          <div>
+            <div className="mb-2 flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => generateImagesMutation.mutate()}
+                disabled={generateImagesMutation.isPending}
+              >
+                <Image className="mr-1.5 h-4 w-4" />
+                Generate Images
+              </Button>
+              {generateImagesMutation.isPending && (
+                <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+              )}
+              {generateImagesMutation.isError && (
+                <span className="text-sm text-red-600">
+                  {isAxiosError(generateImagesMutation.error)
+                    ? (generateImagesMutation.error.response?.data?.detail ?? 'Generation failed')
+                    : 'Generation failed'}
+                </span>
+              )}
+            </div>
+            {generatedImages && (
+              <div className="mt-3 space-y-4">
+                <div>
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-700">Assignments</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() =>
+                        downloadImage(
+                          generatedImages.assignments_image,
+                          `siege-${siegeId}-assignments.png`,
+                        )
+                      }
+                    >
+                      <Download className="mr-1 h-3 w-3" />
+                      Download
+                    </Button>
+                  </div>
+                  <img
+                    src={`data:image/png;base64,${generatedImages.assignments_image}`}
+                    alt="Assignments"
+                    className="max-w-full rounded-md border border-slate-200"
+                  />
+                </div>
+                <div>
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-700">Reserves</span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-xs"
+                      onClick={() =>
+                        downloadImage(
+                          generatedImages.reserves_image,
+                          `siege-${siegeId}-reserves.png`,
+                        )
+                      }
+                    >
+                      <Download className="mr-1 h-3 w-3" />
+                      Download
+                    </Button>
+                  </div>
+                  <img
+                    src={`data:image/png;base64,${generatedImages.reserves_image}`}
+                    alt="Reserves"
+                    className="max-w-full rounded-md border border-slate-200"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
       {/* Delete siege dialog */}
       <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <DialogContent>
@@ -488,6 +769,52 @@ export default function SiegeSettingsPage() {
               disabled={deleteBuildingMutation.isPending}
             >
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Notify Members confirm dialog */}
+      <Dialog open={notifyConfirmOpen} onOpenChange={setNotifyConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Notify Members</DialogTitle>
+            <DialogDescription>
+              Send Discord DMs to all members with their siege assignments. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNotifyConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => notifyMutation.mutate()}
+              disabled={notifyMutation.isPending}
+            >
+              Send Notifications
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Post to Discord confirm dialog */}
+      <Dialog open={postConfirmOpen} onOpenChange={setPostConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Post to Discord</DialogTitle>
+            <DialogDescription>
+              Post the siege assignment images to the configured Discord channel.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPostConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => postChannelMutation.mutate()}
+              disabled={postChannelMutation.isPending}
+            >
+              Post
             </Button>
           </DialogFooter>
         </DialogContent>

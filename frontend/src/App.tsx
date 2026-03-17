@@ -8,6 +8,7 @@ import SiegeSettingsPage from './pages/SiegeSettingsPage';
 import BoardPage from './pages/BoardPage';
 import PostsPage from './pages/PostsPage';
 import SiegeMembersPage from './pages/SiegeMembersPage';
+import ComparisonPage from './pages/ComparisonPage';
 
 function App() {
   return (
@@ -23,6 +24,7 @@ function App() {
         <Route path="/sieges/:id/board" element={<BoardPage />} />
         <Route path="/sieges/:id/posts" element={<PostsPage />} />
         <Route path="/sieges/:id/members" element={<SiegeMembersPage />} />
+        <Route path="/sieges/:id/compare" element={<ComparisonPage />} />
       </Route>
     </Routes>
   );

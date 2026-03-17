@@ -147,6 +147,56 @@ export interface AttackDayApplyResult {
   applied_count: number;
 }
 
+// Comparison
+export interface PositionKey {
+  building_type: string;
+  building_number: number;
+  group_number: number;
+  position_number: number;
+}
+
+export interface MemberDiff {
+  member_id: number;
+  member_name: string;
+  added: PositionKey[];
+  removed: PositionKey[];
+  unchanged: PositionKey[];
+}
+
+export interface ComparisonResult {
+  siege_a_id: number;
+  siege_b_id: number;
+  members: MemberDiff[];
+}
+
+// Notifications
+export interface NotificationResultItem {
+  member_id: number;
+  member_name: string;
+  discord_username: string | null;
+  success: boolean | null;
+  error: string | null;
+  sent_at: string | null;
+}
+
+export interface NotificationBatchResponse {
+  batch_id: number;
+  status: string;
+  results: NotificationResultItem[];
+}
+
+export interface NotifyResponse {
+  batch_id: number;
+  status: string;
+  member_count: number;
+}
+
+// Images
+export interface GenerateImagesResponse {
+  assignments_image: string; // base64
+  reserves_image: string;    // base64
+}
+
 // Reference
 export interface BuildingTypeInfo {
   value: BuildingType;

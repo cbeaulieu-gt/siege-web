@@ -11,6 +11,7 @@ import type {
   AutofillApplyResult,
   AttackDayPreviewResult,
   AttackDayApplyResult,
+  ComparisonResult,
 } from './types';
 
 export async function getSieges(params?: { status?: SiegeStatus }): Promise<Siege[]> {
@@ -143,5 +144,18 @@ export async function applyAttackDay(siegeId: number): Promise<AttackDayApplyRes
   const res = await apiClient.post<AttackDayApplyResult>(
     `/api/sieges/${siegeId}/members/auto-assign-attack-day/apply`,
   );
+  return res.data;
+}
+
+export async function compareSieges(siegeId: number): Promise<ComparisonResult> {
+  const res = await apiClient.get<ComparisonResult>(`/api/sieges/${siegeId}/compare`);
+  return res.data;
+}
+
+export async function compareSiegesSpecific(
+  siegeId: number,
+  otherId: number,
+): Promise<ComparisonResult> {
+  const res = await apiClient.get<ComparisonResult>(`/api/sieges/${siegeId}/compare/${otherId}`);
   return res.data;
 }
