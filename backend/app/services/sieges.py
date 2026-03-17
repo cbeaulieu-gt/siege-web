@@ -1,0 +1,75 @@
+from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.member import Member
+from app.models.siege import Siege
+from app.models.siege_member import SiegeMember
+from app.models.enums import SiegeStatus
+from app.schemas.siege import SiegeCreate, SiegeUpdate
+
+
+async def list_sieges(session: AsyncSession, status: SiegeStatus | None) -> list[Siege]:
+    stmt = select(Siege)
+    if status is not None:
+        stmt = stmt.where(Siege.status == status)
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def get_siege(session: AsyncSession, siege_id: int) -> Siege:
+    result = await session.execute(select(Siege).where(Siege.id == siege_id))
+    siege = result.scalar_one_or_none()
+    if siege is None:
+        raise HTTPException(status_code=404, detail="Siege not found")
+    return siege
+
+
+async def create_siege(session: AsyncSession, data: SiegeCreate) -> Siege:
+    siege = Siege(
+        date=data.date,
+        status=SiegeStatus.planning,
+        defense_scroll_count=data.defense_scroll_count,
+    )
+    session.add(siege)
+    await session.flush()  # get siege.id before creating members
+
+    # Create SiegeMember records for all active members
+    active_members_result = await session.execute(
+        select(Member).where(Member.is_active == True)  # noqa: E712
+    )
+    active_members = active_members_result.scalars().all()
+    for member in active_members:
+        session.add(
+            SiegeMember(
+                siege_id=siege.id,
+                member_id=member.id,
+                attack_day=None,
+                has_reserve_set=None,
+                attack_day_override=False,
+            )
+        )
+
+    await session.commit()
+    await session.refresh(siege)
+    return siege
+
+
+async def update_siege(session: AsyncSession, siege_id: int, data: SiegeUpdate) -> Siege:
+    siege = await get_siege(session, siege_id)
+    if siege.status != SiegeStatus.planning:
+        raise HTTPException(status_code=400, detail="Only planning sieges can be updated")
+    updates = data.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(siege, field, value)
+    await session.commit()
+    await session.refresh(siege)
+    return siege
+
+
+async def delete_siege(session: AsyncSession, siege_id: int) -> None:
+    siege = await get_siege(session, siege_id)
+    if siege.status != SiegeStatus.planning:
+        raise HTTPException(status_code=400, detail="Only planning sieges can be deleted")
+    await session.delete(siege)
+    await session.commit()
