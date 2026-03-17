@@ -23,3 +23,13 @@ class SiegeResponse(BaseModel):
     defense_scroll_count: int
     created_at: datetime
     updated_at: datetime
+
+
+class SiegeCloneResponse(BaseModel):
+    model_config = {"from_attributes": True}
+    id: int
+    date: date | None
+    status: SiegeStatus
+    defense_scroll_count: int
+    created_at: datetime
+    updated_at: datetime
