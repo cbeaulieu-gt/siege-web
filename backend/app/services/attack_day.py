@@ -70,7 +70,7 @@ async def preview_attack_day(session: AsyncSession, siege_id: int) -> AttackDayP
     if day2_count >= DAY2_TARGET:
         for sm in medium + novice:
             assignments[sm.member_id] = 1
-        return _build_preview(siege, assignments)
+        return await _build_preview(session, siege, assignments)
 
     # Step 6-7: Sort medium by power desc, promote until 10
     medium_sorted = sorted(
@@ -94,7 +94,7 @@ async def preview_attack_day(session: AsyncSession, siege_id: int) -> AttackDayP
     if day2_count >= DAY2_TARGET:
         for sm in novice:
             assignments[sm.member_id] = 1
-        return _build_preview(siege, assignments)
+        return await _build_preview(session, siege, assignments)
 
     # Step 8-9: Sort novice by power desc, promote until 10
     novice_sorted = sorted(
@@ -109,19 +109,20 @@ async def preview_attack_day(session: AsyncSession, siege_id: int) -> AttackDayP
         else:
             assignments[sm.member_id] = 1
 
-    return _build_preview(siege, assignments)
+    return await _build_preview(session, siege, assignments)
 
 
-def _build_preview(siege: Siege, assignments: dict[int, int]) -> AttackDayPreviewResult:
+async def _build_preview(session: AsyncSession, siege: Siege, assignments: dict[int, int]) -> AttackDayPreviewResult:
     assignment_list = [
         AttackDayAssignment(member_id=mid, attack_day=day)
         for mid, day in assignments.items()
     ]
-    expires_at = _now_utc() + timedelta(minutes=PREVIEW_TTL_MINUTES)
+    expires_at = _now_utc().replace(tzinfo=None) + timedelta(minutes=PREVIEW_TTL_MINUTES)
     siege.attack_day_preview = {
         "assignments": [a.model_dump() for a in assignment_list]
     }
     siege.attack_day_preview_expires_at = expires_at
+    await session.commit()
     return AttackDayPreviewResult(
         assignments=assignment_list,
         expires_at=expires_at.isoformat(),

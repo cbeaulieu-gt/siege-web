@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -33,6 +33,13 @@ async def create_member(session: AsyncSession, data: MemberCreate) -> Member:
     existing = await session.execute(select(Member).where(Member.name == data.name))
     if existing.scalar_one_or_none() is not None:
         raise HTTPException(status_code=409, detail="A member with this name already exists")
+    active_count = await session.scalar(
+        select(func.count()).select_from(Member).where(Member.is_active == True)  # noqa: E712
+    )
+    if active_count >= 30:
+        raise HTTPException(
+            status_code=409, detail="Cannot create member: the 30-active-member limit has been reached"
+        )
     member = Member(**data.model_dump())
     session.add(member)
     await session.commit()
@@ -43,6 +50,14 @@ async def create_member(session: AsyncSession, data: MemberCreate) -> Member:
 async def update_member(session: AsyncSession, member_id: int, data: MemberUpdate) -> Member:
     member = await get_member(session, member_id)
     updates = data.model_dump(exclude_unset=True)
+    if updates.get("is_active") is True and not member.is_active:
+        active_count = await session.scalar(
+            select(func.count()).select_from(Member).where(Member.is_active == True)  # noqa: E712
+        )
+        if active_count >= 30:
+            raise HTTPException(
+                status_code=409, detail="Cannot reactivate member: the 30-active-member limit has been reached"
+            )
     for field, value in updates.items():
         setattr(member, field, value)
     await session.commit()

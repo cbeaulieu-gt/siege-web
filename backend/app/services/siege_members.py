@@ -1,6 +1,7 @@
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.models.enums import SiegeStatus
 from app.models.siege_member import SiegeMember
@@ -10,7 +11,9 @@ from app.services.sieges import get_siege
 
 async def list_siege_members(session: AsyncSession, siege_id: int) -> list[SiegeMember]:
     result = await session.execute(
-        select(SiegeMember).where(SiegeMember.siege_id == siege_id)
+        select(SiegeMember)
+        .where(SiegeMember.siege_id == siege_id)
+        .options(selectinload(SiegeMember.member))
     )
     return list(result.scalars().all())
 

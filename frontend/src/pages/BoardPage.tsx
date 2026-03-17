@@ -381,7 +381,7 @@ export default function BoardPage() {
           <Button
             size="sm"
             onClick={() => previewMutation.mutate()}
-            disabled={previewMutation.isPending}
+            disabled={previewMutation.isPending || siege?.status === 'complete'}
           >
             {previewMutation.isPending ? 'Loading...' : 'Preview Auto-fill'}
           </Button>

@@ -2,10 +2,15 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.building import Building
+from app.models.building_group import BuildingGroup
+from app.models.building_type_config import BuildingTypeConfig
 from app.models.member import Member
+from app.models.position import Position
+from app.models.post import Post
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
-from app.models.enums import SiegeStatus
+from app.models.enums import BuildingType, SiegeStatus
 from app.schemas.siege import SiegeCreate, SiegeUpdate
 
 
@@ -49,6 +54,42 @@ async def create_siege(session: AsyncSession, data: SiegeCreate) -> Siege:
                 attack_day_override=False,
             )
         )
+
+    # Seed buildings from BuildingTypeConfig
+    configs_result = await session.execute(select(BuildingTypeConfig))
+    configs = configs_result.scalars().all()
+    for config in configs:
+        for num in range(1, config.count + 1):
+            building = Building(
+                siege_id=siege.id,
+                building_type=config.building_type,
+                building_number=num,
+                level=1,
+                is_broken=False,
+            )
+            session.add(building)
+            await session.flush()
+
+            for group_num in range(1, config.base_group_count + 1):
+                is_last = group_num == config.base_group_count
+                slot_count = config.base_last_group_slots if is_last else 3
+                group = BuildingGroup(
+                    building_id=building.id,
+                    group_number=group_num,
+                    slot_count=slot_count,
+                )
+                session.add(group)
+                await session.flush()
+                for pos_num in range(1, slot_count + 1):
+                    session.add(
+                        Position(
+                            building_group_id=group.id,
+                            position_number=pos_num,
+                        )
+                    )
+
+            if config.building_type == BuildingType.post:
+                session.add(Post(siege_id=siege.id, building_id=building.id))
 
     await session.commit()
     await session.refresh(siege)

@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.building import Building
 from app.models.building_group import BuildingGroup
+from app.models.enums import SiegeStatus
 from app.models.member import Member
 from app.models.position import Position
 from app.models.siege import Siege
@@ -36,6 +37,8 @@ async def preview_autofill(session: AsyncSession, siege_id: int) -> AutofillPrev
     siege = siege_result.scalar_one_or_none()
     if siege is None:
         raise HTTPException(status_code=404, detail="Siege not found")
+    if siege.status == SiegeStatus.complete:
+        raise HTTPException(status_code=400, detail="Cannot auto-fill a completed siege")
 
     # 1. Collect empty, non-disabled, non-reserve positions
     empty_positions: list[Position] = []

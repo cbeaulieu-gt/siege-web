@@ -2,6 +2,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
+  getSiege,
   getSiegeMembers,
   updateSiegeMember,
   previewAttackDay,
@@ -113,6 +114,11 @@ export default function SiegeMembersPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [preview, setPreview] = useState<AttackDayPreviewResult | null>(null);
 
+  const { data: siege } = useQuery({
+    queryKey: ['siege', siegeId],
+    queryFn: () => getSiege(siegeId),
+  });
+
   const { data: members, isLoading, error } = useQuery({
     queryKey: ['siegeMembers', siegeId],
     queryFn: () => getSiegeMembers(siegeId),
@@ -157,7 +163,7 @@ export default function SiegeMembersPage() {
         <Button
           size="sm"
           onClick={() => previewMutation.mutate()}
-          disabled={previewMutation.isPending}
+          disabled={previewMutation.isPending || siege?.status === 'complete'}
         >
           {previewMutation.isPending ? 'Loading...' : 'Auto-Assign Attack Days'}
         </Button>
