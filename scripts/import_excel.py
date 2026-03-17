@@ -4,10 +4,11 @@ Excel import script for Raid Shadow Legends Siege Assignment Web App.
 Imports historical .xlsm siege files into the database.
 
 Usage:
-    python scripts/import_excel.py <path>
-    python scripts/import_excel.py <path> --database-url postgresql+asyncpg://...
+    python scripts/import_excel.py [<path>]
+    python scripts/import_excel.py [<path>] --database-url postgresql+asyncpg://...
 
 Where <path> is a single .xlsm file or a directory containing .xlsm files.
+If omitted, falls back to the IMPORT_EXCEL_PATH environment variable.
 """
 
 import argparse
@@ -19,6 +20,11 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 from typing import Optional
+
+from dotenv import load_dotenv
+
+# Load .env from project root
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # Add backend to path so we can import app models
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
@@ -123,11 +129,11 @@ class ImportStats:
 
 
 def parse_filename_date(filename: str) -> Optional[date]:
-    """Extract the siege date from a filename like clan_siege_DD_MM_YYYY.xlsm."""
+    """Extract the siege date from a filename like clan_siege_MM_DD_YYYY.xlsm."""
     match = FILENAME_PATTERN.search(filename)
     if not match:
         return None
-    day, month, year = int(match.group(1)), int(match.group(2)), int(match.group(3))
+    month, day, year = int(match.group(1)), int(match.group(2)), int(match.group(3))
     try:
         return date(year, month, day)
     except ValueError:
@@ -139,9 +145,28 @@ def map_role(display_role: str) -> Optional[str]:
     return ROLE_ALIASES.get(display_role)
 
 
-def map_building_alias(raw_type: str) -> Optional[str]:
-    """Map a raw building type string (possibly an alias) to its canonical enum value."""
-    return BUILDING_ALIASES.get(raw_type)
+def map_building_alias(raw_type: str) -> tuple[Optional[str], Optional[int]]:
+    """
+    Map a raw building type string to its canonical enum value and optional building number.
+
+    Handles formats like "Magic Tower 1", "Post 12", "Mana Shrine 2" by stripping
+    the trailing number. Returns (canonical_type, building_number) where building_number
+    is extracted from the name if present, else None.
+    """
+    # Try exact match first
+    if raw_type in BUILDING_ALIASES:
+        return BUILDING_ALIASES[raw_type], None
+
+    # Try stripping trailing number: "Magic Tower 1" -> "Magic Tower" + 1
+    match = re.match(r"^(.+?)\s+(\d+)$", raw_type)
+    if match:
+        base_name = match.group(1)
+        number = int(match.group(2))
+        canonical = BUILDING_ALIASES.get(base_name)
+        if canonical is not None:
+            return canonical, number
+
+    return None, None
 
 
 def parse_members_sheet(ws) -> list[ParsedMember]:
@@ -185,50 +210,109 @@ def parse_members_sheet(ws) -> list[ParsedMember]:
 
 def parse_assignments_sheet(ws) -> list[ParsedAssignment]:
     """
-    Parse the 'Assignments' worksheet.
+    Parse the 'Assignments' worksheet in its visual grid format.
 
-    Expected columns:
-      A: building_type, B: building_number, C: group_number,
-      D: position_number, E: assignment_value
-    Row 1 is header; data starts at row 2.
+    Layout:
+      Row 1: header row (Location | Group | Assigned | None | None | ...)
+      Row 2: position sub-headers (None | None | 1 | 2 | 3 | ...)
+      Row 3+: data rows
+        Col A (index 0): building type display name — only filled on the FIRST row
+                         of each new building instance; blank for subsequent groups
+                         of the same building.
+        Col B (index 1): group number (integer)
+        Col C+ (index 2+): member name (or None) at position 1, 2, 3, ...
+
+    Building number tracking:
+      Each time col A is non-blank for the same canonical building type, it signals
+      a new building instance and the building_number increments for that type.
+      When col A is blank, the previous building type and number are carried forward.
     """
     assignments = []
-    for row in ws.iter_rows(min_row=2, values_only=True):
-        if len(row) < 4:
-            continue
-        raw_type = row[0]
-        building_number_raw = row[1]
-        group_number_raw = row[2]
-        position_number_raw = row[3]
-        value_raw = row[4] if len(row) > 4 else None
 
-        if not raw_type or not building_number_raw or not group_number_raw or not position_number_raw:
-            continue
+    all_rows = list(ws.iter_rows(min_row=1, values_only=True))
+    if len(all_rows) < 3:
+        return assignments
 
-        canonical_type = map_building_alias(str(raw_type).strip())
-        if canonical_type is None:
-            continue
+    # Row 2 (index 1): position sub-headers starting at col C (index 2).
+    # Read how many position columns the sheet actually has.
+    subheader_row = all_rows[1]
+    position_count = 0
+    for col_idx in range(2, len(subheader_row)):
+        cell = subheader_row[col_idx]
+        if cell is not None:
+            position_count += 1
+        else:
+            # Stop at first blank — positions are contiguous
+            break
+    # Fallback: if sub-header row is entirely blank in cols C+, infer from data width
+    if position_count == 0:
+        for data_row in all_rows[2:]:
+            if len(data_row) > 2:
+                position_count = max(position_count, len(data_row) - 2)
 
+    # Track current building context as we scan data rows
+    current_type: Optional[str] = None   # canonical building type
+    # Map canonical type -> how many building instances of that type we've seen so far
+    building_number_counter: dict[str, int] = {}
+    current_building_number: int = 0
+
+    for row in all_rows[2:]:  # data starts at row 3 (index 2)
+        # Col A: building type name (may be blank)
+        raw_type_cell = row[0] if len(row) > 0 else None
+        raw_type = str(raw_type_cell).strip() if raw_type_cell is not None else ""
+
+        # Col B: group number (may be "N/A" for single-group buildings)
+        group_raw = row[1] if len(row) > 1 else None
+        if group_raw is None:
+            continue
         try:
-            building_number = int(building_number_raw)
-            group_number = int(group_number_raw)
-            position_number = int(position_number_raw)
+            group_number = int(group_raw)
         except (TypeError, ValueError):
-            continue
+            # "N/A" or similar — treat as group 1
+            group_number = 1
 
-        value: Optional[str] = None
-        if value_raw is not None and str(value_raw).strip():
-            value = str(value_raw).strip()
+        if raw_type:
+            # Non-blank col A: new building instance
+            canonical_type, explicit_number = map_building_alias(raw_type)
+            if canonical_type is None:
+                # Unknown building type — skip this row and clear context so
+                # subsequent blank-A rows don't inherit a bad type
+                current_type = None
+                current_building_number = 0
+                continue
+            current_type = canonical_type
+            if explicit_number is not None:
+                # Name had a number like "Magic Tower 1" — use it directly
+                current_building_number = explicit_number
+            else:
+                # No number in name — auto-increment
+                building_number_counter[canonical_type] = building_number_counter.get(canonical_type, 0) + 1
+                current_building_number = building_number_counter[canonical_type]
+        else:
+            # Blank col A: continuing the same building as the last non-blank row
+            if current_type is None:
+                # No building context yet — skip
+                continue
 
-        assignments.append(
-            ParsedAssignment(
-                building_type=canonical_type,
-                building_number=building_number,
-                group_number=group_number,
-                position_number=position_number,
-                value=value,
+        # Emit one ParsedAssignment per position column
+        for pos_idx in range(position_count):
+            col_idx = 2 + pos_idx
+            value_raw = row[col_idx] if col_idx < len(row) else None
+
+            value: Optional[str] = None
+            if value_raw is not None and str(value_raw).strip():
+                value = str(value_raw).strip()
+
+            assignments.append(
+                ParsedAssignment(
+                    building_type=current_type,
+                    building_number=current_building_number,
+                    group_number=group_number,
+                    position_number=pos_idx + 1,
+                    value=value,
+                )
             )
-        )
+
     return assignments
 
 
@@ -413,13 +497,14 @@ async def import_file(
         return stats
 
     # 2. Parse sheets
+    print(f"  Available sheets: {wb.sheetnames}")
     try:
         members_ws = wb["Members"]
         assignments_ws = wb["Assignments"]
         reserves_ws = wb["Reserves"]
     except KeyError as exc:
         stats.error = True
-        stats.error_message = f"Missing required sheet: {exc}"
+        stats.error_message = f"Missing required sheet: {exc}. Available: {wb.sheetnames}"
         wb.close()
         return stats
 
@@ -427,6 +512,19 @@ async def import_file(
     parsed_assignments = parse_assignments_sheet(assignments_ws)
     parsed_reserves = parse_reserves_sheet(reserves_ws)
     wb.close()
+
+    print(f"  Parsed: {len(parsed_members)} members, {len(parsed_assignments)} assignments, {len(parsed_reserves)} reserves")
+
+    # Debug: dump ALL raw rows from Assignments sheet
+    wb2 = openpyxl.load_workbook(filepath, read_only=True, data_only=True)
+    ws2 = wb2["Assignments"]
+    print("  DEBUG Assignments ALL rows:")
+    for i, row in enumerate(ws2.iter_rows(min_row=1, values_only=True)):
+        # Only print rows that have any non-None value in first 6 cols
+        first6 = row[:6] if len(row) >= 6 else row
+        if any(c is not None for c in first6):
+            print(f"    Row {i+1}: {first6}")
+    wb2.close()
 
     # 3. Upsert members
     member_name_map: dict[str, Member] = {}  # lowercase name -> Member
@@ -629,12 +727,15 @@ def main() -> None:
     parser.add_argument(
         "path",
         type=Path,
-        help="Path to a single .xlsm file or a directory containing .xlsm files.",
+        nargs="?",
+        default=None,
+        help="Path to a single .xlsm file or a directory containing .xlsm files. "
+        "Falls back to IMPORT_EXCEL_PATH env var if not provided.",
     )
     parser.add_argument(
         "--database-url",
-        default=os.environ.get("DATABASE_URL"),
-        help="Database connection URL (defaults to DATABASE_URL env var).",
+        default=os.environ.get("IMPORT_DATABASE_URL", os.environ.get("DATABASE_URL")),
+        help="Database connection URL (defaults to IMPORT_DATABASE_URL, then DATABASE_URL env var).",
     )
     args = parser.parse_args()
 
@@ -645,7 +746,15 @@ def main() -> None:
         )
         sys.exit(1)
 
-    filepaths = collect_xlsm_files(args.path)
+    path = args.path or os.environ.get("IMPORT_EXCEL_PATH")
+    if not path:
+        print(
+            "Error: No import path provided. "
+            "Pass it as an argument or set the IMPORT_EXCEL_PATH environment variable."
+        )
+        sys.exit(1)
+
+    filepaths = collect_xlsm_files(Path(path))
     if not filepaths:
         sys.exit(0)
 
