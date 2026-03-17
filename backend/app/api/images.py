@@ -1,0 +1,70 @@
+"""Image generation endpoints."""
+
+import base64
+
+from fastapi import APIRouter, Depends
+from fastapi import HTTPException
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.db.session import get_db
+from app.services import board as board_service
+from app.services import image_gen
+from app.services.image_gen import SiegeMemberWithName
+from app.services.sieges import get_siege
+from app.models.enums import SiegeStatus
+from app.models.siege_member import SiegeMember
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
+
+router = APIRouter(tags=["images"])
+
+
+class GenerateImagesResponse(BaseModel):
+    assignments_image: str  # base64-encoded PNG
+    reserves_image: str  # base64-encoded PNG
+
+
+@router.post(
+    "/sieges/{siege_id}/generate-images",
+    response_model=GenerateImagesResponse,
+)
+async def generate_images(
+    siege_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """Generate PNG images for siege assignments and members list."""
+    siege = await get_siege(db, siege_id)
+    siege_date = siege.date.isoformat()
+
+    # Load board
+    board_dict = await board_service.get_board(db, siege_id)
+    from app.schemas.board import BoardResponse
+    board = BoardResponse.model_validate(board_dict)
+
+    # Load siege members with member data
+    result = await db.execute(
+        select(SiegeMember)
+        .where(SiegeMember.siege_id == siege_id)
+        .options(selectinload(SiegeMember.member))
+    )
+    siege_members = result.scalars().all()
+
+    members_with_names = [
+        SiegeMemberWithName(
+            name=sm.member.name,
+            role=sm.member.role,
+            attack_day=sm.attack_day,
+            has_reserve_set=sm.has_reserve_set,
+        )
+        for sm in siege_members
+        if sm.member is not None
+    ]
+
+    assignments_bytes = await image_gen.generate_assignments_image(board, siege_date)
+    reserves_bytes = await image_gen.generate_reserves_image(members_with_names, siege_date)
+
+    return GenerateImagesResponse(
+        assignments_image=base64.b64encode(assignments_bytes).decode(),
+        reserves_image=base64.b64encode(reserves_bytes).decode(),
+    )

@@ -9,6 +9,7 @@ import uvicorn
 from app.config import settings
 from app.discord_client import SiegeBot
 from app.http_api import app as http_app
+from app.http_api import set_bot
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,8 @@ async def main() -> None:
     """Start both the Discord client and HTTP server concurrently."""
     intents = discord.Intents.default()
     intents.members = True
-    bot = SiegeBot(intents=intents)
+    bot = SiegeBot(guild_id=int(settings.discord_guild_id), intents=intents)
+    set_bot(bot)
 
     async with asyncio.TaskGroup() as tg:
         tg.create_task(run_discord_client(bot))

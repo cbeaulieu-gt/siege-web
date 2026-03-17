@@ -1,11 +1,29 @@
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import BaseModel
 
 from app.config import settings
+from app.discord_client import SiegeBot
 
 app = FastAPI(title="Siege Bot HTTP API", version="0.1.0")
 
 _bearer_scheme = HTTPBearer()
+
+_bot: SiegeBot | None = None
+
+
+def set_bot(bot: SiegeBot) -> None:
+    global _bot
+    _bot = bot
+
+
+def _get_bot() -> SiegeBot:
+    if _bot is None or not _bot.is_ready():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Bot is not connected",
+        )
+    return _bot
 
 
 def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme)) -> None:
@@ -18,31 +36,70 @@ def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(_bearer_s
         )
 
 
+class NotifyRequest(BaseModel):
+    username: str
+    message: str
+
+
+class PostMessageRequest(BaseModel):
+    channel_name: str
+    message: str
+
+
 @app.get("/api/health")
-async def health() -> dict[str, str]:
+async def health() -> dict:
     """Health check — no authentication required."""
-    return {"status": "healthy"}
+    return {"status": "healthy", "bot_connected": _bot is not None and _bot.is_ready()}
 
 
-@app.post("/api/notify", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def notify(_: None = Depends(verify_api_key)) -> dict[str, str]:
-    """Send a DM notification to a guild member. Not yet implemented."""
-    return {"detail": "Not Implemented"}
+@app.post("/api/notify")
+async def notify(
+    body: NotifyRequest,
+    _: None = Depends(verify_api_key),
+) -> dict[str, str]:
+    """Send a DM notification to a guild member."""
+    bot = _get_bot()
+    try:
+        await bot.send_dm(body.username, body.message)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return {"status": "sent"}
 
 
-@app.post("/api/post-message", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def post_message(_: None = Depends(verify_api_key)) -> dict[str, str]:
-    """Post a text message to a guild channel. Not yet implemented."""
-    return {"detail": "Not Implemented"}
+@app.post("/api/post-message")
+async def post_message(
+    body: PostMessageRequest,
+    _: None = Depends(verify_api_key),
+) -> dict[str, str]:
+    """Post a text message to a guild channel."""
+    bot = _get_bot()
+    try:
+        await bot.post_message(body.channel_name, body.message)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return {"status": "sent"}
 
 
-@app.post("/api/post-image", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def post_image(_: None = Depends(verify_api_key)) -> dict[str, str]:
-    """Post an image to a guild channel. Not yet implemented."""
-    return {"detail": "Not Implemented"}
+@app.post("/api/post-image")
+async def post_image(
+    channel_name: str,
+    file: UploadFile,
+    _: None = Depends(verify_api_key),
+) -> dict[str, str]:
+    """Post an image to a guild channel."""
+    bot = _get_bot()
+    image_bytes = await file.read()
+    try:
+        await bot.post_image(channel_name, image_bytes, file.filename or "image.png")
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    return {"status": "sent"}
 
 
-@app.get("/api/members", status_code=status.HTTP_501_NOT_IMPLEMENTED)
-async def get_members(_: None = Depends(verify_api_key)) -> dict[str, str]:
-    """Retrieve guild member list. Not yet implemented."""
-    return {"detail": "Not Implemented"}
+@app.get("/api/members")
+async def get_members(
+    _: None = Depends(verify_api_key),
+) -> list[dict]:
+    """Retrieve guild member list."""
+    bot = _get_bot()
+    return await bot.get_members()
