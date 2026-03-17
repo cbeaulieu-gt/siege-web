@@ -34,9 +34,16 @@ async def get_board(session: AsyncSession, siege_id: int) -> dict:
     if siege is None:
         raise HTTPException(status_code=404, detail="Siege not found")
 
+    _BUILDING_TYPE_ORDER = {
+        "stronghold": 0,
+        "mana_shrine": 1,
+        "magic_tower": 2,
+        "defense_tower": 3,
+        "post": 4,
+    }
     buildings_sorted = sorted(
         siege.buildings,
-        key=lambda b: (b.building_type, b.building_number),
+        key=lambda b: (_BUILDING_TYPE_ORDER.get(b.building_type, 99), b.building_number),
     )
 
     buildings_out = []

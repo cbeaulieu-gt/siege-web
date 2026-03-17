@@ -35,7 +35,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '../components/ui/dialog';
-import { ArrowLeft, Lock } from 'lucide-react';
+import { ArrowLeft, Lock, LayoutGrid, MessageSquare, Users, GitCompare, Settings } from 'lucide-react';
 
 function AttackDaySelect({
   value,
@@ -149,24 +149,62 @@ export default function SiegeMembersPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="mb-6 flex items-start justify-between">
+        <div>
           <Link
-            to={`/sieges/${siegeId}`}
-            className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
+            to="/sieges"
+            className="mb-2 flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            Back to Sieges
           </Link>
-          <h1 className="text-2xl font-bold text-slate-900">Members — Siege #{siegeId}</h1>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Members — Siege {siege?.date ?? `#${siegeId}`}
+          </h1>
         </div>
-        <Button
-          size="sm"
-          onClick={() => previewMutation.mutate()}
-          disabled={previewMutation.isPending || siege?.status === 'complete'}
-        >
-          {previewMutation.isPending ? 'Loading...' : 'Auto-Assign Attack Days'}
-        </Button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex gap-2 text-sm">
+            <Link
+              to={`/sieges/${siegeId}/board`}
+              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Board
+            </Link>
+            <Link
+              to={`/sieges/${siegeId}/posts`}
+              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Posts
+            </Link>
+            <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 text-slate-700 font-medium">
+              <Users className="h-4 w-4" />
+              Members
+            </span>
+            <Link
+              to={`/sieges/${siegeId}/compare`}
+              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+            >
+              <GitCompare className="h-4 w-4" />
+              Compare
+            </Link>
+            <Link
+              to={`/sieges/${siegeId}`}
+              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => previewMutation.mutate()}
+            disabled={previewMutation.isPending || siege?.status === 'complete'}
+          >
+            {previewMutation.isPending ? 'Loading...' : 'Auto-Assign Attack Days'}
+          </Button>
+        </div>
       </div>
 
       {error && (

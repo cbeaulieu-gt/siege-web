@@ -28,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { ArrowLeft, ChevronDown } from 'lucide-react';
+import { ArrowLeft, ChevronDown, LayoutGrid, MessageSquare, Users, GitCompare, Settings } from 'lucide-react';
 
 type BuildingColorClass = {
   header: string;
@@ -356,35 +356,71 @@ export default function BoardPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="mb-4 flex items-start justify-between">
+        <div>
           <Link
-            to={`/sieges/${siegeId}`}
-            className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
+            to="/sieges"
+            className="mb-2 flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back
+            Back to Sieges
           </Link>
           <h1 className="text-xl font-bold text-slate-900">
             Board — Siege {siege?.date ?? `#${siegeId}`}
           </h1>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => validateMutation.mutate()}
-            disabled={validateMutation.isPending}
-          >
-            {validateMutation.isPending ? 'Validating...' : 'Validate'}
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => previewMutation.mutate()}
-            disabled={previewMutation.isPending || siege?.status === 'complete'}
-          >
-            {previewMutation.isPending ? 'Loading...' : 'Preview Auto-fill'}
-          </Button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex gap-2 text-sm">
+            <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 text-slate-700 font-medium">
+              <LayoutGrid className="h-4 w-4" />
+              Board
+            </span>
+            <Link
+              to={`/sieges/${siegeId}/posts`}
+              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+            >
+              <MessageSquare className="h-4 w-4" />
+              Posts
+            </Link>
+            <Link
+              to={`/sieges/${siegeId}/members`}
+              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+            >
+              <Users className="h-4 w-4" />
+              Members
+            </Link>
+            <Link
+              to={`/sieges/${siegeId}/compare`}
+              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+            >
+              <GitCompare className="h-4 w-4" />
+              Compare
+            </Link>
+            <Link
+              to={`/sieges/${siegeId}`}
+              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => validateMutation.mutate()}
+              disabled={validateMutation.isPending}
+            >
+              {validateMutation.isPending ? 'Validating...' : 'Validate'}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => previewMutation.mutate()}
+              disabled={previewMutation.isPending || siege?.status === 'complete'}
+            >
+              {previewMutation.isPending ? 'Loading...' : 'Preview Auto-fill'}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -420,17 +456,49 @@ export default function BoardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-        {board?.buildings.map((building) => (
-          <BuildingCard
-            key={building.id}
-            building={building}
-            siegeId={siegeId}
-            siegeMembers={siegeMembers ?? []}
-            onUpdate={refreshBoard}
-          />
-        ))}
-      </div>
+      {/* Buildings section — stronghold, mana_shrine, magic_tower, defense_tower */}
+      {(board?.buildings.filter((b) => b.building_type !== 'post') ?? []).length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Buildings
+          </h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {board?.buildings
+              .filter((b) => b.building_type !== 'post')
+              .map((building) => (
+                <BuildingCard
+                  key={building.id}
+                  building={building}
+                  siegeId={siegeId}
+                  siegeMembers={siegeMembers ?? []}
+                  onUpdate={refreshBoard}
+                />
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Posts section — post-type buildings (1 slot each) */}
+      {(board?.buildings.filter((b) => b.building_type === 'post') ?? []).length > 0 && (
+        <div>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Posts
+          </h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {board?.buildings
+              .filter((b) => b.building_type === 'post')
+              .map((building) => (
+                <BuildingCard
+                  key={building.id}
+                  building={building}
+                  siegeId={siegeId}
+                  siegeMembers={siegeMembers ?? []}
+                  onUpdate={refreshBoard}
+                />
+              ))}
+          </div>
+        </div>
+      )}
 
       {/* Autofill preview dialog */}
       <Dialog open={autofillOpen} onOpenChange={setAutofillOpen}>

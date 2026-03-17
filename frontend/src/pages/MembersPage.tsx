@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { getMembers } from '../api/members';
 import type { MemberRole } from '../api/types';
 import {
@@ -22,7 +22,7 @@ import {
 } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, ChevronRight } from 'lucide-react';
 
 const ROLE_LABELS: Record<MemberRole, string> = {
   heavy_hitter: 'Heavy Hitter',
@@ -105,12 +105,13 @@ export default function MembersPage() {
                 <TableHead>Power</TableHead>
                 <TableHead>Sort Value</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-slate-500">
+                  <TableCell colSpan={6} className="py-8 text-center text-slate-500">
                     No members found.
                   </TableCell>
                 </TableRow>
@@ -135,6 +136,16 @@ export default function MembersPage() {
                     <Badge variant={m.is_active ? 'green' : 'gray'}>
                       {m.is_active ? 'Active' : 'Inactive'}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Link
+                      to={`/members/${m.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700"
+                    >
+                      Edit / Preferences
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Link>
                   </TableCell>
                 </TableRow>
               ))}

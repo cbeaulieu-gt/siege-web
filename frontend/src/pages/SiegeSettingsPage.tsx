@@ -54,6 +54,7 @@ import {
   MessageSquare,
   Users,
   GitCompare,
+  Settings,
   Check,
   X,
   Loader2,
@@ -315,6 +316,10 @@ export default function SiegeSettingsPage() {
             <GitCompare className="h-4 w-4" />
             Compare
           </Link>
+          <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 text-slate-700 font-medium">
+            <Settings className="h-4 w-4" />
+            Settings
+          </span>
         </div>
       </div>
 
@@ -461,7 +466,18 @@ export default function SiegeSettingsPage() {
 
       {/* Lifecycle */}
       <section className="mb-6 rounded-lg border border-slate-200 bg-white p-6">
-        <h2 className="mb-4 text-base font-semibold text-slate-900">Lifecycle</h2>
+        <div className="mb-4 flex items-center gap-3">
+          <h2 className="text-base font-semibold text-slate-900">Lifecycle</h2>
+          {siege?.status === 'planning' && (
+            <Badge variant="secondary">Planning</Badge>
+          )}
+          {siege?.status === 'active' && (
+            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>
+          )}
+          {siege?.status === 'complete' && (
+            <Badge variant="outline">Complete</Badge>
+          )}
+        </div>
         <div className="flex flex-wrap gap-3">
           {siege?.status === 'planning' && (
             <Button
@@ -469,7 +485,7 @@ export default function SiegeSettingsPage() {
               onClick={() => activateMutation.mutate()}
               disabled={activateMutation.isPending}
             >
-              Activate
+              Start Siege
             </Button>
           )}
           {siege?.status === 'active' && (
@@ -478,7 +494,7 @@ export default function SiegeSettingsPage() {
               onClick={() => completeMutation.mutate()}
               disabled={completeMutation.isPending}
             >
-              Complete
+              Close Siege
             </Button>
           )}
           <Button

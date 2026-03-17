@@ -5,12 +5,20 @@ import { getPosts, updatePost, setPostConditions } from '../api/posts';
 import { getPostConditions } from '../api/members';
 import type { Post, PostConditionRef } from '../api/types';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp, LayoutGrid, MessageSquare, Users, GitCompare, Settings } from 'lucide-react';
+
+const PRIORITY_LABELS: Record<number, string> = { 1: 'Low', 2: 'Medium', 3: 'High' };
 
 function groupConditionsByLevel(conditions: PostConditionRef[]) {
   const groups: Record<number, PostConditionRef[]> = {};
@@ -74,7 +82,7 @@ function PostRow({ post, siegeId }: { post: Post; siegeId: number }) {
         <span className="text-sm font-semibold text-slate-900">
           Post {post.building_number}
         </span>
-        <span className="text-sm text-slate-500">Priority: {post.priority}</span>
+        <span className="text-sm text-slate-500">Priority: {PRIORITY_LABELS[post.priority] ?? post.priority}</span>
         {post.description && (
           <span className="text-sm text-slate-600 truncate">{post.description}</span>
         )}
@@ -102,14 +110,16 @@ function PostRow({ post, siegeId }: { post: Post; siegeId: number }) {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label htmlFor={`priority-${post.id}`}>Priority</Label>
-              <Input
-                id={`priority-${post.id}`}
-                type="number"
-                min="1"
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                className="w-24"
-              />
+              <Select value={priority} onValueChange={setPriority}>
+                <SelectTrigger id={`priority-${post.id}`} className="w-32">
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Low</SelectItem>
+                  <SelectItem value="2">Medium</SelectItem>
+                  <SelectItem value="3">High</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor={`desc-${post.id}`}>Description</Label>
@@ -193,15 +203,54 @@ export default function PostsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center gap-3">
-        <Link
-          to={`/sieges/${siegeId}`}
-          className="flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900">Posts — Siege #{siegeId}</h1>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <Link
+            to="/sieges"
+            className="mb-2 flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Sieges
+          </Link>
+          <h1 className="text-2xl font-bold text-slate-900">Posts — Siege #{siegeId}</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Set post conditions and priority for each post in this siege.
+          </p>
+        </div>
+        <div className="flex gap-2 text-sm">
+          <Link
+            to={`/sieges/${siegeId}/board`}
+            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+          >
+            <LayoutGrid className="h-4 w-4" />
+            Board
+          </Link>
+          <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 text-slate-700 font-medium">
+            <MessageSquare className="h-4 w-4" />
+            Posts
+          </span>
+          <Link
+            to={`/sieges/${siegeId}/members`}
+            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+          >
+            <Users className="h-4 w-4" />
+            Members
+          </Link>
+          <Link
+            to={`/sieges/${siegeId}/compare`}
+            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+          >
+            <GitCompare className="h-4 w-4" />
+            Compare
+          </Link>
+          <Link
+            to={`/sieges/${siegeId}`}
+            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
+          >
+            <Settings className="h-4 w-4" />
+            Settings
+          </Link>
+        </div>
       </div>
 
       {error && (
