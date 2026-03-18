@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPosts, updatePost, setPostConditions } from '../api/posts';
+import { getPosts, setPostConditions } from '../api/posts';
 import { getPostConditions } from '../api/members';
 import type { Post, PostConditionRef } from '../api/types';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
-import { Textarea } from '../components/ui/textarea';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
 import { ArrowLeft, ChevronDown, ChevronUp, LayoutGrid, MessageSquare, Users, GitCompare, Settings } from 'lucide-react';
@@ -25,7 +24,6 @@ function groupConditionsByLevel(conditions: PostConditionRef[]) {
 function PostRow({ post, siegeId }: { post: Post; siegeId: number }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
-  const [description, setDescription] = useState(post.description ?? '');
   const [selectedConditions, setSelectedConditions] = useState<Set<number>>(
     new Set(post.active_conditions.map((c) => c.id)),
   );
@@ -34,16 +32,6 @@ function PostRow({ post, siegeId }: { post: Post; siegeId: number }) {
     queryKey: ['postConditions'],
     queryFn: getPostConditions,
     enabled: expanded,
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: () =>
-      updatePost(siegeId, post.id, {
-        description: description || null,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts', siegeId] });
-    },
   });
 
   const condMutation = useMutation({
@@ -98,24 +86,6 @@ function PostRow({ post, siegeId }: { post: Post; siegeId: number }) {
 
       {expanded && (
         <div className="border-t border-slate-100 px-4 py-4 space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor={`desc-${post.id}`}>Description</Label>
-            <Textarea
-              id={`desc-${post.id}`}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              placeholder="Optional description"
-            />
-          </div>
-          <Button
-            size="sm"
-            onClick={() => updateMutation.mutate()}
-            disabled={updateMutation.isPending}
-          >
-            Save Details
-          </Button>
-
           <div>
             <h4 className="mb-2 text-sm font-medium text-slate-700">
               Conditions (max 3)

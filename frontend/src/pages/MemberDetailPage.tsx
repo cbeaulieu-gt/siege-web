@@ -250,6 +250,10 @@ export default function MemberDetailPage() {
               value={sortValue}
               onChange={(e) => setSortValue(e.target.value)}
             />
+            <p className="text-xs text-slate-500">
+              Controls member ordering in dropdowns and auto-fill. Lower values are assigned first.
+              Typical range: 1 (highest priority) to 30 (lowest priority).
+            </p>
           </div>
 
           {saveError && (

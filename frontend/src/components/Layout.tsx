@@ -52,6 +52,19 @@ export default function Layout() {
               >
                 Post Priorities
               </NavLink>
+              <NavLink
+                to="/post-conditions"
+                className={({ isActive }) =>
+                  cn(
+                    'rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-slate-100 text-slate-900'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+                  )
+                }
+              >
+                Post Conditions
+              </NavLink>
             </div>
           </div>
         </div>

@@ -238,12 +238,14 @@ function BuildingCard({
   siegeMembers,
   onUpdate,
   priorityLabel,
+  description,
 }: {
   building: BuildingResponse;
   siegeId: number;
   siegeMembers: SiegeMember[];
   onUpdate: () => void;
   priorityLabel?: string;
+  description?: string | null;
 }) {
   const colors = BUILDING_COLORS[building.building_type];
 
@@ -258,6 +260,9 @@ function BuildingCard({
           {building.is_broken ? ' · Broken' : ''}
           {priorityLabel ? ` · ${priorityLabel}` : ''}
         </p>
+        {description && (
+          <p className="text-xs opacity-75 truncate">{description}</p>
+        )}
       </div>
       <div className={`${colors.bg} p-2 space-y-2`}>
         {building.groups.map((group) => (
@@ -511,6 +516,7 @@ export default function BoardPage() {
                   siegeMembers={siegeMembers ?? []}
                   onUpdate={refreshBoard}
                   priorityLabel={PRIORITY_LABELS[priorityLookup[building.building_number]] ?? undefined}
+                  description={postPriorities?.find((pp) => pp.post_number === building.building_number)?.description}
                 />
               ))}
           </div>

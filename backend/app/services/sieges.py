@@ -102,6 +102,7 @@ async def create_siege(session: AsyncSession, data: SiegeCreate) -> Siege:
                     siege_id=siege.id,
                     building_id=building.id,
                     priority=ppc.priority if ppc else 2,
+                    description=ppc.description if ppc else None,
                 ))
 
     await session.commit()

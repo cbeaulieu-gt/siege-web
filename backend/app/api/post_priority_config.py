@@ -14,10 +14,12 @@ class PostPriorityResponse(BaseModel):
     id: int
     post_number: int
     priority: int
+    description: str | None
 
 
 class PostPriorityUpdate(BaseModel):
-    priority: int
+    priority: int | None = None
+    description: str | None = None
 
 
 @router.get("/post-priorities", response_model=list[PostPriorityResponse])
@@ -40,7 +42,9 @@ async def update_post_priority(
     config = result.scalar_one_or_none()
     if config is None:
         raise HTTPException(status_code=404, detail="Post number not found")
-    config.priority = data.priority
+    updates = data.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(config, field, value)
     await db.commit()
     await db.refresh(config)
     return config

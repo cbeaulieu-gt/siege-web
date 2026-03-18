@@ -5,6 +5,7 @@ export interface PostPriorityConfig {
   id: number;
   post_number: number;
   priority: number;
+  description: string | null;
 }
 
 export async function getPostPriorities(): Promise<PostPriorityConfig[]> {
@@ -14,11 +15,11 @@ export async function getPostPriorities(): Promise<PostPriorityConfig[]> {
 
 export async function updatePostPriority(
   postNumber: number,
-  priority: number,
+  data: { priority?: number; description?: string | null },
 ): Promise<PostPriorityConfig> {
   const res = await apiClient.put<PostPriorityConfig>(
     `/api/post-priorities/${postNumber}`,
-    { priority },
+    data,
   );
   return res.data;
 }

@@ -10,6 +10,7 @@ import PostsPage from './pages/PostsPage';
 import SiegeMembersPage from './pages/SiegeMembersPage';
 import ComparisonPage from './pages/ComparisonPage';
 import PostPrioritiesPage from './pages/PostPrioritiesPage';
+import PostConditionsPage from './pages/PostConditionsPage';
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
         <Route path="/sieges/:id/members" element={<SiegeMembersPage />} />
         <Route path="/sieges/:id/compare" element={<ComparisonPage />} />
         <Route path="/post-priorities" element={<PostPrioritiesPage />} />
+        <Route path="/post-conditions" element={<PostConditionsPage />} />
       </Route>
     </Routes>
   );

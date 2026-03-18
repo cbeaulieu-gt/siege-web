@@ -9,7 +9,9 @@ from app.models.member import Member
 from app.models.member_post_preference import member_post_preference
 from app.models.position import Position
 from app.models.post_condition import PostCondition
+from app.models.enums import SiegeStatus
 from app.models.siege import Siege
+from app.models.siege_member import SiegeMember
 from app.schemas.member import MemberCreate, MemberPreferencesUpdate, MemberUpdate
 
 
@@ -42,6 +44,14 @@ async def create_member(session: AsyncSession, data: MemberCreate) -> Member:
         )
     member = Member(**data.model_dump())
     session.add(member)
+    await session.flush()
+
+    planning_sieges = await session.execute(
+        select(Siege).where(Siege.status == SiegeStatus.planning)
+    )
+    for siege in planning_sieges.scalars().all():
+        session.add(SiegeMember(siege_id=siege.id, member_id=member.id))
+
     await session.commit()
     await session.refresh(member)
     return member

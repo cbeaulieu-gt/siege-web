@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPostPriorities, updatePostPriority } from '../api/posts';
 import {
@@ -15,6 +16,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
+import { Input } from '../components/ui/input';
+
+function DescriptionCell({ postNumber, value }: { postNumber: number; value: string | null }) {
+  const queryClient = useQueryClient();
+  const [desc, setDesc] = useState(value ?? '');
+
+  const mutation = useMutation({
+    mutationFn: (description: string | null) =>
+      updatePostPriority(postNumber, { description }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['postPriorities'] });
+    },
+  });
+
+  return (
+    <Input
+      value={desc}
+      onChange={(e) => setDesc(e.target.value)}
+      onBlur={() => {
+        const newVal = desc.trim() || null;
+        if (newVal !== (value ?? null)) {
+          mutation.mutate(newVal);
+        }
+      }}
+      placeholder="e.g. Near Mana Shrine 1"
+      className="h-8 text-sm"
+    />
+  );
+}
 
 export default function PostPrioritiesPage() {
   const queryClient = useQueryClient();
@@ -25,17 +55,17 @@ export default function PostPrioritiesPage() {
 
   const mutation = useMutation({
     mutationFn: ({ postNumber, priority }: { postNumber: number; priority: number }) =>
-      updatePostPriority(postNumber, priority),
+      updatePostPriority(postNumber, { priority }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['postPriorities'] });
     },
   });
 
   return (
-    <div className="max-w-2xl">
-      <h1 className="mb-2 text-2xl font-bold text-slate-900">Post Priorities</h1>
+    <div className="max-w-3xl">
+      <h1 className="mb-2 text-2xl font-bold text-slate-900">Post Config</h1>
       <p className="mb-6 text-sm text-slate-500">
-        Global priority for each post position. These are copied to new sieges when created.
+        Global priority and description for each post position. These are copied to new sieges when created.
       </p>
 
       {isLoading ? (
@@ -45,8 +75,9 @@ export default function PostPrioritiesPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Post</TableHead>
-                <TableHead>Priority</TableHead>
+                <TableHead className="w-24">Post</TableHead>
+                <TableHead className="w-36">Priority</TableHead>
+                <TableHead>Description</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -69,6 +100,9 @@ export default function PostPrioritiesPage() {
                         <SelectItem value="3">High</SelectItem>
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell>
+                    <DescriptionCell postNumber={p.post_number} value={p.description} />
                   </TableCell>
                 </TableRow>
               ))}
