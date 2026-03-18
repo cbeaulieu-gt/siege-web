@@ -30,6 +30,7 @@ async def update_position(
         "member_id": position.member_id,
         "is_reserve": position.is_reserve,
         "is_disabled": position.is_disabled,
+        "matched_condition_id": position.matched_condition_id,
     }
 
 
@@ -47,6 +48,7 @@ async def bulk_update_positions(
             "member_id": p.member_id,
             "is_reserve": p.is_reserve,
             "is_disabled": p.is_disabled,
+            "matched_condition_id": p.matched_condition_id,
         }
         for p in positions
     ]

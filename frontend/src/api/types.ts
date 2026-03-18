@@ -45,6 +45,13 @@ export interface Building {
   is_broken: boolean;
 }
 
+// Member preferences bulk summary
+export interface MemberPreferenceSummary {
+  member_id: number;
+  member_name: string;
+  preferences: PostCondition[];
+}
+
 // Board types (nested hierarchy from GET /api/sieges/{id}/board)
 export interface PositionResponse {
   id: number;
@@ -54,6 +61,7 @@ export interface PositionResponse {
   is_reserve: boolean;
   is_disabled: boolean;
   has_no_assignment: boolean;
+  matched_condition_id: number | null;
 }
 
 export interface BuildingGroupResponse {

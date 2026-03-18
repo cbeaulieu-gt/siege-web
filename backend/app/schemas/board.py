@@ -11,6 +11,7 @@ class PositionBoardResponse(BaseModel):
     member_name: str | None  # denormalized for display
     is_reserve: bool
     is_disabled: bool
+    matched_condition_id: int | None
 
 
 class GroupBoardResponse(BaseModel):
@@ -40,6 +41,7 @@ class PositionUpdate(BaseModel):
     member_id: int | None = None
     is_reserve: bool = False
     is_disabled: bool = False
+    matched_condition_id: int | None = None
 
 
 class BulkPositionUpdate(BaseModel):

@@ -99,7 +99,8 @@ async def preview_autofill(session: AsyncSession, siege_id: int) -> AutofillPrev
             ))
 
     # 7. Store preview with TTL
-    expires_at = _now_utc() + timedelta(minutes=PREVIEW_TTL_MINUTES)
+    # Strip timezone before storing — DB column is TIMESTAMP (naive), implicitly UTC
+    expires_at = _now_utc().replace(tzinfo=None) + timedelta(minutes=PREVIEW_TTL_MINUTES)
     siege.autofill_preview = {
         "assignments": [a.model_dump() for a in assignments]
     }

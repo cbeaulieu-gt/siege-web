@@ -34,9 +34,15 @@ class Siege(Base):
     attack_day_preview: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     attack_day_preview_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
-    buildings: Mapped[list["Building"]] = relationship(back_populates="siege")
-    siege_members: Mapped[list["SiegeMember"]] = relationship(back_populates="siege")
-    posts: Mapped[list["Post"]] = relationship(back_populates="siege")
+    buildings: Mapped[list["Building"]] = relationship(
+        back_populates="siege", cascade="all, delete-orphan", passive_deletes=True
+    )
+    siege_members: Mapped[list["SiegeMember"]] = relationship(
+        back_populates="siege", cascade="all, delete-orphan", passive_deletes=True
+    )
+    posts: Mapped[list["Post"]] = relationship(
+        back_populates="siege", cascade="all, delete-orphan", passive_deletes=True
+    )
     notification_batches: Mapped[list["NotificationBatch"]] = relationship(
-        back_populates="siege"
+        back_populates="siege", cascade="all, delete-orphan", passive_deletes=True
     )

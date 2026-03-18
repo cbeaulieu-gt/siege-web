@@ -1,12 +1,26 @@
-import { useState } from 'react';
+import { useState, useMemo, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  DndContext,
+  DragOverlay,
+  useDraggable,
+  useDroppable,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import { getBoard, updatePosition } from '../api/board';
-import { getSiege, getSiegeMembers, previewAutofill, applyAutofill, validateSiege } from '../api/sieges';
+import { getSiege, getSiegeMembers, previewAutofill, applyAutofill, validateSiege, updateSiegeMember } from '../api/sieges';
 import { getPostPriorities } from '../api/posts';
+import { PostsTab } from '../components/PostsTab';
 import type {
   BuildingType,
   BuildingResponse,
+  BuildingGroupResponse,
   PositionResponse,
   SiegeMember,
   AutofillPreviewResult,
@@ -14,6 +28,7 @@ import type {
 } from '../api/types';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
 import {
   Dialog,
   DialogContent,
@@ -23,29 +38,65 @@ import {
   DialogDescription,
 } from '../components/ui/dialog';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
-import { ArrowLeft, ChevronDown, LayoutGrid, Lock, MessageSquare, Users, GitCompare, Settings } from 'lucide-react';
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  LayoutGrid,
+  MessageSquare,
+  Users,
+  GitCompare,
+  Settings,
+  Search,
+  Loader2,
+} from 'lucide-react';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 type BuildingColorClass = {
   header: string;
+  headerText: string;
   border: string;
   bg: string;
+  sectionHeader: string;
 };
 
 const BUILDING_COLORS: Record<BuildingType, BuildingColorClass> = {
-  stronghold: { header: 'bg-violet-600', border: 'border-violet-200', bg: 'bg-violet-50' },
-  mana_shrine: { header: 'bg-blue-600', border: 'border-blue-200', bg: 'bg-blue-50' },
-  magic_tower: { header: 'bg-orange-600', border: 'border-orange-200', bg: 'bg-orange-50' },
-  defense_tower: { header: 'bg-green-600', border: 'border-green-200', bg: 'bg-green-50' },
-  post: { header: 'bg-red-600', border: 'border-red-200', bg: 'bg-red-50' },
+  stronghold: {
+    header: 'bg-violet-600',
+    headerText: 'text-violet-700',
+    border: 'border-violet-200',
+    bg: 'bg-violet-50',
+    sectionHeader: 'bg-violet-50 border-violet-200 text-violet-800',
+  },
+  mana_shrine: {
+    header: 'bg-blue-600',
+    headerText: 'text-blue-700',
+    border: 'border-blue-200',
+    bg: 'bg-blue-50',
+    sectionHeader: 'bg-blue-50 border-blue-200 text-blue-800',
+  },
+  magic_tower: {
+    header: 'bg-orange-600',
+    headerText: 'text-orange-700',
+    border: 'border-orange-200',
+    bg: 'bg-orange-50',
+    sectionHeader: 'bg-orange-50 border-orange-200 text-orange-800',
+  },
+  defense_tower: {
+    header: 'bg-green-600',
+    headerText: 'text-green-700',
+    border: 'border-green-200',
+    bg: 'bg-green-50',
+    sectionHeader: 'bg-green-50 border-green-200 text-green-800',
+  },
+  post: {
+    header: 'bg-red-600',
+    headerText: 'text-red-700',
+    border: 'border-red-200',
+    bg: 'bg-red-50',
+    sectionHeader: 'bg-red-50 border-red-200 text-red-800',
+  },
 };
-
-const PRIORITY_LABELS: Record<number, string> = { 1: 'Low', 2: 'Medium', 3: 'High' };
 
 const BUILDING_LABELS: Record<BuildingType, string> = {
   stronghold: 'Stronghold',
@@ -62,6 +113,35 @@ const ROLE_LABELS: Record<string, string> = {
   novice: 'Nov',
 };
 
+const ROLE_PRIORITY: Record<string, number> = {
+  heavy_hitter: 0,
+  advanced: 1,
+  medium: 2,
+  novice: 3,
+};
+
+const ROLE_COLORS: Record<string, string> = {
+  heavy_hitter: 'border-red-500 bg-red-50',
+  advanced: 'border-amber-500 bg-amber-50',
+  medium: 'border-green-500 bg-green-50',
+  novice: 'border-blue-400 bg-blue-50',
+};
+
+const ROLE_BADGE_COLORS: Record<string, string> = {
+  heavy_hitter: 'bg-red-100 text-red-700',
+  advanced: 'bg-amber-100 text-amber-700',
+  medium: 'bg-green-100 text-green-700',
+  novice: 'bg-blue-100 text-blue-700',
+};
+
+// Role-colored chip for member name inside a position cell
+const ROLE_CHIP_COLORS: Record<string, string> = {
+  heavy_hitter: 'bg-red-100 text-red-800',
+  advanced: 'bg-amber-100 text-amber-800',
+  medium: 'bg-green-100 text-green-800',
+  novice: 'bg-blue-100 text-blue-800',
+};
+
 const POWER_LABELS: Record<string, string> = {
   lt_10m: '<10M',
   '10_15m': '10-15M',
@@ -70,23 +150,37 @@ const POWER_LABELS: Record<string, string> = {
   gt_25m: '>25M',
 };
 
+// Canonical sort order for building sections
+const BUILDING_TYPE_ORDER: BuildingType[] = [
+  'stronghold',
+  'mana_shrine',
+  'magic_tower',
+  'defense_tower',
+];
+
+// ─── PositionCell ──────────────────────────────────────────────────────────────
+
 function PositionCell({
   position,
   siegeId,
-  siegeMembers,
+  memberRoleMap,
   onUpdate,
   isLocked,
 }: {
   position: PositionResponse;
   siegeId: number;
-  siegeMembers: SiegeMember[];
+  memberRoleMap: Record<number, string>;
   onUpdate: () => void;
   isLocked?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [assignOpen, setAssignOpen] = useState(false);
-  const [selectedMemberId, setSelectedMemberId] = useState<string>('');
+
+  const droppableDisabled = position.is_disabled || !!isLocked;
+  const { setNodeRef, isOver } = useDroppable({
+    id: `position-${position.id}`,
+    disabled: droppableDisabled,
+  });
 
   const mutation = useMutation({
     mutationFn: (data: {
@@ -98,66 +192,53 @@ function PositionCell({
       queryClient.invalidateQueries({ queryKey: ['board', siegeId] });
       onUpdate();
       setMenuOpen(false);
-      setAssignOpen(false);
     },
   });
 
-  function handleAssign() {
-    if (selectedMemberId) {
-      mutation.mutate({
-        member_id: Number(selectedMemberId),
-        is_reserve: false,
-        has_no_assignment: false,
-      });
-    }
-  }
+  const role = position.member_id != null ? memberRoleMap[position.member_id] : undefined;
+  const chipColor = role ? ROLE_CHIP_COLORS[role] ?? 'bg-slate-100 text-slate-700' : '';
 
   function cellContent() {
     if (position.is_disabled) {
-      return (
-        <span className="text-xs text-slate-400 line-through">DISABLED</span>
-      );
+      return <span className="text-xs text-slate-400 line-through">DISABLED</span>;
     }
     if (position.is_reserve) {
-      return <Badge variant="yellow" className="text-xs">RESERVE</Badge>;
+      return <Badge variant="yellow" className="text-xs px-1 py-0">RESERVE</Badge>;
     }
     if (position.has_no_assignment) {
       return <span className="text-xs text-slate-400">N/A</span>;
     }
     if (position.member_id != null) {
       return (
-        <span className="truncate text-xs font-medium text-slate-800">
+        <span className={`truncate rounded px-1 text-xs font-medium ${chipColor}`}>
           {position.member_name}
         </span>
       );
     }
-    return <span className="text-xs text-slate-300">-</span>;
+    return <span className="text-xs text-slate-300">—</span>;
   }
 
-  const isEmpty =
-    !position.is_disabled &&
-    !position.is_reserve &&
-    !position.has_no_assignment &&
-    position.member_id == null;
+  const cellBg = position.is_disabled ? 'bg-slate-100' : 'bg-white';
 
-  const cellBg = position.is_disabled
-    ? 'bg-slate-100'
-    : position.member_id != null
-      ? 'bg-white'
-      : isEmpty
-        ? 'bg-white border-dashed'
-        : 'bg-white';
+  const borderStyle = isOver
+    ? 'border-violet-400 ring-2 ring-violet-400'
+    : position.is_disabled
+      ? 'border-slate-200'
+      : position.member_id != null
+        ? 'border-slate-200'
+        : 'border-dashed border-slate-200';
 
   return (
     <>
       <div
-        className={`group relative flex min-h-[32px] items-center justify-between rounded border border-slate-200 px-2 py-1 ${cellBg}`}
+        ref={setNodeRef}
+        className={`group relative flex min-h-[28px] items-center justify-between rounded border px-1.5 py-0.5 ${cellBg} ${borderStyle} cursor-default`}
       >
         <span className="mr-1 shrink-0 text-xs text-slate-400">{position.position_number}.</span>
-        <div className="flex min-w-0 flex-1 items-center">{cellContent()}</div>
+        <div className="flex min-w-0 flex-1 items-center overflow-hidden">{cellContent()}</div>
         {!position.is_disabled && !isLocked && (
           <button
-            className="ml-1 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+            className="ml-0.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
             onClick={() => setMenuOpen(true)}
           >
             <ChevronDown className="h-3 w-3 text-slate-400" />
@@ -174,16 +255,6 @@ function PositionCell({
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setMenuOpen(false);
-                setAssignOpen(true);
-              }}
-            >
-              Assign Member
-            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -211,98 +282,272 @@ function PositionCell({
           </div>
         </DialogContent>
       </Dialog>
-
-      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
-        <DialogContent className="max-w-xs">
-          <DialogHeader>
-            <DialogTitle>Assign Member</DialogTitle>
-            <DialogDescription>
-              Select a member for position {position.position_number}.
-            </DialogDescription>
-          </DialogHeader>
-          <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select member..." />
-            </SelectTrigger>
-            <SelectContent>
-              {siegeMembers.map((m) => (
-                <SelectItem key={m.member_id} value={String(m.member_id)}>
-                  <span className="flex items-center gap-2">
-                    <span>{m.member_name}</span>
-                    <span className="text-xs text-slate-400">
-                      {ROLE_LABELS[m.member_role] ?? m.member_role}
-                      {m.member_power_level ? ` · ${POWER_LABELS[m.member_power_level] ?? m.member_power_level}` : ''}
-                    </span>
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAssignOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleAssign}
-              disabled={!selectedMemberId || mutation.isPending}
-            >
-              Assign
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
 
-function BuildingCard({
+// ─── DraggableMemberRow ────────────────────────────────────────────────────────
+
+function DraggableMemberRow({
+  member,
+  count,
+  scrollLimit,
+  isLocked,
+}: {
+  member: SiegeMember;
+  count: number;
+  scrollLimit: number;
+  isLocked: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `member-${member.member_id}`,
+    disabled: isLocked,
+  });
+
+  const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
+
+  const overLimit = scrollLimit > 0 && count > scrollLimit;
+  const roleColor = ROLE_COLORS[member.member_role] ?? 'border-slate-300 bg-white';
+  const badgeColor = ROLE_BADGE_COLORS[member.member_role] ?? 'bg-slate-100 text-slate-600';
+  const tooltip = [
+    member.member_power_level
+      ? (POWER_LABELS[member.member_power_level] ?? member.member_power_level)
+      : null,
+    member.attack_day ? `Day ${member.attack_day}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      title={tooltip || undefined}
+      className={`flex items-center gap-1.5 border-l-4 px-2 py-1.5 ${overLimit ? 'bg-red-50 border-red-300' : roleColor} ${
+        isDragging ? 'opacity-40' : ''
+      } ${!isLocked ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      {...listeners}
+      {...attributes}
+    >
+      <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-800">
+        {member.member_name}
+      </span>
+      <span className={`shrink-0 rounded px-1 py-0.5 text-xs font-medium ${badgeColor}`}>
+        {ROLE_LABELS[member.member_role] ?? member.member_role}
+      </span>
+      <span
+        className={`shrink-0 rounded-full px-1.5 py-0 text-xs font-semibold tabular-nums ${
+          overLimit ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
+        }`}
+      >
+        {count}
+      </span>
+    </div>
+  );
+}
+
+// ─── MemberDragOverlay ─────────────────────────────────────────────────────────
+// Floating chip rendered by DragOverlay while a member is being dragged.
+
+function MemberDragOverlay({ member }: { member: SiegeMember }) {
+  const roleColor = ROLE_COLORS[member.member_role] ?? 'border-slate-300 bg-white';
+  const badgeColor = ROLE_BADGE_COLORS[member.member_role] ?? 'bg-slate-100 text-slate-600';
+
+  return (
+    <div
+      className={`flex items-center gap-1.5 rounded border-l-4 bg-white px-2 py-1.5 shadow-lg ${roleColor}`}
+      style={{ width: '13rem' }}
+    >
+      <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-800">
+        {member.member_name}
+      </span>
+      <span className={`shrink-0 rounded px-1 py-0.5 text-xs font-medium ${badgeColor}`}>
+        {ROLE_LABELS[member.member_role] ?? member.member_role}
+      </span>
+    </div>
+  );
+}
+
+// ─── MemberBucket ──────────────────────────────────────────────────────────────
+
+type RoleFilter = 'all' | 'heavy_hitter' | 'advanced' | 'medium' | 'novice';
+
+const ROLE_FILTER_OPTIONS: { value: RoleFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'heavy_hitter', label: 'Heavy Hitter' },
+  { value: 'advanced', label: 'Advanced' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'novice', label: 'Novice' },
+];
+
+function MemberBucket({
+  siegeMembers,
+  memberAssignments,
+  scrollLimit,
+  isLocked,
+}: {
+  siegeMembers: SiegeMember[];
+  memberAssignments: Record<number, number>;
+  scrollLimit: number;
+  isLocked: boolean;
+}) {
+  const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    return siegeMembers
+      .filter((m) => !q || m.member_name.toLowerCase().includes(q))
+      .filter((m) => roleFilter === 'all' || m.member_role === roleFilter)
+      .slice()
+      .sort((a, b) => {
+        const roleDiff = (ROLE_PRIORITY[a.member_role] ?? 99) - (ROLE_PRIORITY[b.member_role] ?? 99);
+        if (roleDiff !== 0) return roleDiff;
+        const countDiff = (memberAssignments[a.member_id] ?? 0) - (memberAssignments[b.member_id] ?? 0);
+        if (countDiff !== 0) return countDiff;
+        return a.member_name.localeCompare(b.member_name);
+      });
+  }, [siegeMembers, search, roleFilter, memberAssignments]);
+
+  return (
+    <div
+      className="flex w-52 shrink-0 flex-col"
+      style={{ height: 'calc(100vh - 200px)', position: 'sticky', top: '16px', alignSelf: 'flex-start' }}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Members
+        </span>
+        <span className="text-xs text-slate-400">{siegeMembers.length}</span>
+      </div>
+
+      <div className="relative mb-1.5">
+        <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+        <Input
+          placeholder="Search..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="h-7 pl-6 text-xs"
+        />
+      </div>
+
+      <select
+        value={roleFilter}
+        onChange={(e) => setRoleFilter(e.target.value as RoleFilter)}
+        className="mb-2 h-7 w-full rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-1 focus:ring-violet-400"
+      >
+        {ROLE_FILTER_OPTIONS.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+
+      <div className="flex-1 overflow-y-auto rounded-lg border border-slate-200 bg-white">
+        {filtered.length === 0 ? (
+          <p className="px-3 py-4 text-center text-xs text-slate-400">No members</p>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {filtered.map((m) => (
+              <DraggableMemberRow
+                key={m.member_id}
+                member={m}
+                count={memberAssignments[m.member_id] ?? 0}
+                scrollLimit={scrollLimit}
+                isLocked={isLocked}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── BuildingTableRow ──────────────────────────────────────────────────────────
+// Renders one building as a table row (or multi-row if groups > 5).
+
+const MAX_GROUPS_PER_ROW = 5;
+
+function BuildingTableRow({
   building,
   siegeId,
-  siegeMembers,
+  memberRoleMap,
   onUpdate,
-  priorityLabel,
-  description,
   isLocked,
 }: {
   building: BuildingResponse;
   siegeId: number;
-  siegeMembers: SiegeMember[];
+  memberRoleMap: Record<number, string>;
   onUpdate: () => void;
-  priorityLabel?: string;
-  description?: string | null;
   isLocked?: boolean;
 }) {
   const colors = BUILDING_COLORS[building.building_type];
 
+  // Chunk groups into rows of MAX_GROUPS_PER_ROW
+  const groupChunks: BuildingGroupResponse[][] = [];
+  for (let i = 0; i < building.groups.length; i += MAX_GROUPS_PER_ROW) {
+    groupChunks.push(building.groups.slice(i, i + MAX_GROUPS_PER_ROW));
+  }
+
+  const allPositions = building.groups.flatMap((g) => g.positions);
+  const filledCount = allPositions.filter(
+    (p) => !p.is_disabled && !p.is_reserve && !p.has_no_assignment && p.member_id != null,
+  ).length;
+  const activeCount = allPositions.filter((p) => !p.is_disabled).length;
+
   return (
-    <div className={`rounded-lg border ${colors.border} overflow-hidden`}>
-      <div className={`${colors.header} px-3 py-2 text-white`}>
-        <p className="text-xs font-semibold uppercase tracking-wide">
+    <div className={`flex rounded border ${colors.border} overflow-hidden`}>
+      {/* Building label — sits in a single column that naturally spans all sub-rows */}
+      <div
+        className={`${colors.header} flex w-36 shrink-0 flex-col justify-center px-2 py-2 text-white`}
+      >
+        <p className="text-xs font-semibold leading-tight">
           {BUILDING_LABELS[building.building_type]} {building.building_number}
         </p>
-        <p className="text-xs opacity-75">
-          Lvl {building.level}
+        <p className="mt-0.5 text-xs opacity-75">
+          Lv {building.level}
           {building.is_broken ? ' · Broken' : ''}
-          {priorityLabel ? ` · ${priorityLabel}` : ''}
         </p>
-        {description && (
-          <p className="text-xs opacity-75 truncate">{description}</p>
-        )}
+        <p className="mt-0.5 text-xs opacity-75">
+          {filledCount}/{activeCount} filled
+        </p>
       </div>
-      <div className={`${colors.bg} p-2 space-y-2`}>
-        {building.groups.map((group) => (
-          <div key={group.id} className="space-y-1">
-            <p className="text-xs font-medium text-slate-500">Group {group.group_number}</p>
-            {group.positions.map((pos) => (
-              <PositionCell
-                key={pos.id}
-                position={pos}
-                siegeId={siegeId}
-                siegeMembers={siegeMembers}
-                onUpdate={onUpdate}
-                isLocked={isLocked}
-              />
+
+      {/* Group sub-rows stacked vertically */}
+      <div className="flex flex-1 flex-col">
+        {groupChunks.map((chunk, chunkIdx) => (
+          <div
+            key={chunkIdx}
+            className={`flex flex-1 ${chunkIdx > 0 ? `border-t ${colors.border}` : ''}`}
+          >
+            {chunk.map((group) => (
+              <div
+                key={group.id}
+                className={`flex-1 border-l ${colors.border} ${colors.bg} min-w-0 px-1.5 py-1.5`}
+              >
+                <p className="mb-1 text-center text-xs font-medium text-slate-500">
+                  G{group.group_number}
+                </p>
+                <div className="space-y-0.5">
+                  {group.positions.map((pos) => (
+                    <PositionCell
+                      key={pos.id}
+                      position={pos}
+                      siegeId={siegeId}
+                      memberRoleMap={memberRoleMap}
+                      onUpdate={onUpdate}
+                      isLocked={isLocked}
+                    />
+                  ))}
+                </div>
+              </div>
             ))}
+            {/* Pad empty columns so rows are uniform width when fewer than max groups */}
+            {chunk.length < MAX_GROUPS_PER_ROW &&
+              Array.from({ length: MAX_GROUPS_PER_ROW - chunk.length }).map((_, i) => (
+                <div key={`pad-${i}`} className="flex-1 border-l border-transparent" />
+              ))}
           </div>
         ))}
       </div>
@@ -310,15 +555,178 @@ function BuildingCard({
   );
 }
 
+// ─── BuildingTypeSection ───────────────────────────────────────────────────────
+
+function BuildingTypeSection({
+  type,
+  buildings,
+  siegeId,
+  memberRoleMap,
+  onUpdate,
+  isLocked,
+  defaultExpanded,
+}: {
+  type: BuildingType;
+  buildings: BuildingResponse[];
+  siegeId: number;
+  memberRoleMap: Record<number, string>;
+  onUpdate: () => void;
+  isLocked?: boolean;
+  defaultExpanded: boolean;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const colors = BUILDING_COLORS[type];
+
+  return (
+    <div className="mb-4">
+      {/* Section header */}
+      <div
+        className={`flex cursor-pointer select-none items-center gap-2 rounded-t border px-3 py-2 ${colors.sectionHeader}`}
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <span className="text-slate-500">
+          {expanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+        </span>
+        <span className="text-sm font-semibold uppercase tracking-wide">
+          {BUILDING_LABELS[type]}
+        </span>
+        <span className="text-xs opacity-70">({buildings.length})</span>
+      </div>
+
+      {expanded && (
+        <div className="space-y-1 rounded-b border-x border-b border-slate-200 bg-white p-2">
+          {buildings.map((b) => (
+            <BuildingTableRow
+              key={b.id}
+              building={b}
+              siegeId={siegeId}
+              memberRoleMap={memberRoleMap}
+              onUpdate={onUpdate}
+              isLocked={isLocked}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── BuildingsTab ──────────────────────────────────────────────────────────────
+
+function BuildingsTab({
+  buildings,
+  siegeId,
+  memberRoleMap,
+  onUpdate,
+  isLocked,
+}: {
+  buildings: BuildingResponse[];
+  siegeId: number;
+  memberRoleMap: Record<number, string>;
+  onUpdate: () => void;
+  isLocked?: boolean;
+}) {
+  const nonPostBuildings = buildings.filter((b) => b.building_type !== 'post');
+
+  if (nonPostBuildings.length === 0) {
+    return (
+      <div className="py-12 text-center text-slate-500">
+        No buildings configured.{' '}
+        <Link
+          to={`/sieges/${siegeId}`}
+          className="text-violet-600 hover:underline"
+        >
+          Add buildings
+        </Link>{' '}
+        in siege settings.
+      </div>
+    );
+  }
+
+  // Group and sort buildings
+  const grouped: Partial<Record<BuildingType, BuildingResponse[]>> = {};
+  for (const b of nonPostBuildings) {
+    if (!grouped[b.building_type]) grouped[b.building_type] = [];
+    grouped[b.building_type]!.push(b);
+  }
+
+  // Sort each group by building_number
+  for (const arr of Object.values(grouped)) {
+    arr?.sort((a, b) => a.building_number - b.building_number);
+  }
+
+  return (
+    <div>
+      {BUILDING_TYPE_ORDER.filter((t) => grouped[t] && grouped[t]!.length > 0).map((type) => (
+        <BuildingTypeSection
+          key={type}
+          type={type}
+          buildings={grouped[type]!}
+          siegeId={siegeId}
+          memberRoleMap={memberRoleMap}
+          onUpdate={onUpdate}
+          isLocked={isLocked}
+          defaultExpanded={true}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── ConditionalDndContext ─────────────────────────────────────────────────────
+// Renders children inside a DndContext when active=true, or unwrapped otherwise.
+// This ensures DnD sensors and event listeners are only active on the buildings tab.
+
+function ConditionalDndContext({
+  sensors,
+  onDragStart,
+  onDragEnd,
+  onDragCancel,
+  overlay,
+  children,
+}: {
+  sensors: ReturnType<typeof useSensors>;
+  onDragStart: (event: DragStartEvent) => void;
+  onDragEnd: (event: DragEndEvent) => void;
+  onDragCancel: () => void;
+  overlay: ReactNode;
+  children: ReactNode;
+}) {
+  // Always render DndContext — MemberBucket uses useDraggable hooks
+  // which require a DndContext ancestor at all times.
+  return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={onDragCancel}
+    >
+      {children}
+      <DragOverlay>{overlay}</DragOverlay>
+    </DndContext>
+  );
+}
+
+// ─── BoardPage ─────────────────────────────────────────────────────────────────
+
+type ActiveTab = 'buildings' | 'posts';
+
 export default function BoardPage() {
   const { id } = useParams<{ id: string }>();
   const siegeId = Number(id);
   const queryClient = useQueryClient();
+
+  const [activeTab, setActiveTab] = useState<ActiveTab>('buildings');
   const [autofillPreview, setAutofillPreview] = useState<AutofillPreviewResult | null>(null);
   const [autofillOpen, setAutofillOpen] = useState(false);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [validationOpen, setValidationOpen] = useState(false);
-  const [showMemberCounts, setShowMemberCounts] = useState(false);
+  const [activeMemberId, setActiveMemberId] = useState<number | null>(null);
+  const [reserveAssigning, setReserveAssigning] = useState(false);
 
   const { data: board, isLoading: boardLoading } = useQuery({
     queryKey: ['board', siegeId],
@@ -340,10 +748,8 @@ export default function BoardPage() {
     queryFn: getPostPriorities,
   });
 
-  const priorityLookup: Record<number, number> = {};
-  for (const p of postPriorities ?? []) {
-    priorityLookup[p.post_number] = p.priority;
-  }
+  // Unused in this refactor but kept to avoid breaking existing query patterns
+  void postPriorities;
 
   const previewMutation = useMutation({
     mutationFn: () => previewAutofill(siegeId),
@@ -370,13 +776,13 @@ export default function BoardPage() {
     },
   });
 
-  function refreshBoard() {
-    // no-op: board is already invalidated in PositionCell mutation
-  }
+  // ── Derived stats ────────────────────────────────────────────────────────────
 
-  // Compute summary stats
-  const allPositions =
-    board?.buildings.flatMap((b) => b.groups.flatMap((g) => g.positions)) ?? [];
+  const allPositions = useMemo(
+    () => board?.buildings.flatMap((b) => b.groups.flatMap((g) => g.positions)) ?? [],
+    [board],
+  );
+
   const totalSlots = allPositions.length;
   const assignedCount = allPositions.filter(
     (p) => !p.is_disabled && !p.is_reserve && !p.has_no_assignment && p.member_id != null,
@@ -388,27 +794,123 @@ export default function BoardPage() {
   ).length;
   const disabledCount = allPositions.filter((p) => p.is_disabled).length;
 
-  // Per-member assignment counts
-  const memberAssignments: Record<number, { name: string; count: number }> = {};
-  for (const pos of allPositions) {
-    if (pos.member_id != null && !pos.is_reserve && !pos.is_disabled) {
-      if (!memberAssignments[pos.member_id]) {
-        memberAssignments[pos.member_id] = { name: pos.member_name ?? `#${pos.member_id}`, count: 0 };
+  // Non-post positions only (for defense scroll counting)
+  const defensePositions = useMemo(
+    () => board?.buildings.filter((b) => b.building_type !== 'post').flatMap((b) => b.groups.flatMap((g) => g.positions)) ?? [],
+    [board],
+  );
+
+  // Per-member assignment counts (defense buildings only — excludes posts)
+  const memberAssignments = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (const pos of defensePositions) {
+      if (pos.member_id != null && !pos.is_reserve && !pos.is_disabled) {
+        counts[pos.member_id] = (counts[pos.member_id] ?? 0) + 1;
       }
-      memberAssignments[pos.member_id].count++;
+    }
+    return counts;
+  }, [defensePositions]);
+
+  // Map member_id → role (for coloring position chips)
+  const memberRoleMap = useMemo(() => {
+    const map: Record<number, string> = {};
+    for (const m of siegeMembers ?? []) {
+      map[m.member_id] = m.member_role;
+    }
+    return map;
+  }, [siegeMembers]);
+
+  // Build lookups for autofill preview dialog
+  const positionLookup = useMemo(() => {
+    const map: Record<number, PositionResponse> = {};
+    for (const pos of allPositions) map[pos.id] = pos;
+    return map;
+  }, [allPositions]);
+
+  const memberLookup = useMemo(() => {
+    const map: Record<number, string> = {};
+    for (const m of siegeMembers ?? []) map[m.member_id] = m.member_name;
+    return map;
+  }, [siegeMembers]);
+
+  const sortedSiegeMembers = useMemo(
+    () => (siegeMembers ?? []).slice().sort((a, b) => a.member_name.localeCompare(b.member_name)),
+    [siegeMembers],
+  );
+
+  const totalScrolls = siege?.computed_scroll_count ?? 0;
+  const scrollsPerMember = totalScrolls < 90 ? 3 : 4;
+  const isLocked = siege?.status === 'complete';
+
+  // The member currently being dragged (for the DragOverlay chip)
+  const activeMember = useMemo(
+    () =>
+      activeMemberId != null
+        ? (sortedSiegeMembers.find((m) => m.member_id === activeMemberId) ?? null)
+        : null,
+    [activeMemberId, sortedSiegeMembers],
+  );
+
+  // ── DnD ──────────────────────────────────────────────────────────────────────
+
+  async function handleAutoAssignReserves() {
+    const day2Members = (siegeMembers ?? []).filter((m) => m.attack_day === 2);
+    if (day2Members.length === 0) return;
+    setReserveAssigning(true);
+    try {
+      for (const m of day2Members) {
+        await updateSiegeMember(siegeId, m.member_id, { has_reserve_set: true });
+      }
+      queryClient.invalidateQueries({ queryKey: ['siegeMembers', siegeId] });
+    } finally {
+      setReserveAssigning(false);
     }
   }
-  const sortedMemberCounts = Object.values(memberAssignments).sort((a, b) => b.count - a.count);
 
-  // Build a lookup of position_id → member name for autofill preview
-  const positionLookup: Record<number, PositionResponse> = {};
-  for (const pos of allPositions) {
-    positionLookup[pos.id] = pos;
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      // Short distance before activation so chevron button clicks still work
+      activationConstraint: { distance: 6 },
+    }),
+  );
+
+  function handleDragStart(event: DragStartEvent) {
+    document.body.style.overflowX = 'hidden';
+    const activeId = String(event.active.id);
+    if (activeId.startsWith('member-')) {
+      setActiveMemberId(Number(activeId.replace('member-', '')));
+    }
   }
-  const memberLookup: Record<number, string> = {};
-  for (const m of siegeMembers ?? []) {
-    memberLookup[m.member_id] = m.member_name;
+
+  function handleDragEnd(event: DragEndEvent) {
+    document.body.style.overflowX = '';
+    setActiveMemberId(null);
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeId = String(active.id);
+    const overId = String(over.id);
+
+    if (!activeId.startsWith('member-') || !overId.startsWith('position-')) return;
+
+    const memberId = Number(activeId.replace('member-', ''));
+    const positionId = Number(overId.replace('position-', ''));
+    if (!memberId || !positionId) return;
+
+    updatePosition(siegeId, positionId, {
+      member_id: memberId,
+      is_reserve: false,
+      has_no_assignment: false,
+    }).then(() => {
+      queryClient.invalidateQueries({ queryKey: ['board', siegeId] });
+    });
   }
+
+  function refreshBoard() {
+    // board is already invalidated inside PositionCell's mutation
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   if (boardLoading) {
     return <div className="py-12 text-center text-slate-500">Loading board...</div>;
@@ -416,7 +918,8 @@ export default function BoardPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-start justify-between">
+      {/* ── Header ── */}
+      <div className="sticky top-0 z-10 mb-4 flex flex-wrap items-start justify-between gap-2 bg-slate-50 pb-2 pt-2">
         <div>
           <Link
             to="/sieges"
@@ -429,9 +932,11 @@ export default function BoardPage() {
             Board — Siege {siege?.date ?? `#${siegeId}`}
           </h1>
         </div>
+
         <div className="flex flex-col items-end gap-2">
+          {/* Nav links */}
           <div className="flex gap-2 text-sm">
-            <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 text-slate-700 font-medium">
+            <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
               <LayoutGrid className="h-4 w-4" />
               Board
             </span>
@@ -464,6 +969,8 @@ export default function BoardPage() {
               Settings
             </Link>
           </div>
+
+          {/* Action buttons */}
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -474,9 +981,21 @@ export default function BoardPage() {
               {validateMutation.isPending ? 'Validating...' : 'Validate'}
             </Button>
             <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAutoAssignReserves}
+              disabled={reserveAssigning || isLocked}
+            >
+              {reserveAssigning ? (
+                <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Assigning...</>
+              ) : (
+                'Auto-Assign Reserves'
+              )}
+            </Button>
+            <Button
               size="sm"
               onClick={() => previewMutation.mutate()}
-              disabled={previewMutation.isPending || siege?.status === 'complete'}
+              disabled={previewMutation.isPending || isLocked}
             >
               {previewMutation.isPending ? 'Loading...' : 'Preview Auto-fill'}
             </Button>
@@ -484,7 +1003,7 @@ export default function BoardPage() {
         </div>
       </div>
 
-      {/* Summary bar */}
+      {/* ── Summary bar ── */}
       <div className="mb-4 flex flex-wrap gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
         <span className="text-sm text-slate-600">
           <span className="font-semibold text-slate-900">{totalSlots}</span> total
@@ -504,101 +1023,86 @@ export default function BoardPage() {
         <span className="text-sm text-slate-600">
           <span className="font-semibold text-slate-400">{disabledCount}</span> disabled
         </span>
-      </div>
-
-      {siege?.status === 'complete' && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-          <Lock className="h-4 w-4 shrink-0" />
-          This siege is closed. Assignments are read-only.
-        </div>
-      )}
-
-      {/* Member assignment counts */}
-      <div className="mb-4">
-        <button
-          className="text-xs text-slate-500 hover:text-slate-700 underline"
-          onClick={() => setShowMemberCounts((v) => !v)}
-        >
-          {showMemberCounts ? 'Hide' : 'Show'} member assignment counts ({sortedMemberCounts.length})
-        </button>
-        {showMemberCounts && sortedMemberCounts.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {sortedMemberCounts.map((m) => (
-              <span
-                key={m.name}
-                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${
-                  m.count > 3
-                    ? 'border-red-200 bg-red-50 text-red-700'
-                    : 'border-slate-200 bg-white text-slate-700'
-                }`}
-              >
-                {m.name}
-                <span className="font-semibold">{m.count}</span>
-              </span>
-            ))}
-          </div>
+        {totalScrolls > 0 && (
+          <span className="text-sm text-slate-600">
+            <span className="font-semibold text-violet-700">{totalScrolls}</span> scrolls
+            {scrollsPerMember > 0 && (
+              <> · <span className="font-semibold text-violet-700">{scrollsPerMember}</span>/member</>
+            )}
+          </span>
         )}
       </div>
 
-      {board?.buildings.length === 0 && (
-        <div className="py-12 text-center text-slate-500">
-          No buildings configured.{' '}
-          <Link to={`/sieges/${siegeId}`} className="text-violet-600 hover:underline">
-            Add buildings
-          </Link>{' '}
-          in siege settings.
-        </div>
-      )}
+      {/* ── Main two-column layout ── */}
+      {/* DndContext is only active on the buildings tab */}
+      <ConditionalDndContext
+        sensors={sensors}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => { document.body.style.overflowX = ''; setActiveMemberId(null); }}
+        overlay={activeMember ? <MemberDragOverlay member={activeMember} /> : null}
+      >
+        <div className="flex items-start gap-4">
+          {/* Left: Member Bucket */}
+          <MemberBucket
+            siegeMembers={sortedSiegeMembers}
+            memberAssignments={memberAssignments}
+            scrollLimit={scrollsPerMember}
+            isLocked={isLocked}
+          />
 
-      {/* Buildings section — stronghold, mana_shrine, magic_tower, defense_tower */}
-      {(board?.buildings.filter((b) => b.building_type !== 'post') ?? []).length > 0 && (
-        <div className="mb-6">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Buildings
-          </h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {board?.buildings
-              .filter((b) => b.building_type !== 'post')
-              .map((building) => (
-                <BuildingCard
-                  key={building.id}
-                  building={building}
-                  siegeId={siegeId}
-                  siegeMembers={siegeMembers ?? []}
-                  onUpdate={refreshBoard}
-                  isLocked={siege?.status === 'complete'}
-                />
-              ))}
+          {/* Right: Tab shell + content */}
+          <div className="min-w-0 flex-1">
+            {/* Tab bar */}
+            <div className="mb-3 flex border-b border-slate-200">
+              <button
+                className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'buildings'
+                    ? 'border-violet-600 text-violet-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+                onClick={() => setActiveTab('buildings')}
+              >
+                <LayoutGrid className="h-4 w-4" />
+                Buildings
+              </button>
+              <button
+                className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
+                  activeTab === 'posts'
+                    ? 'border-violet-600 text-violet-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                }`}
+                onClick={() => setActiveTab('posts')}
+              >
+                <MessageSquare className="h-4 w-4" />
+                Posts
+              </button>
+            </div>
+
+            {/* Tab content */}
+            {activeTab === 'buildings' && (
+              <BuildingsTab
+                buildings={board?.buildings ?? []}
+                siegeId={siegeId}
+                memberRoleMap={memberRoleMap}
+                onUpdate={refreshBoard}
+                isLocked={isLocked}
+              />
+            )}
+            {activeTab === 'posts' && (
+              <PostsTab
+                buildings={board?.buildings ?? []}
+                siegeId={siegeId}
+                siegeMembers={sortedSiegeMembers}
+                isLocked={isLocked}
+                memberRoleMap={memberRoleMap}
+              />
+            )}
           </div>
         </div>
-      )}
+      </ConditionalDndContext>
 
-      {/* Posts section — post-type buildings (1 slot each) */}
-      {(board?.buildings.filter((b) => b.building_type === 'post') ?? []).length > 0 && (
-        <div>
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Posts
-          </h2>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {board?.buildings
-              .filter((b) => b.building_type === 'post')
-              .map((building) => (
-                <BuildingCard
-                  key={building.id}
-                  building={building}
-                  siegeId={siegeId}
-                  siegeMembers={siegeMembers ?? []}
-                  onUpdate={refreshBoard}
-                  priorityLabel={PRIORITY_LABELS[priorityLookup[building.building_number]] ?? undefined}
-                  description={postPriorities?.find((pp) => pp.post_number === building.building_number)?.description}
-                  isLocked={siege?.status === 'complete'}
-                />
-              ))}
-          </div>
-        </div>
-      )}
-
-      {/* Autofill preview dialog */}
+      {/* ── Autofill preview dialog ── */}
       <Dialog open={autofillOpen} onOpenChange={setAutofillOpen}>
         <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">
           <DialogHeader>
@@ -616,7 +1120,9 @@ export default function BoardPage() {
                   key={a.position_id}
                   className="flex items-center justify-between rounded-sm px-2 py-1 hover:bg-slate-50"
                 >
-                  <span className="text-sm text-slate-600">Position {pos?.position_number ?? a.position_id}</span>
+                  <span className="text-sm text-slate-600">
+                    Position {pos?.position_number ?? a.position_id}
+                  </span>
                   <span className="text-sm font-medium">
                     {a.is_reserve ? (
                       <Badge variant="yellow">RESERVE</Badge>
@@ -641,7 +1147,7 @@ export default function BoardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Validation dialog */}
+      {/* ── Validation dialog ── */}
       <Dialog open={validationOpen} onOpenChange={setValidationOpen}>
         <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">
           <DialogHeader>

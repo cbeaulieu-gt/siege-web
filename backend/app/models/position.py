@@ -8,6 +8,7 @@ from app.db.base import Base
 if TYPE_CHECKING:
     from app.models.building_group import BuildingGroup
     from app.models.member import Member
+    from app.models.post_condition import PostCondition
 
 
 class Position(Base):
@@ -38,6 +39,10 @@ class Position(Base):
     )
     is_reserve: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_disabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    matched_condition_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("post_condition.id", ondelete="SET NULL"), nullable=True
+    )
 
     group: Mapped["BuildingGroup"] = relationship(back_populates="positions")
     member: Mapped["Member | None"] = relationship(back_populates="positions")
+    matched_condition: Mapped["PostCondition | None"] = relationship()

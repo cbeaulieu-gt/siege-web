@@ -63,3 +63,64 @@ The following items needs to be addressed
   - Member Roles
   - Post Descriptions
   - Mark members inactive if they werent present in the most recent siege
+
+============================================================
+
+- 500 error trying to downgrade building level during siege
+- 400 error trying to start siege with invalid conditions. Show error message regarding Validtion instead of just Failure
+- Defense scroll count calculation is wrong. Its should be calculated from all Defense slots regardless of type. Does not depend on # of active siege members
+
+================================
+
+- 500 error trying to Delete siege
+- 500 error trying to set Stronghold to level 6
+- Make the defense  scroll count update live so when the building levels change the count is refreshed instantly
+- Move discord buttons to the top
+
+================================
+
+- Make the siege button horizontal instead of vertically aligned
+- COnfirm on Clone siege button
+- Adds scrolls per member next to Defense Scroll count as a dynamically generated field
+
+========================================
+
+- Color code members as
+
+  Heavy Hitter - Red
+  Advanced - Gold/Yellow
+  Medium - Green
+  Novice Blue
+
+- When a member has more assignments than num defense scrolls the selection on the side should highlight that row as invalid
+- There needs to be a way to assign a RESERVE slot to a post. Currently you have to set a member
+- When you click Edit Condition on a post in the Board it should expand the same post in the Posts page
+- Preview auto fill shows a 500 internal server error
+- When dragging from the Member selection sometimes a horizontal scrollbar appears and the element scrolls the members out of the primary window
+
+======================================
+
+- Add a toggle to show diffs only on the comparison page
+- Setting Post conditions returns a 422 error {"detail":"Method Not Allowed"}
+- Show # of Post conditions in Bar so its easy to tell what posts have conditions 
+- When the Stronghold Board has 2 rows the row spanner does not fill the entire element
+
+======================================
+
+- Posts Tab no longer shows on Board Page
+- Add a drop down filter in the Members selection to filter by Role
+- The vertical alighment of the Members element moves downward slightly when any Post is expanded
+
+========================================
+
+Make the Dicord Notitifactions button align horizontally instead of vertical stacking
+Move the Lifecycle above the Discord Notification section
+The validation display shows Member_Id instead of member name
+
+=======================================================
+
+Disable discord notifications buttons on Closed Sieges
+The Siege tab buttons change positions with the body of the page. They should be locked at the top in a static position
+Make the Stronhold Buildings Field collapsable as well
+Add a Auto-Assign Reserve Button which flags all Day 2 Attackers to set reserves
+Add the Role of the Member on the Members page

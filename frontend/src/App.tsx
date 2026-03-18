@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/Layout';
+import SiegeLayout from './components/SiegeLayout';
 import MembersPage from './pages/MembersPage';
 import MemberDetailPage from './pages/MemberDetailPage';
 import SiegesPage from './pages/SiegesPage';
@@ -21,11 +22,13 @@ function App() {
         <Route path="/members/:id" element={<MemberDetailPage />} />
         <Route path="/sieges" element={<SiegesPage />} />
         <Route path="/sieges/new" element={<SiegeCreatePage />} />
-        <Route path="/sieges/:id" element={<SiegeSettingsPage />} />
-        <Route path="/sieges/:id/board" element={<BoardPage />} />
-        <Route path="/sieges/:id/posts" element={<PostsPage />} />
-        <Route path="/sieges/:id/members" element={<SiegeMembersPage />} />
-        <Route path="/sieges/:id/compare" element={<ComparisonPage />} />
+        <Route path="/sieges/:id" element={<SiegeLayout />}>
+          <Route index element={<SiegeSettingsPage />} />
+          <Route path="board" element={<BoardPage />} />
+          <Route path="posts" element={<PostsPage />} />
+          <Route path="members" element={<SiegeMembersPage />} />
+          <Route path="compare" element={<ComparisonPage />} />
+        </Route>
         <Route path="/post-priorities" element={<PostPrioritiesPage />} />
       </Route>
     </Routes>

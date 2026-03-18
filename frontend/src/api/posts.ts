@@ -45,7 +45,7 @@ export async function setPostConditions(
 ): Promise<Post> {
   const res = await apiClient.put<Post>(
     `/api/sieges/${siegeId}/posts/${postId}/conditions`,
-    { condition_ids },
+    { post_condition_ids: condition_ids },
   );
   return res.data;
 }

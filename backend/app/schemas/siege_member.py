@@ -1,5 +1,7 @@
 from pydantic import BaseModel, model_validator
 
+from app.schemas.post_condition import PostConditionResponse
+
 
 class SiegeMemberResponse(BaseModel):
     model_config = {"from_attributes": True}
@@ -26,3 +28,10 @@ class SiegeMemberUpdate(BaseModel):
     attack_day: int | None = None
     has_reserve_set: bool | None = None
     attack_day_override: bool | None = None
+
+
+class MemberPreferenceSummary(BaseModel):
+    model_config = {"from_attributes": True}
+    member_id: int
+    member_name: str
+    preferences: list[PostConditionResponse]

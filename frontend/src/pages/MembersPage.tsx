@@ -58,7 +58,9 @@ export default function MembersPage() {
     queryFn: () => getMembers({ is_active: activeOnly ? true : undefined }),
   });
 
-  const filtered = members?.filter((m) => roleFilter !== 'all' ? m.role === roleFilter : true);
+  const filtered = members
+    ?.filter((m) => roleFilter !== 'all' ? m.role === roleFilter : true)
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div>

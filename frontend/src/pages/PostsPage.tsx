@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPosts, setPostConditions } from '../api/posts';
 import { getPostConditions } from '../api/members';
@@ -10,7 +10,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, ChevronDown, ChevronUp, LayoutGrid, Lock, MessageSquare, Users, GitCompare, Settings } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp, LayoutGrid, MessageSquare, Users, GitCompare, Settings } from 'lucide-react';
 
 const PRIORITY_LABELS: Record<number, string> = { 1: 'Low', 2: 'Medium', 3: 'High' };
 
@@ -23,9 +23,19 @@ function groupConditionsByLevel(conditions: PostConditionRef[]) {
   return groups;
 }
 
-function PostRow({ post, siegeId, isLocked }: { post: Post; siegeId: number; isLocked?: boolean }) {
+function PostRow({
+  post,
+  siegeId,
+  isLocked,
+  initialExpanded = false,
+}: {
+  post: Post;
+  siegeId: number;
+  isLocked?: boolean;
+  initialExpanded?: boolean;
+}) {
   const queryClient = useQueryClient();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initialExpanded);
   const [condFilter, setCondFilter] = useState('');
   const [selectedConditions, setSelectedConditions] = useState<Set<number>>(
     new Set(post.active_conditions.map((c) => c.id)),
@@ -156,6 +166,8 @@ function PostRow({ post, siegeId, isLocked }: { post: Post; siegeId: number; isL
 export default function PostsPage() {
   const { id } = useParams<{ id: string }>();
   const siegeId = Number(id);
+  const [searchParams] = useSearchParams();
+  const expandPostNumber = searchParams.get('post') ? Number(searchParams.get('post')) : null;
 
   const { data: siege } = useQuery({
     queryKey: ['siege', siegeId],
@@ -221,13 +233,6 @@ export default function PostsPage() {
         </div>
       </div>
 
-      {siege?.status === 'complete' && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-          <Lock className="h-4 w-4 shrink-0" />
-          This siege is closed. Assignments are read-only.
-        </div>
-      )}
-
       {error && (
         <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
           Failed to load posts.
@@ -243,7 +248,13 @@ export default function PostsPage() {
       ) : (
         <div className="space-y-3">
           {sorted?.map((post) => (
-            <PostRow key={post.id} post={post} siegeId={siegeId} isLocked={siege?.status === 'complete'} />
+            <PostRow
+              key={post.id}
+              post={post}
+              siegeId={siegeId}
+              isLocked={siege?.status === 'complete'}
+              initialExpanded={expandPostNumber === post.building_number}
+            />
           ))}
         </div>
       )}

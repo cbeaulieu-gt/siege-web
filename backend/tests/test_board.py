@@ -16,6 +16,7 @@ def _make_position(
     member_id: int | None = None,
     is_reserve: bool = False,
     is_disabled: bool = False,
+    matched_condition_id: int | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=id,
@@ -24,6 +25,7 @@ def _make_position(
         member_id=member_id,
         is_reserve=is_reserve,
         is_disabled=is_disabled,
+        matched_condition_id=matched_condition_id,
     )
 
 

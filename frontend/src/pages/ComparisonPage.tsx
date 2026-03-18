@@ -68,6 +68,7 @@ export default function ComparisonPage() {
   const { id } = useParams<{ id: string }>();
   const siegeId = Number(id);
   const [compareToId, setCompareToId] = useState<string>('default');
+  const [diffsOnly, setDiffsOnly] = useState(false);
 
   const { data: completedSieges } = useQuery({
     queryKey: ['sieges', 'complete'],
@@ -96,6 +97,7 @@ export default function ComparisonPage() {
     comparison?.members.filter((m) => m.added.length > 0 || m.removed.length > 0) ?? [];
   const totalAdded = comparison?.members.reduce((acc, m) => acc + m.added.length, 0) ?? 0;
   const totalRemoved = comparison?.members.reduce((acc, m) => acc + m.removed.length, 0) ?? 0;
+  const visibleMembers = diffsOnly ? membersWithChanges : (comparison?.members ?? []);
 
   return (
     <div className="max-w-5xl">
@@ -174,15 +176,26 @@ export default function ComparisonPage() {
 
       {/* Summary */}
       {comparison && (
-        <div className="mb-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          <strong>{membersWithChanges.length}</strong> members with changes &bull;{' '}
-          <span className="text-green-700">
-            <strong>{totalAdded}</strong> positions added
-          </span>{' '}
-          &bull;{' '}
-          <span className="text-red-700">
-            <strong>{totalRemoved}</strong> positions removed
+        <div className="mb-4 flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <span>
+            <strong>{membersWithChanges.length}</strong> members with changes &bull;{' '}
+            <span className="text-green-700">
+              <strong>{totalAdded}</strong> positions added
+            </span>{' '}
+            &bull;{' '}
+            <span className="text-red-700">
+              <strong>{totalRemoved}</strong> positions removed
+            </span>
           </span>
+          <label className="flex cursor-pointer items-center gap-2 select-none">
+            <input
+              type="checkbox"
+              checked={diffsOnly}
+              onChange={(e) => setDiffsOnly(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 accent-slate-700"
+            />
+            Show diffs only
+          </label>
         </div>
       )}
 
@@ -213,14 +226,14 @@ export default function ComparisonPage() {
               </tr>
             </thead>
             <tbody>
-              {comparison.members.length === 0 && (
+              {visibleMembers.length === 0 && (
                 <tr>
                   <td colSpan={3} className="px-4 py-8 text-center text-slate-500">
-                    No members to compare.
+                    {diffsOnly ? 'No members with changes.' : 'No members to compare.'}
                   </td>
                 </tr>
               )}
-              {comparison.members.map((diff) => (
+              {visibleMembers.map((diff) => (
                 <tr
                   key={diff.member_id}
                   className={cn(

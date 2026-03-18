@@ -4,10 +4,12 @@ import { useState } from 'react';
 import {
   getSiege,
   getSiegeMembers,
+  addSiegeMember,
   updateSiegeMember,
   previewAttackDay,
   applyAttackDay,
 } from '../api/sieges';
+import { getMembers } from '../api/members';
 import type { SiegeMember, AttackDayPreviewResult } from '../api/types';
 import {
   Table,
@@ -34,7 +36,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '../components/ui/dialog';
-import { ArrowLeft, Lock, LayoutGrid, MessageSquare, Users, GitCompare, Settings } from 'lucide-react';
+import { ArrowLeft, Lock, LayoutGrid, MessageSquare, Users, GitCompare, Settings, UserPlus } from 'lucide-react';
 
 function AttackDaySelect({
   value,
@@ -77,6 +79,9 @@ function SiegeMemberRow({ member, siegeId, isLocked }: { member: SiegeMember; si
   return (
     <TableRow>
       <TableCell className="font-medium">{member.member_name}</TableCell>
+      <TableCell className="text-sm text-slate-600">
+        {{ heavy_hitter: 'Heavy Hitter', advanced: 'Advanced', medium: 'Medium', novice: 'Novice' }[member.member_role] ?? member.member_role}
+      </TableCell>
       <TableCell>
         <div className="flex items-center gap-1.5">
           {isLocked ? (
@@ -118,6 +123,9 @@ export default function SiegeMembersPage() {
   const queryClient = useQueryClient();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [preview, setPreview] = useState<AttackDayPreviewResult | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('');
+  const [addError, setAddError] = useState<string | null>(null);
 
   const { data: siege } = useQuery({
     queryKey: ['siege', siegeId],
@@ -127,6 +135,33 @@ export default function SiegeMembersPage() {
   const { data: members, isLoading, error } = useQuery({
     queryKey: ['siegeMembers', siegeId],
     queryFn: () => getSiegeMembers(siegeId),
+  });
+
+  // Only fetch available members when the add dialog is open and siege is planning
+  const { data: allMembers } = useQuery({
+    queryKey: ['members', { is_active: true }],
+    queryFn: () => getMembers({ is_active: true }),
+    enabled: addOpen && siege?.status === 'planning',
+  });
+
+  const siegeMemberIds = new Set(members?.map((m) => m.member_id) ?? []);
+  const availableMembers = (allMembers ?? [])
+    .filter((m) => !siegeMemberIds.has(m.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const addMutation = useMutation({
+    mutationFn: (memberId: number) => addSiegeMember(siegeId, memberId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['siegeMembers', siegeId] });
+      setAddOpen(false);
+      setSelectedMemberId('');
+      setAddError(null);
+    },
+    onError: (err: unknown) => {
+      const message =
+        err instanceof Error ? err.message : 'Failed to add member. Please try again.';
+      setAddError(message);
+    },
   });
 
   const previewMutation = useMutation({
@@ -145,6 +180,22 @@ export default function SiegeMembersPage() {
       setPreview(null);
     },
   });
+
+  function handleAddConfirm() {
+    if (!selectedMemberId) return;
+    setAddError(null);
+    addMutation.mutate(Number(selectedMemberId));
+  }
+
+  function handleAddOpenChange(open: boolean) {
+    setAddOpen(open);
+    if (!open) {
+      setSelectedMemberId('');
+      setAddError(null);
+    }
+  }
+
+  const isPlanning = siege?.status === 'planning';
 
   // Build a quick name lookup for the preview dialog
   const nameLookup: Record<number, string> = {};
@@ -202,22 +253,23 @@ export default function SiegeMembersPage() {
               Settings
             </Link>
           </div>
-          <Button
-            size="sm"
-            onClick={() => previewMutation.mutate()}
-            disabled={previewMutation.isPending || siege?.status === 'complete'}
-          >
-            {previewMutation.isPending ? 'Loading...' : 'Auto-Assign Attack Days'}
-          </Button>
+          <div className="flex gap-2">
+            {isPlanning && (
+              <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
+                <UserPlus className="mr-1.5 h-4 w-4" />
+                Add Member
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={() => previewMutation.mutate()}
+              disabled={previewMutation.isPending || siege?.status === 'complete'}
+            >
+              {previewMutation.isPending ? 'Loading...' : 'Auto-Assign Attack Days'}
+            </Button>
+          </div>
         </div>
       </div>
-
-      {siege?.status === 'complete' && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-          <Lock className="h-4 w-4 shrink-0" />
-          This siege is closed. Assignments are read-only.
-        </div>
-      )}
 
       {error && (
         <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -233,6 +285,7 @@ export default function SiegeMembersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
+                <TableHead>Role</TableHead>
                 <TableHead>Attack Day</TableHead>
                 <TableHead>Override (Pinned)</TableHead>
                 <TableHead>Reserve Set</TableHead>
@@ -246,13 +299,57 @@ export default function SiegeMembersPage() {
                   </TableCell>
                 </TableRow>
               )}
-              {members?.map((m) => (
+              {members?.slice().sort((a, b) => a.member_name.localeCompare(b.member_name)).map((m) => (
                 <SiegeMemberRow key={m.member_id} member={m} siegeId={siegeId} isLocked={siege?.status === 'complete'} />
               ))}
             </TableBody>
           </Table>
         </div>
       )}
+
+      {/* Add Member Dialog */}
+      <Dialog open={addOpen} onOpenChange={handleAddOpenChange}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Add Member to Siege</DialogTitle>
+            <DialogDescription>
+              Select an active member who is not yet in this siege.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a member..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availableMembers.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-slate-500">
+                    No available members to add.
+                  </div>
+                ) : (
+                  availableMembers.map((m) => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {m.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            {addError && <p className="mt-2 text-sm text-red-600">{addError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleAddOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddConfirm}
+              disabled={!selectedMemberId || addMutation.isPending}
+            >
+              {addMutation.isPending ? 'Adding...' : 'Add'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Attack Day Preview Dialog */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
@@ -264,8 +361,10 @@ export default function SiegeMembersPage() {
             </DialogDescription>
           </DialogHeader>
           {preview && (() => {
-            const day1 = preview.assignments.filter((a) => a.attack_day === 1);
-            const day2 = preview.assignments.filter((a) => a.attack_day === 2);
+            const byName = (a: { member_id: number }, b: { member_id: number }) =>
+              (nameLookup[a.member_id] ?? '').localeCompare(nameLookup[b.member_id] ?? '');
+            const day1 = preview.assignments.filter((a) => a.attack_day === 1).sort(byName);
+            const day2 = preview.assignments.filter((a) => a.attack_day === 2).sort(byName);
             const rows = Math.max(day1.length, day2.length);
             return (
               <div className="grid grid-cols-2 divide-x divide-slate-200 rounded-md border border-slate-200">

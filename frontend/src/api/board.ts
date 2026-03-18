@@ -13,6 +13,7 @@ export async function updatePosition(
     member_id?: number | null;
     is_reserve?: boolean;
     has_no_assignment?: boolean;
+    matched_condition_id?: number | null;
   },
 ): Promise<PositionResponse> {
   const res = await apiClient.put<PositionResponse>(

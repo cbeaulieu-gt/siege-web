@@ -5,6 +5,7 @@ import type {
   Building,
   BuildingType,
   BuildingTypeInfo,
+  MemberPreferenceSummary,
   SiegeMember,
   ValidationResult,
   AutofillPreviewResult,
@@ -104,6 +105,25 @@ export async function getBuildingTypes(): Promise<BuildingTypeInfo[]> {
 
 export async function getSiegeMembers(siegeId: number): Promise<SiegeMember[]> {
   const res = await apiClient.get<SiegeMember[]>(`/api/sieges/${siegeId}/members`);
+  return res.data;
+}
+
+export async function getSiegeMemberPreferences(
+  siegeId: number,
+): Promise<MemberPreferenceSummary[]> {
+  const res = await apiClient.get<MemberPreferenceSummary[]>(
+    `/api/sieges/${siegeId}/members/preferences`,
+  );
+  return res.data;
+}
+
+export async function addSiegeMember(
+  siegeId: number,
+  memberId: number,
+): Promise<SiegeMember> {
+  const res = await apiClient.post<SiegeMember>(`/api/sieges/${siegeId}/members`, {
+    member_id: memberId,
+  });
   return res.data;
 }
 

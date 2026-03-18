@@ -28,5 +28,5 @@ class NotificationBatch(Base):
 
     siege: Mapped["Siege"] = relationship(back_populates="notification_batches")
     results: Mapped[list["NotificationBatchResult"]] = relationship(
-        back_populates="batch"
+        back_populates="batch", cascade="all, delete-orphan", passive_deletes=True
     )

@@ -32,7 +32,9 @@ class Building(Base):
     is_broken: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     siege: Mapped["Siege"] = relationship(back_populates="buildings")
-    groups: Mapped[list["BuildingGroup"]] = relationship(back_populates="building")
+    groups: Mapped[list["BuildingGroup"]] = relationship(
+        back_populates="building", cascade="all, delete-orphan", passive_deletes=True
+    )
     post: Mapped["Post | None"] = relationship(
         back_populates="building", uselist=False
     )

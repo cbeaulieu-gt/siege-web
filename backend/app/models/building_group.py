@@ -15,7 +15,7 @@ class BuildingGroup(Base):
     __table_args__ = (
         UniqueConstraint("building_id", "group_number"),
         CheckConstraint(
-            "group_number >= 1 AND group_number <= 9",
+            "group_number >= 1 AND group_number <= 10",
             name="group_number_range",
         ),
         CheckConstraint(
@@ -32,4 +32,6 @@ class BuildingGroup(Base):
     slot_count: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
 
     building: Mapped["Building"] = relationship(back_populates="groups")
-    positions: Mapped[list["Position"]] = relationship(back_populates="group")
+    positions: Mapped[list["Position"]] = relationship(
+        back_populates="group", cascade="all, delete-orphan", passive_deletes=True
+    )

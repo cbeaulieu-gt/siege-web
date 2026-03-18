@@ -16,7 +16,7 @@ from app.schemas.siege import SiegeCreate, SiegeUpdate
 
 
 async def compute_scroll_count(session: AsyncSession, siege_id: int) -> int:
-    """Compute defense scroll count: floor(total non-post, non-disabled positions / siege member count)."""
+    """Compute defense scroll count: total non-disabled positions across all defense buildings (excludes posts)."""
     pos_result = await session.execute(
         select(func.count())
         .select_from(Position)
@@ -26,18 +26,7 @@ async def compute_scroll_count(session: AsyncSession, siege_id: int) -> int:
         .where(Building.building_type != BuildingType.post)
         .where(Position.is_disabled == False)  # noqa: E712
     )
-    total_positions = pos_result.scalar() or 0
-
-    member_result = await session.execute(
-        select(func.count())
-        .select_from(SiegeMember)
-        .where(SiegeMember.siege_id == siege_id)
-    )
-    member_count = member_result.scalar() or 0
-
-    if member_count == 0:
-        return 0
-    return total_positions // member_count
+    return pos_result.scalar() or 0
 
 
 async def list_sieges(session: AsyncSession, status: SiegeStatus | None) -> list[Siege]:

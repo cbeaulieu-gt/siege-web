@@ -60,6 +60,7 @@ async def get_board(session: AsyncSession, siege_id: int) -> dict:
                     "member_name": pos.member.name if pos.member is not None else None,
                     "is_reserve": pos.is_reserve,
                     "is_disabled": pos.is_disabled,
+                    "matched_condition_id": pos.matched_condition_id,
                 }
                 for pos in positions_sorted
             ]
@@ -155,6 +156,10 @@ async def update_position(
     position.member_id = data.member_id
     position.is_reserve = data.is_reserve
     position.is_disabled = data.is_disabled
+    if data.member_id is None:
+        position.matched_condition_id = None
+    else:
+        position.matched_condition_id = data.matched_condition_id
 
     await session.commit()
     await session.refresh(position)
@@ -223,9 +228,11 @@ async def bulk_update_positions(
 
         _validate_position_state(member_id, is_reserve, is_disabled)
 
+        matched_condition_id = u.get("matched_condition_id") if member_id is not None else None
         position.member_id = member_id
         position.is_reserve = is_reserve
         position.is_disabled = is_disabled
+        position.matched_condition_id = matched_condition_id
         updated.append(position)
 
     await session.commit()
