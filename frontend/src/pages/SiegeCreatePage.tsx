@@ -46,7 +46,6 @@ function suggestNextSiegeDate(recentDate: string | null): string {
 export default function SiegeCreatePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [scrollCount, setScrollCount] = useState('3');
   const [cloneFromId, setCloneFromId] = useState<string>('none');
 
   const { data: sieges } = useQuery({
@@ -68,7 +67,6 @@ export default function SiegeCreatePage() {
     mutationFn: () =>
       createSiege({
         date: effectiveDate || undefined,
-        defense_scroll_count: Number(scrollCount),
       }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['sieges'] });
@@ -151,16 +149,6 @@ export default function SiegeCreatePage() {
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="scrolls">Defense Scroll Count</Label>
-                <Input
-                  id="scrolls"
-                  type="number"
-                  min="0"
-                  value={scrollCount}
-                  onChange={(e) => setScrollCount(e.target.value)}
-                />
-              </div>
             </>
           )}
 

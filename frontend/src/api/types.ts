@@ -30,6 +30,7 @@ export interface Siege {
   date: string | null;
   status: SiegeStatus;
   defense_scroll_count: number;
+  computed_scroll_count: number;
   created_at: string;
   updated_at: string;
 }

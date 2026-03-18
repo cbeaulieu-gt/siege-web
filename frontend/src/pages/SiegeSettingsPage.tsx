@@ -63,7 +63,6 @@ export default function SiegeSettingsPage() {
   const queryClient = useQueryClient();
 
   const [date, setDate] = useState('');
-  const [scrollCount, setScrollCount] = useState('3');
   const [settingsError, setSettingsError] = useState('');
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
@@ -108,7 +107,6 @@ export default function SiegeSettingsPage() {
   useEffect(() => {
     if (siege) {
       setDate(siege.date ?? '');
-      setScrollCount(String(siege.defense_scroll_count));
     }
   }, [siege]);
 
@@ -116,7 +114,6 @@ export default function SiegeSettingsPage() {
     mutationFn: () =>
       updateSiege(siegeId, {
         date: date || null,
-        defense_scroll_count: Number(scrollCount),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['siege', siegeId] });
@@ -316,15 +313,13 @@ export default function SiegeSettingsPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="scrolls">Defense Scroll Count</Label>
-            <Input
-              id="scrolls"
-              type="number"
-              min="0"
-              value={scrollCount}
-              onChange={(e) => setScrollCount(e.target.value)}
-              disabled={siege?.status === 'complete'}
-            />
+            <Label>Defense Scroll Count</Label>
+            <p className="text-sm font-medium text-slate-900">
+              {siege?.computed_scroll_count ?? 0}
+            </p>
+            <p className="text-xs text-slate-500">
+              Calculated from total non-post positions / active siege members.
+            </p>
           </div>
           {settingsError && <p className="text-sm text-red-600">{settingsError}</p>}
           <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending || siege?.status === 'complete'}>

@@ -7,12 +7,10 @@ from app.models.enums import SiegeStatus
 
 class SiegeCreate(BaseModel):
     date: datetime.date
-    defense_scroll_count: int
 
 
 class SiegeUpdate(BaseModel):
     date: datetime.date | None = None
-    defense_scroll_count: int | None = None
 
 
 class SiegeResponse(BaseModel):
@@ -21,5 +19,6 @@ class SiegeResponse(BaseModel):
     date: datetime.date | None
     status: SiegeStatus
     defense_scroll_count: int
+    computed_scroll_count: int = 0
     created_at: datetime.datetime
     updated_at: datetime.datetime

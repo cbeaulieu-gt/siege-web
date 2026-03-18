@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.building import Building
@@ -13,6 +13,31 @@ from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 from app.models.enums import BuildingType, SiegeStatus
 from app.schemas.siege import SiegeCreate, SiegeUpdate
+
+
+async def compute_scroll_count(session: AsyncSession, siege_id: int) -> int:
+    """Compute defense scroll count: floor(total non-post, non-disabled positions / siege member count)."""
+    pos_result = await session.execute(
+        select(func.count())
+        .select_from(Position)
+        .join(BuildingGroup, Position.building_group_id == BuildingGroup.id)
+        .join(Building, BuildingGroup.building_id == Building.id)
+        .where(Building.siege_id == siege_id)
+        .where(Building.building_type != BuildingType.post)
+        .where(Position.is_disabled == False)  # noqa: E712
+    )
+    total_positions = pos_result.scalar() or 0
+
+    member_result = await session.execute(
+        select(func.count())
+        .select_from(SiegeMember)
+        .where(SiegeMember.siege_id == siege_id)
+    )
+    member_count = member_result.scalar() or 0
+
+    if member_count == 0:
+        return 0
+    return total_positions // member_count
 
 
 async def list_sieges(session: AsyncSession, status: SiegeStatus | None) -> list[Siege]:
@@ -36,7 +61,7 @@ async def create_siege(session: AsyncSession, data: SiegeCreate) -> Siege:
     siege = Siege(
         date=data.date,
         status=SiegeStatus.planning,
-        defense_scroll_count=data.defense_scroll_count,
+        defense_scroll_count=0,
     )
     session.add(siege)
     await session.flush()  # get siege.id before creating members

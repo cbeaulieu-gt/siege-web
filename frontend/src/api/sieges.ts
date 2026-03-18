@@ -26,7 +26,6 @@ export async function getSiege(id: number): Promise<Siege> {
 
 export async function createSiege(data: {
   date?: string;
-  defense_scroll_count: number;
 }): Promise<Siege> {
   const res = await apiClient.post<Siege>('/api/sieges', data);
   return res.data;
@@ -34,7 +33,7 @@ export async function createSiege(data: {
 
 export async function updateSiege(
   id: number,
-  data: { date?: string | null; defense_scroll_count?: number },
+  data: { date?: string | null },
 ): Promise<Siege> {
   const res = await apiClient.put<Siege>(`/api/sieges/${id}`, data);
   return res.data;
