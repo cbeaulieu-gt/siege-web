@@ -9,8 +9,7 @@ class MemberBase(BaseModel):
     name: str
     discord_username: str | None = None
     role: MemberRole
-    power: float | None = None
-    sort_value: int | None = None
+    power_level: str | None = None
 
 
 class MemberCreate(MemberBase):
@@ -21,8 +20,7 @@ class MemberUpdate(BaseModel):
     name: str | None = None
     discord_username: str | None = None
     role: MemberRole | None = None
-    power: float | None = None
-    sort_value: int | None = None
+    power_level: str | None = None
     is_active: bool | None = None
 
 

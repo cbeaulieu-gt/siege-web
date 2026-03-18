@@ -24,6 +24,14 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
 import { UserPlus, ChevronRight } from 'lucide-react';
 
+const POWER_LABELS: Record<string, string> = {
+  lt_10m: '< 10M',
+  '10_15m': '10-15M',
+  '16_20m': '16-20M',
+  '21_25m': '21-25M',
+  gt_25m: '> 25M',
+};
+
 const ROLE_LABELS: Record<MemberRole, string> = {
   heavy_hitter: 'Heavy Hitter',
   advanced: 'Advanced',
@@ -103,7 +111,6 @@ export default function MembersPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Power</TableHead>
-                <TableHead>Sort Value</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead></TableHead>
               </TableRow>
@@ -111,7 +118,7 @@ export default function MembersPage() {
             <TableBody>
               {filtered?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-8 text-center text-slate-500">
+                  <TableCell colSpan={5} className="py-8 text-center text-slate-500">
                     No members found.
                   </TableCell>
                 </TableRow>
@@ -129,9 +136,8 @@ export default function MembersPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {m.power != null ? m.power.toLocaleString() : '-'}
+                    {m.power_level ? POWER_LABELS[m.power_level] ?? m.power_level : '-'}
                   </TableCell>
-                  <TableCell>{m.sort_value}</TableCell>
                   <TableCell>
                     <Badge variant={m.is_active ? 'green' : 'gray'}>
                       {m.is_active ? 'Active' : 'Inactive'}

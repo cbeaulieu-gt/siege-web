@@ -60,7 +60,7 @@ function AttackDaySelect({
   );
 }
 
-function SiegeMemberRow({ member, siegeId }: { member: SiegeMember; siegeId: number }) {
+function SiegeMemberRow({ member, siegeId, isLocked }: { member: SiegeMember; siegeId: number; isLocked?: boolean }) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -79,10 +79,16 @@ function SiegeMemberRow({ member, siegeId }: { member: SiegeMember; siegeId: num
       <TableCell className="font-medium">{member.member_name}</TableCell>
       <TableCell>
         <div className="flex items-center gap-1.5">
-          <AttackDaySelect
-            value={member.attack_day}
-            onChange={(v) => mutation.mutate({ attack_day: v })}
-          />
+          {isLocked ? (
+            <span className="text-sm text-slate-600">
+              {member.attack_day ? `Day ${member.attack_day}` : '-'}
+            </span>
+          ) : (
+            <AttackDaySelect
+              value={member.attack_day}
+              onChange={(v) => mutation.mutate({ attack_day: v })}
+            />
+          )}
           {member.attack_day_override && (
             <Lock className="h-3.5 w-3.5 text-slate-500" aria-label="Pinned" />
           )}
@@ -91,15 +97,15 @@ function SiegeMemberRow({ member, siegeId }: { member: SiegeMember; siegeId: num
       <TableCell>
         <Checkbox
           checked={Boolean(member.attack_day_override)}
-          onCheckedChange={(v) => mutation.mutate({ attack_day_override: Boolean(v) })}
+          disabled={isLocked}
+          onCheckedChange={isLocked ? undefined : (v) => mutation.mutate({ attack_day_override: Boolean(v) })}
         />
       </TableCell>
       <TableCell>
         <Checkbox
           checked={Boolean(member.has_reserve_set)}
-          onCheckedChange={(v) =>
-            mutation.mutate({ has_reserve_set: Boolean(v) })
-          }
+          disabled={isLocked}
+          onCheckedChange={isLocked ? undefined : (v) => mutation.mutate({ has_reserve_set: Boolean(v) })}
         />
       </TableCell>
     </TableRow>
@@ -206,6 +212,13 @@ export default function SiegeMembersPage() {
         </div>
       </div>
 
+      {siege?.status === 'complete' && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <Lock className="h-4 w-4 shrink-0" />
+          This siege is closed. Assignments are read-only.
+        </div>
+      )}
+
       {error && (
         <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
           Failed to load members.
@@ -234,7 +247,7 @@ export default function SiegeMembersPage() {
                 </TableRow>
               )}
               {members?.map((m) => (
-                <SiegeMemberRow key={m.member_id} member={m} siegeId={siegeId} />
+                <SiegeMemberRow key={m.member_id} member={m} siegeId={siegeId} isLocked={siege?.status === 'complete'} />
               ))}
             </TableBody>
           </Table>

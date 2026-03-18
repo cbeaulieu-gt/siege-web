@@ -40,6 +40,7 @@ import { Badge } from '../components/ui/badge';
 import {
   ArrowLeft,
   LayoutGrid,
+  Lock,
   MessageSquare,
   Users,
   GitCompare,
@@ -293,6 +294,13 @@ export default function SiegeSettingsPage() {
         </div>
       </div>
 
+      {siege?.status === 'complete' && (
+        <div className="mb-6 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <Lock className="h-4 w-4 shrink-0" />
+          This siege is closed. Settings are read-only.
+        </div>
+      )}
+
       {/* Settings */}
       <section className="mb-6 rounded-lg border border-slate-200 bg-white p-6">
         <h2 className="mb-4 text-base font-semibold text-slate-900">Siege Settings</h2>
@@ -304,6 +312,7 @@ export default function SiegeSettingsPage() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
+              disabled={siege?.status === 'complete'}
             />
           </div>
           <div className="space-y-1.5">
@@ -314,10 +323,11 @@ export default function SiegeSettingsPage() {
               min="0"
               value={scrollCount}
               onChange={(e) => setScrollCount(e.target.value)}
+              disabled={siege?.status === 'complete'}
             />
           </div>
           {settingsError && <p className="text-sm text-red-600">{settingsError}</p>}
-          <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
+          <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending || siege?.status === 'complete'}>
             {updateMutation.isPending ? 'Saving...' : 'Save Settings'}
           </Button>
           {updateMutation.isSuccess && (
@@ -349,7 +359,8 @@ export default function SiegeSettingsPage() {
                         b.level === lvl
                           ? 'bg-violet-600 text-white'
                           : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
+                      } disabled:cursor-not-allowed disabled:opacity-50`}
+                      disabled={siege?.status === 'complete'}
                       onClick={() => {
                         if (lvl !== b.level) {
                           updateBuildingMutation.mutate({
@@ -367,7 +378,8 @@ export default function SiegeSettingsPage() {
                   <Checkbox
                     id={`broken-${b.id}`}
                     checked={b.is_broken}
-                    onCheckedChange={(v) =>
+                    disabled={siege?.status === 'complete'}
+                    onCheckedChange={siege?.status === 'complete' ? undefined : (v) =>
                       updateBuildingMutation.mutate({
                         buildingId: b.id,
                         data: { is_broken: Boolean(v) },

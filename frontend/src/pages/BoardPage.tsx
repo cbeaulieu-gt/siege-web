@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { ArrowLeft, ChevronDown, LayoutGrid, MessageSquare, Users, GitCompare, Settings } from 'lucide-react';
+import { ArrowLeft, ChevronDown, LayoutGrid, Lock, MessageSquare, Users, GitCompare, Settings } from 'lucide-react';
 
 type BuildingColorClass = {
   header: string;
@@ -55,16 +55,33 @@ const BUILDING_LABELS: Record<BuildingType, string> = {
   post: 'Post',
 };
 
+const ROLE_LABELS: Record<string, string> = {
+  heavy_hitter: 'HH',
+  advanced: 'Adv',
+  medium: 'Med',
+  novice: 'Nov',
+};
+
+const POWER_LABELS: Record<string, string> = {
+  lt_10m: '<10M',
+  '10_15m': '10-15M',
+  '16_20m': '16-20M',
+  '21_25m': '21-25M',
+  gt_25m: '>25M',
+};
+
 function PositionCell({
   position,
   siegeId,
   siegeMembers,
   onUpdate,
+  isLocked,
 }: {
   position: PositionResponse;
   siegeId: number;
   siegeMembers: SiegeMember[];
   onUpdate: () => void;
+  isLocked?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -138,7 +155,7 @@ function PositionCell({
       >
         <span className="mr-1 shrink-0 text-xs text-slate-400">{position.position_number}.</span>
         <div className="flex min-w-0 flex-1 items-center">{cellContent()}</div>
-        {!position.is_disabled && (
+        {!position.is_disabled && !isLocked && (
           <button
             className="ml-1 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
             onClick={() => setMenuOpen(true)}
@@ -210,7 +227,13 @@ function PositionCell({
             <SelectContent>
               {siegeMembers.map((m) => (
                 <SelectItem key={m.member_id} value={String(m.member_id)}>
-                  {m.member_name}
+                  <span className="flex items-center gap-2">
+                    <span>{m.member_name}</span>
+                    <span className="text-xs text-slate-400">
+                      {ROLE_LABELS[m.member_role] ?? m.member_role}
+                      {m.member_power_level ? ` · ${POWER_LABELS[m.member_power_level] ?? m.member_power_level}` : ''}
+                    </span>
+                  </span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -239,6 +262,7 @@ function BuildingCard({
   onUpdate,
   priorityLabel,
   description,
+  isLocked,
 }: {
   building: BuildingResponse;
   siegeId: number;
@@ -246,6 +270,7 @@ function BuildingCard({
   onUpdate: () => void;
   priorityLabel?: string;
   description?: string | null;
+  isLocked?: boolean;
 }) {
   const colors = BUILDING_COLORS[building.building_type];
 
@@ -275,6 +300,7 @@ function BuildingCard({
                 siegeId={siegeId}
                 siegeMembers={siegeMembers}
                 onUpdate={onUpdate}
+                isLocked={isLocked}
               />
             ))}
           </div>
@@ -480,6 +506,13 @@ export default function BoardPage() {
         </span>
       </div>
 
+      {siege?.status === 'complete' && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+          <Lock className="h-4 w-4 shrink-0" />
+          This siege is closed. Assignments are read-only.
+        </div>
+      )}
+
       {/* Member assignment counts */}
       <div className="mb-4">
         <button
@@ -533,6 +566,7 @@ export default function BoardPage() {
                   siegeId={siegeId}
                   siegeMembers={siegeMembers ?? []}
                   onUpdate={refreshBoard}
+                  isLocked={siege?.status === 'complete'}
                 />
               ))}
           </div>
@@ -557,6 +591,7 @@ export default function BoardPage() {
                   onUpdate={refreshBoard}
                   priorityLabel={PRIORITY_LABELS[priorityLookup[building.building_number]] ?? undefined}
                   description={postPriorities?.find((pp) => pp.post_number === building.building_number)?.description}
+                  isLocked={siege?.status === 'complete'}
                 />
               ))}
           </div>

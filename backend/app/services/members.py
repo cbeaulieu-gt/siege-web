@@ -19,6 +19,7 @@ async def list_members(session: AsyncSession, is_active: bool | None) -> list[Me
     stmt = select(Member)
     if is_active is not None:
         stmt = stmt.where(Member.is_active == is_active)
+    stmt = stmt.order_by(Member.name)
     result = await session.execute(stmt)
     return list(result.scalars().all())
 

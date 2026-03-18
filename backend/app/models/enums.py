@@ -22,6 +22,14 @@ class MemberRole(str, enum.Enum):
     novice = "novice"
 
 
+class PowerLevel(str, enum.Enum):
+    lt_10m = "lt_10m"
+    m_10_15 = "10_15m"
+    m_16_20 = "16_20m"
+    m_21_25 = "21_25m"
+    gt_25m = "gt_25m"
+
+
 class NotificationBatchStatus(str, enum.Enum):
     pending = "pending"
     completed = "completed"

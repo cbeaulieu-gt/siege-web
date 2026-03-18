@@ -15,8 +15,7 @@ export async function createMember(data: {
   name: string;
   discord_username?: string | null;
   role: string;
-  power?: number | null;
-  sort_value?: number;
+  power_level?: string | null;
 }): Promise<Member> {
   const res = await apiClient.post<Member>('/api/members', data);
   return res.data;
@@ -28,8 +27,7 @@ export async function updateMember(
     name?: string;
     discord_username?: string | null;
     role?: string;
-    power?: number | null;
-    sort_value?: number;
+    power_level?: string | null;
     is_active?: boolean;
   },
 ): Promise<Member> {

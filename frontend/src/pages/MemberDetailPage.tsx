@@ -57,8 +57,7 @@ export default function MemberDetailPage() {
   const [name, setName] = useState('');
   const [discord, setDiscord] = useState('');
   const [role, setRole] = useState<MemberRole>('novice');
-  const [power, setPower] = useState('');
-  const [sortValue, setSortValue] = useState('0');
+  const [powerLevel, setPowerLevel] = useState<string>('');
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [selectedConditions, setSelectedConditions] = useState<Set<number>>(new Set());
   const [saveError, setSaveError] = useState('');
@@ -88,8 +87,7 @@ export default function MemberDetailPage() {
       setName(member.name);
       setDiscord(member.discord_username ?? '');
       setRole(member.role);
-      setPower(member.power != null ? String(member.power) : '');
-      setSortValue(String(member.sort_value));
+      setPowerLevel(member.power_level ?? '');
     }
   }, [member]);
 
@@ -105,8 +103,7 @@ export default function MemberDetailPage() {
         name,
         discord_username: discord || null,
         role,
-        power: power ? Number(power) : null,
-        sort_value: Number(sortValue),
+        power_level: powerLevel || null,
       }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
@@ -123,8 +120,7 @@ export default function MemberDetailPage() {
         name,
         discord_username: discord || null,
         role,
-        power: power ? Number(power) : null,
-        sort_value: Number(sortValue),
+        power_level: powerLevel || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['members'] });
@@ -232,28 +228,19 @@ export default function MemberDetailPage() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="power">Power</Label>
-            <Input
-              id="power"
-              type="number"
-              value={power}
-              onChange={(e) => setPower(e.target.value)}
-              placeholder="Optional"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="sort">Sort Value</Label>
-            <Input
-              id="sort"
-              type="number"
-              value={sortValue}
-              onChange={(e) => setSortValue(e.target.value)}
-            />
-            <p className="text-xs text-slate-500">
-              Controls member ordering in dropdowns and auto-fill. Lower values are assigned first.
-              Typical range: 1 (highest priority) to 30 (lowest priority).
-            </p>
+            <Label htmlFor="power">Power Level</Label>
+            <Select value={powerLevel} onValueChange={setPowerLevel}>
+              <SelectTrigger id="power">
+                <SelectValue placeholder="Select power level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="lt_10m">Less than 10M</SelectItem>
+                <SelectItem value="10_15m">10-15M</SelectItem>
+                <SelectItem value="16_20m">16-20M</SelectItem>
+                <SelectItem value="21_25m">21-25M</SelectItem>
+                <SelectItem value="gt_25m">Greater than 25M</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {saveError && (

@@ -14,8 +14,7 @@ export interface Member {
   name: string;
   discord_username: string | null;
   role: MemberRole;
-  power: number | null;
-  sort_value: number;
+  power_level: string | null;
   is_active: boolean;
 }
 
@@ -82,6 +81,8 @@ export interface SiegeMember {
   siege_id: number;
   member_id: number;
   member_name: string;
+  member_role: string;
+  member_power_level: string | null;
   attack_day: number | null;
   has_reserve_set: boolean | null;
   attack_day_override: boolean;
