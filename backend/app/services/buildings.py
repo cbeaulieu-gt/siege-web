@@ -12,6 +12,22 @@ from app.schemas.building import BuildingCreate, BuildingUpdate, GroupCreate
 from app.services.sieges import get_siege
 
 
+# Teams per building type per level (from game data)
+_LEVEL_TEAMS: dict[str, dict[int, int]] = {
+    "stronghold": {1: 12, 2: 16, 3: 18, 4: 22, 5: 25, 6: 30},
+    "mana_shrine": {1: 6, 2: 7, 3: 9, 4: 11, 5: 13, 6: 15},
+    "magic_tower": {1: 2, 2: 3, 3: 4, 4: 5, 5: 7, 6: 9},
+    "defense_tower": {1: 2, 2: 3, 3: 4, 4: 6, 5: 9, 6: 12},
+}
+
+
+def _get_team_count(building_type: str, level: int) -> int:
+    """Return total team slots for a building type at a given level."""
+    type_key = building_type.value if hasattr(building_type, "value") else building_type
+    levels = _LEVEL_TEAMS.get(type_key, {})
+    return levels.get(level, levels.get(1, 3))
+
+
 async def _get_building_type_config(
     session: AsyncSession, building_type: BuildingType
 ) -> BuildingTypeConfig:
@@ -220,15 +236,17 @@ async def update_building(
                     await session.delete(pos)
 
     if data.level is not None and data.level != building.level:
-        old_level = building.level
         building.level = data.level
 
         # Skip structural changes for posts (always 1 group)
         if building.building_type != BuildingType.post:
-            config = await _get_building_type_config(session, building.building_type)
-
-            # Calculate target group count for the new level
-            target_groups = config.base_group_count + (data.level - 1)
+            target_teams = _get_team_count(building.building_type, data.level)
+            if target_teams % 3 == 0:
+                target_groups = target_teams // 3
+                last_slots = 3
+            else:
+                target_groups = target_teams // 3 + 1
+                last_slots = target_teams % 3
 
             # Get current groups ordered by group_number
             groups_result = await session.execute(
@@ -240,11 +258,10 @@ async def update_building(
             current_count = len(current_groups)
 
             if target_groups > current_count:
-                # Level increased — expand previous last group to 3 slots, add new groups
+                # Level increased — expand previous last group to 3 slots
                 if current_groups:
                     prev_last = current_groups[-1]
                     if prev_last.slot_count < 3:
-                        # Add missing positions to make it 3 slots
                         for pos_num in range(prev_last.slot_count + 1, 4):
                             session.add(Position(
                                 building_group_id=prev_last.id,
@@ -255,7 +272,7 @@ async def update_building(
                 # Add new groups
                 for g in range(current_count + 1, target_groups + 1):
                     is_last = g == target_groups
-                    slot_count = config.base_last_group_slots if is_last else 3
+                    slot_count = last_slots if is_last else 3
                     new_group = BuildingGroup(
                         building_id=building_id,
                         group_number=g,
@@ -274,19 +291,34 @@ async def update_building(
                 for group in current_groups[target_groups:]:
                     await session.delete(group)
 
-                # Trim the new last group's slots to base_last_group_slots
-                if target_groups > 0:
-                    new_last = current_groups[target_groups - 1]
-                    if new_last.slot_count > config.base_last_group_slots:
-                        # Delete excess positions
-                        excess_positions = await session.execute(
+            # Adjust last group's slot count to match target
+            if target_groups > 0 and target_groups <= len(current_groups if target_groups >= current_count else current_groups[:target_groups]):
+                await session.flush()
+                # Re-fetch to get accurate state after adds/deletes
+                last_result = await session.execute(
+                    select(BuildingGroup)
+                    .where(BuildingGroup.building_id == building_id)
+                    .order_by(BuildingGroup.group_number.desc())
+                )
+                actual_last = last_result.scalars().first()
+                if actual_last and actual_last.slot_count != last_slots:
+                    if actual_last.slot_count < last_slots:
+                        # Add positions
+                        for pos_num in range(actual_last.slot_count + 1, last_slots + 1):
+                            session.add(Position(
+                                building_group_id=actual_last.id,
+                                position_number=pos_num,
+                            ))
+                    else:
+                        # Remove excess positions
+                        excess = await session.execute(
                             select(Position)
-                            .where(Position.building_group_id == new_last.id)
-                            .where(Position.position_number > config.base_last_group_slots)
+                            .where(Position.building_group_id == actual_last.id)
+                            .where(Position.position_number > last_slots)
                         )
-                        for pos in excess_positions.scalars().all():
+                        for pos in excess.scalars().all():
                             await session.delete(pos)
-                        new_last.slot_count = config.base_last_group_slots
+                    actual_last.slot_count = last_slots
 
     await session.commit()
     await session.refresh(building)
