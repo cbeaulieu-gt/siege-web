@@ -54,3 +54,12 @@ The following items needs to be addressed
   - The request is rejected but its unclear why to the user. It appears to be an error not an invalid action
 - Same for Members and Settings. 
 - When setting members to a position in the board it would be nice to be able to view a small summary of their information, e.g. Role/Power
+
+===========================================================
+
+- Lets merge the two posts top level tabs into a single Posts tab and then have sub sections
+- Lets import and seed the following by pulling the most recent copy from the excel documents
+  - Member Power Levels
+  - Member Roles
+  - Post Descriptions
+  - Mark members inactive if they werent present in the most recent siege

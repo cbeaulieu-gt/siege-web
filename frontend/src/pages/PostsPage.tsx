@@ -6,6 +6,7 @@ import { getPostConditions } from '../api/members';
 import { getSiege } from '../api/sieges';
 import type { Post, PostConditionRef } from '../api/types';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
@@ -25,6 +26,7 @@ function groupConditionsByLevel(conditions: PostConditionRef[]) {
 function PostRow({ post, siegeId, isLocked }: { post: Post; siegeId: number; isLocked?: boolean }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
+  const [condFilter, setCondFilter] = useState('');
   const [selectedConditions, setSelectedConditions] = useState<Set<number>>(
     new Set(post.active_conditions.map((c) => c.id)),
   );
@@ -93,37 +95,49 @@ function PostRow({ post, siegeId, isLocked }: { post: Post; siegeId: number; isL
             <h4 className="mb-2 text-sm font-medium text-slate-700">
               Conditions (max 3)
             </h4>
+            <Input
+              placeholder="Filter conditions..."
+              value={condFilter}
+              onChange={(e) => setCondFilter(e.target.value)}
+              className="mb-3 h-8 text-sm"
+            />
             {Object.entries(condGroups)
               .sort(([a], [b]) => Number(a) - Number(b))
-              .map(([level, conds]) => (
-                <div key={level} className="mb-3">
-                  <p className="mb-1 text-xs font-medium text-slate-500">
-                    Stronghold Level {level}
-                  </p>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {conds.map((c) => {
-                      const checked = selectedConditions.has(c.id);
-                      const disabled = !checked && selectedConditions.size >= 3;
-                      return (
-                        <div key={c.id} className="flex items-center gap-2">
-                          <Checkbox
-                            id={`cond-${post.id}-${c.id}`}
-                            checked={checked}
-                            disabled={disabled}
-                            onCheckedChange={() => toggleCondition(c.id)}
-                          />
-                          <Label
-                            htmlFor={`cond-${post.id}-${c.id}`}
-                            className="text-xs font-normal"
-                          >
-                            {c.description}
-                          </Label>
-                        </div>
-                      );
-                    })}
+              .map(([level, conds]) => {
+                const filtered = condFilter
+                  ? conds.filter((c) => c.description.toLowerCase().includes(condFilter.toLowerCase()))
+                  : conds;
+                if (filtered.length === 0) return null;
+                return (
+                  <div key={level} className="mb-3">
+                    <p className="mb-1 text-xs font-medium text-slate-500">
+                      Stronghold Level {level}
+                    </p>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {filtered.map((c) => {
+                        const checked = selectedConditions.has(c.id);
+                        const disabled = !checked && selectedConditions.size >= 3;
+                        return (
+                          <div key={c.id} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`cond-${post.id}-${c.id}`}
+                              checked={checked}
+                              disabled={disabled}
+                              onCheckedChange={() => toggleCondition(c.id)}
+                            />
+                            <Label
+                              htmlFor={`cond-${post.id}-${c.id}`}
+                              className="text-xs font-normal"
+                            >
+                              {c.description}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             <Button
               size="sm"
               variant="secondary"

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPostPriorities, updatePostPriority } from '../api/posts';
+import { getPostConditions } from '../api/members';
+import type { PostCondition } from '../api/types';
 import {
   Table,
   TableBody,
@@ -17,6 +19,16 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Input } from '../components/ui/input';
+import { Badge } from '../components/ui/badge';
+
+function groupByLevel(conds: PostCondition[]) {
+  const groups: Record<number, PostCondition[]> = {};
+  for (const c of conds) {
+    if (!groups[c.stronghold_level]) groups[c.stronghold_level] = [];
+    groups[c.stronghold_level].push(c);
+  }
+  return groups;
+}
 
 function DescriptionCell({ postNumber, value }: { postNumber: number; value: string | null }) {
   const queryClient = useQueryClient();
@@ -53,6 +65,11 @@ export default function PostPrioritiesPage() {
     queryFn: getPostPriorities,
   });
 
+  const { data: conditions } = useQuery({
+    queryKey: ['postConditions'],
+    queryFn: getPostConditions,
+  });
+
   const mutation = useMutation({
     mutationFn: ({ postNumber, priority }: { postNumber: number; priority: number }) =>
       updatePostPriority(postNumber, { priority }),
@@ -63,9 +80,9 @@ export default function PostPrioritiesPage() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="mb-2 text-2xl font-bold text-slate-900">Post Config</h1>
+      <h1 className="mb-2 text-2xl font-bold text-slate-900">Posts</h1>
       <p className="mb-6 text-sm text-slate-500">
-        Global priority and description for each post position. These are copied to new sieges when created.
+        Global post configuration and conditions reference.
       </p>
 
       {isLoading ? (
@@ -108,6 +125,35 @@ export default function PostPrioritiesPage() {
               ))}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {/* Post Conditions Reference */}
+      {conditions && (
+        <div className="mt-8">
+          <h2 className="mb-2 text-xl font-bold text-slate-900">Post Conditions</h2>
+          <p className="mb-4 text-sm text-slate-500">
+            Reference list of all post conditions by stronghold level.
+          </p>
+          <div className="space-y-4">
+            {Object.entries(groupByLevel(conditions))
+              .sort(([a], [b]) => Number(a) - Number(b))
+              .map(([level, conds]) => (
+                <div key={level} className="rounded-lg border border-slate-200 bg-white p-4">
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">
+                    Stronghold Level {level}
+                    <Badge variant="secondary" className="ml-2">{conds.length}</Badge>
+                  </h3>
+                  <ul className="space-y-1.5">
+                    {conds.map((c) => (
+                      <li key={c.id} className="text-sm text-slate-700">
+                        {c.description}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+          </div>
         </div>
       )}
     </div>

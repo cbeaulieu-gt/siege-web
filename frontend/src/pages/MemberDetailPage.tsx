@@ -60,6 +60,7 @@ export default function MemberDetailPage() {
   const [powerLevel, setPowerLevel] = useState<string>('');
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [selectedConditions, setSelectedConditions] = useState<Set<number>>(new Set());
+  const [prefFilter, setPrefFilter] = useState('');
   const [saveError, setSaveError] = useState('');
 
   const memberId = isNew ? null : Number(id);
@@ -274,29 +275,42 @@ export default function MemberDetailPage() {
             Select the post conditions this member prefers to fill.
           </p>
 
+          <Input
+            placeholder="Filter conditions..."
+            value={prefFilter}
+            onChange={(e) => setPrefFilter(e.target.value)}
+            className="mb-4 h-8 text-sm"
+          />
+
           {Object.entries(conditionGroups)
             .sort(([a], [b]) => Number(a) - Number(b))
-            .map(([level, conds]) => (
-              <div key={level} className="mb-4">
-                <h3 className="mb-2 text-sm font-medium text-slate-700">
-                  Stronghold Level {level}
-                </h3>
-                <div className="space-y-2">
-                  {conds.map((c) => (
-                    <div key={c.id} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`cond-${c.id}`}
-                        checked={selectedConditions.has(c.id)}
-                        onCheckedChange={() => toggleCondition(c.id)}
-                      />
-                      <Label htmlFor={`cond-${c.id}`} className="font-normal">
-                        {c.description}
-                      </Label>
-                    </div>
-                  ))}
+            .map(([level, conds]) => {
+              const filtered = prefFilter
+                ? conds.filter((c) => c.description.toLowerCase().includes(prefFilter.toLowerCase()))
+                : conds;
+              if (filtered.length === 0) return null;
+              return (
+                <div key={level} className="mb-4">
+                  <h3 className="mb-2 text-sm font-medium text-slate-700">
+                    Stronghold Level {level}
+                  </h3>
+                  <div className="space-y-2">
+                    {filtered.map((c) => (
+                      <div key={c.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`cond-${c.id}`}
+                          checked={selectedConditions.has(c.id)}
+                          onCheckedChange={() => toggleCondition(c.id)}
+                        />
+                        <Label htmlFor={`cond-${c.id}`} className="font-normal">
+                          {c.description}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
           <Button
             className="mt-4"

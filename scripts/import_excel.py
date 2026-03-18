@@ -486,6 +486,7 @@ async def create_building_with_groups_and_positions(
 async def import_file(
     session: AsyncSession,
     filepath: Path,
+    is_most_recent: bool = False,
 ) -> ImportStats:
     """Import a single .xlsm file. Returns ImportStats."""
     import openpyxl
@@ -536,6 +537,13 @@ async def import_file(
             stats.members_created += 1
         else:
             stats.members_existing += 1
+            if is_most_recent:
+                # Update role and power_level from most recent data
+                role_value = map_role(pm.role)
+                if role_value:
+                    member.role = MemberRole(role_value)
+                if pm.power_level:
+                    member.power_level = pm.power_level
 
     # 4. Create Siege
     siege = Siege(
@@ -635,7 +643,25 @@ async def import_file(
             session.add(post)
             stats.posts_created += 1
 
+    # 9. Mark members not in most recent siege as inactive
+    if is_most_recent:
+        all_members_result = await session.execute(
+            select(Member).where(Member.is_active == True)  # noqa: E712
+        )
+        all_active_members = all_members_result.scalars().all()
+        deactivated = 0
+        for m in all_active_members:
+            if m.name.lower() not in member_name_map:
+                m.is_active = False
+                deactivated += 1
+        if deactivated:
+            print(f"  Deactivated {deactivated} members not in most recent siege")
+
     await session.flush()
+
+    if is_most_recent:
+        print(f"  (Most recent file — updated existing member roles/power levels, deactivated absent members)")
+
     return stats
 
 
@@ -651,13 +677,14 @@ async def import_files(
     total_skipped = 0
     total_errors = 0
 
-    for filepath in filepaths:
+    for i, filepath in enumerate(filepaths):
+        is_last = (i == len(filepaths) - 1)
         print(f"Importing: {filepath.name}")
 
         async with SessionFactory() as session:
             async with session.begin():
                 try:
-                    stats = await import_file(session, filepath)
+                    stats = await import_file(session, filepath, is_most_recent=is_last)
                 except Exception as exc:
                     await session.rollback()
                     print(f"  ERROR: Unexpected error — {exc}")
