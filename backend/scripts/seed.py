@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.config import settings
-from app.db.seeds import seed_building_type_config, seed_post_conditions
+from app.db.seeds import seed_building_type_config, seed_post_conditions, seed_post_priority_config
 
 
 async def main() -> None:
@@ -18,6 +18,7 @@ async def main() -> None:
     async with async_session() as session:
         await seed_post_conditions(session)
         await seed_building_type_config(session)
+        await seed_post_priority_config(session)
         await session.commit()
     await engine.dispose()
     print("Seeding complete.")

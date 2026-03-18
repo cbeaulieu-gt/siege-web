@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.attack_day import router as attack_day_router
+from app.api.post_priority_config import router as post_priority_config_router
 from app.api.autofill import router as autofill_router
 from app.api.board import router as board_router
 from app.api.buildings import router as buildings_router
@@ -57,3 +58,4 @@ app.include_router(comparison_router, prefix="/api")
 app.include_router(attack_day_router, prefix="/api")
 app.include_router(images_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
+app.include_router(post_priority_config_router, prefix="/api")

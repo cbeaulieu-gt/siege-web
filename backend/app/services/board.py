@@ -116,23 +116,6 @@ async def _validate_member_active(session: AsyncSession, member_id: int) -> Memb
     return member
 
 
-async def _count_assigned_members(session: AsyncSession, siege_id: int, exclude_position_id: int | None = None) -> int:
-    """Count how many non-reserve, non-disabled positions in a siege have a member assigned."""
-    stmt = (
-        select(Position)
-        .join(BuildingGroup, Position.building_group_id == BuildingGroup.id)
-        .join(Building, BuildingGroup.building_id == Building.id)
-        .where(Building.siege_id == siege_id)
-        .where(Position.member_id.is_not(None))
-        .where(Position.is_reserve.is_(False))
-        .where(Position.is_disabled.is_(False))
-    )
-    if exclude_position_id is not None:
-        stmt = stmt.where(Position.id != exclude_position_id)
-    result = await session.execute(stmt)
-    return len(result.scalars().all())
-
-
 async def update_position(
     session: AsyncSession, siege_id: int, position_id: int, data: PositionUpdate
 ) -> Position:
@@ -168,13 +151,6 @@ async def update_position(
 
     if data.member_id is not None:
         await _validate_member_active(session, data.member_id)
-        # Check defense_scroll_count — count existing assignments excluding this position
-        current_count = await _count_assigned_members(session, siege_id, exclude_position_id=position_id)
-        if current_count >= siege.defense_scroll_count:
-            raise HTTPException(
-                status_code=400,
-                detail="Assignment count would exceed defense scroll count",
-            )
 
     position.member_id = data.member_id
     position.is_reserve = data.is_reserve
@@ -233,29 +209,6 @@ async def bulk_update_positions(
                 status_code=400,
                 detail=f"Members not found: {missing}",
             )
-
-    # Count how many existing assigned members there are (ignoring positions about to be updated)
-    update_ids = {u["position_id"] for u in updates}
-    existing_assigned = await _count_assigned_members(session, siege_id)
-    # Subtract any that are in the update set and currently assigned
-    for pos_id in update_ids:
-        pos = positions_by_id.get(pos_id)
-        if pos and pos.member_id is not None and not pos.is_reserve and not pos.is_disabled:
-            existing_assigned -= 1
-
-    # Count how many updates assign a new member
-    new_assigned = sum(
-        1
-        for u in updates
-        if u.get("member_id") is not None
-        and not u.get("is_reserve", False)
-        and not u.get("is_disabled", False)
-    )
-    if existing_assigned + new_assigned > siege.defense_scroll_count:
-        raise HTTPException(
-            status_code=400,
-            detail="Bulk update would exceed defense scroll count",
-        )
 
     updated: list[Position] = []
     for u in updates:

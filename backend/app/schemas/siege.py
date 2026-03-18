@@ -18,16 +18,6 @@ class SiegeUpdate(BaseModel):
 class SiegeResponse(BaseModel):
     model_config = {"from_attributes": True}
     id: int
-    date: datetime.date
-    status: SiegeStatus
-    defense_scroll_count: int
-    created_at: datetime.datetime
-    updated_at: datetime.datetime
-
-
-class SiegeCloneResponse(BaseModel):
-    model_config = {"from_attributes": True}
-    id: int
     date: datetime.date | None
     status: SiegeStatus
     defense_scroll_count: int

@@ -8,6 +8,7 @@ from app.models.building_type_config import BuildingTypeConfig
 from app.models.member import Member
 from app.models.position import Position
 from app.models.post import Post
+from app.models.post_priority_config import PostPriorityConfig
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 from app.models.enums import BuildingType, SiegeStatus
@@ -90,7 +91,18 @@ async def create_siege(session: AsyncSession, data: SiegeCreate) -> Siege:
                     )
 
             if config.building_type == BuildingType.post:
-                session.add(Post(siege_id=siege.id, building_id=building.id))
+                # Look up global priority for this post number
+                ppc_result = await session.execute(
+                    select(PostPriorityConfig).where(
+                        PostPriorityConfig.post_number == num
+                    )
+                )
+                ppc = ppc_result.scalar_one_or_none()
+                session.add(Post(
+                    siege_id=siege.id,
+                    building_id=building.id,
+                    priority=ppc.priority if ppc else 2,
+                ))
 
     await session.commit()
     await session.refresh(siege)

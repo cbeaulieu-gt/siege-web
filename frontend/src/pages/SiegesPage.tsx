@@ -60,14 +60,13 @@ export default function SiegesPage() {
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Scrolls</TableHead>
                 <TableHead>Links</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {sieges?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-8 text-center text-slate-500">
+                  <TableCell colSpan={3} className="py-8 text-center text-slate-500">
                     No sieges yet. Create one to get started.
                   </TableCell>
                 </TableRow>
@@ -86,7 +85,6 @@ export default function SiegesPage() {
                       {STATUS_LABELS[s.status]}
                     </Badge>
                   </TableCell>
-                  <TableCell>{s.defense_scroll_count}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <div className="flex gap-3 text-sm">
                       <Link

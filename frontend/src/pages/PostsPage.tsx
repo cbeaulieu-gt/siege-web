@@ -6,13 +6,6 @@ import { getPostConditions } from '../api/members';
 import type { Post, PostConditionRef } from '../api/types';
 import { Button } from '../components/ui/button';
 import { Label } from '../components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
 import { Textarea } from '../components/ui/textarea';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
@@ -32,7 +25,6 @@ function groupConditionsByLevel(conditions: PostConditionRef[]) {
 function PostRow({ post, siegeId }: { post: Post; siegeId: number }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
-  const [priority, setPriority] = useState(String(post.priority));
   const [description, setDescription] = useState(post.description ?? '');
   const [selectedConditions, setSelectedConditions] = useState<Set<number>>(
     new Set(post.active_conditions.map((c) => c.id)),
@@ -47,7 +39,6 @@ function PostRow({ post, siegeId }: { post: Post; siegeId: number }) {
   const updateMutation = useMutation({
     mutationFn: () =>
       updatePost(siegeId, post.id, {
-        priority: Number(priority),
         description: description || null,
       }),
     onSuccess: () => {
@@ -107,30 +98,15 @@ function PostRow({ post, siegeId }: { post: Post; siegeId: number }) {
 
       {expanded && (
         <div className="border-t border-slate-100 px-4 py-4 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor={`priority-${post.id}`}>Priority</Label>
-              <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger id={`priority-${post.id}`} className="w-32">
-                  <SelectValue placeholder="Select..." />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Low</SelectItem>
-                  <SelectItem value="2">Medium</SelectItem>
-                  <SelectItem value="3">High</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor={`desc-${post.id}`}>Description</Label>
-              <Textarea
-                id={`desc-${post.id}`}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                placeholder="Optional description"
-              />
-            </div>
+          <div className="space-y-1.5">
+            <Label htmlFor={`desc-${post.id}`}>Description</Label>
+            <Textarea
+              id={`desc-${post.id}`}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+              placeholder="Optional description"
+            />
           </div>
           <Button
             size="sm"

@@ -86,3 +86,15 @@ async def seed_building_type_config(session: AsyncSession) -> None:
             for bt, count, bgc, blgs in rows
         ],
     )
+
+
+async def seed_post_priority_config(session: AsyncSession) -> None:
+    """Insert all 18 PostPriorityConfig rows with default priority=2. Safe to re-run (ON CONFLICT DO NOTHING)."""
+    await session.execute(
+        text(
+            "INSERT INTO post_priority_config (post_number, priority) "
+            "VALUES (:post_number, :priority) "
+            "ON CONFLICT DO NOTHING"
+        ),
+        [{"post_number": n, "priority": 2} for n in range(1, 19)],
+    )

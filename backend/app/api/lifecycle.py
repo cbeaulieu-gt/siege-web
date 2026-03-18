@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
-from app.schemas.siege import SiegeCloneResponse, SiegeResponse
+from app.schemas.siege import SiegeResponse
 from app.services import lifecycle as lifecycle_service
 
 router = APIRouter(tags=["lifecycle"])
@@ -32,7 +32,7 @@ async def reopen_siege(
     return await lifecycle_service.reopen_siege(db, siege_id)
 
 
-@router.post("/sieges/{siege_id}/clone", response_model=SiegeCloneResponse, status_code=201)
+@router.post("/sieges/{siege_id}/clone", response_model=SiegeResponse, status_code=201)
 async def clone_siege(
     siege_id: int,
     db: AsyncSession = Depends(get_db),

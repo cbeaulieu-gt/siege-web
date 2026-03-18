@@ -332,7 +332,7 @@ export default function SiegeSettingsPage() {
 
         {buildings && buildings.length > 0 && (
           <div className="mb-4 space-y-2">
-            {buildings.map((b) => (
+            {buildings.filter((b) => b.building_type !== 'post').map((b) => (
               <div
                 key={b.id}
                 className="flex items-center gap-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2"

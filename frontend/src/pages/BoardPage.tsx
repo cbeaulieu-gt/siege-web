@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getBoard, updatePosition } from '../api/board';
 import { getSiege, getSiegeMembers, previewAutofill, applyAutofill, validateSiege } from '../api/sieges';
+import { getPostPriorities } from '../api/posts';
 import type {
   BuildingType,
   BuildingResponse,
@@ -43,6 +44,8 @@ const BUILDING_COLORS: Record<BuildingType, BuildingColorClass> = {
   defense_tower: { header: 'bg-green-600', border: 'border-green-200', bg: 'bg-green-50' },
   post: { header: 'bg-red-600', border: 'border-red-200', bg: 'bg-red-50' },
 };
+
+const PRIORITY_LABELS: Record<number, string> = { 1: 'Low', 2: 'Medium', 3: 'High' };
 
 const BUILDING_LABELS: Record<BuildingType, string> = {
   stronghold: 'Stronghold',
@@ -234,11 +237,13 @@ function BuildingCard({
   siegeId,
   siegeMembers,
   onUpdate,
+  priorityLabel,
 }: {
   building: BuildingResponse;
   siegeId: number;
   siegeMembers: SiegeMember[];
   onUpdate: () => void;
+  priorityLabel?: string;
 }) {
   const colors = BUILDING_COLORS[building.building_type];
 
@@ -251,6 +256,7 @@ function BuildingCard({
         <p className="text-xs opacity-75">
           Lvl {building.level}
           {building.is_broken ? ' · Broken' : ''}
+          {priorityLabel ? ` · ${priorityLabel}` : ''}
         </p>
       </div>
       <div className={`${colors.bg} p-2 space-y-2`}>
@@ -296,6 +302,16 @@ export default function BoardPage() {
     queryKey: ['siege', siegeId],
     queryFn: () => getSiege(siegeId),
   });
+
+  const { data: postPriorities } = useQuery({
+    queryKey: ['postPriorities'],
+    queryFn: getPostPriorities,
+  });
+
+  const priorityLookup: Record<number, number> = {};
+  for (const p of postPriorities ?? []) {
+    priorityLookup[p.post_number] = p.priority;
+  }
 
   const previewMutation = useMutation({
     mutationFn: () => previewAutofill(siegeId),
@@ -494,6 +510,7 @@ export default function BoardPage() {
                   siegeId={siegeId}
                   siegeMembers={siegeMembers ?? []}
                   onUpdate={refreshBoard}
+                  priorityLabel={PRIORITY_LABELS[priorityLookup[building.building_number]] ?? undefined}
                 />
               ))}
           </div>
