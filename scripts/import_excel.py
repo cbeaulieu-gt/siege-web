@@ -189,23 +189,38 @@ def parse_members_sheet(ws) -> list[ParsedMember]:
         role_raw = str(row[3]).strip() if len(row) > 3 and row[3] is not None else ""
         # Col E (index 4) is PostRestrictions — not used yet
 
-        # Map numeric power to power_level range
+        # Map text power ranges to power_level enum
         power_level: Optional[str] = None
         if power_raw is not None:
-            try:
-                power_val = float(power_raw)
-                if power_val < 10_000_000:
-                    power_level = "lt_10m"
-                elif power_val <= 15_000_000:
-                    power_level = "10_15m"
-                elif power_val <= 20_000_000:
-                    power_level = "16_20m"
-                elif power_val <= 25_000_000:
-                    power_level = "21_25m"
-                else:
-                    power_level = "gt_25m"
-            except (TypeError, ValueError):
+            power_str = str(power_raw).strip().lower()
+            if "20" in power_str:
+                power_level = "21_25m"
+            elif "15" in power_str:
+                power_level = "16_20m"
+            elif "10" in power_str:
+                power_level = "10_15m"
+            elif "8" in power_str or "6" in power_str:
+                power_level = "lt_10m"
+            elif "<5" in power_str or "5.9" in power_str:
+                power_level = "lt_10m"
+            elif power_str in ("n/a", ""):
                 power_level = None
+            else:
+                # Try numeric fallback
+                try:
+                    power_val = float(power_raw)
+                    if power_val < 10_000_000:
+                        power_level = "lt_10m"
+                    elif power_val <= 15_000_000:
+                        power_level = "10_15m"
+                    elif power_val <= 20_000_000:
+                        power_level = "16_20m"
+                    elif power_val <= 25_000_000:
+                        power_level = "21_25m"
+                    else:
+                        power_level = "gt_25m"
+                except (TypeError, ValueError):
+                    power_level = None
 
         members.append(
             ParsedMember(
