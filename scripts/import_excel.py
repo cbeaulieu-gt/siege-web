@@ -174,7 +174,7 @@ def parse_members_sheet(ws) -> list[ParsedMember]:
     Parse the 'Members' worksheet.
 
     Expected columns:
-      A: name, B: role, C: power, D: discord_username
+      A: name, B: level (ignored), C: player power, D: role, E: post restrictions (ignored)
     Row 1 is header; data starts at row 2.
     """
     members = []
@@ -184,9 +184,10 @@ def parse_members_sheet(ws) -> list[ParsedMember]:
             continue
         if str(name).strip().upper() == "RESERVE":
             continue
-        role_raw = str(row[1]).strip() if len(row) > 1 and row[1] is not None else ""
+        # Col B (index 1) is Level — skip it
         power_raw = row[2] if len(row) > 2 else None
-        discord_raw = row[3] if len(row) > 3 else None
+        role_raw = str(row[3]).strip() if len(row) > 3 and row[3] is not None else ""
+        # Col E (index 4) is PostRestrictions — not used yet
 
         # Map numeric power to power_level range
         power_level: Optional[str] = None
@@ -206,16 +207,12 @@ def parse_members_sheet(ws) -> list[ParsedMember]:
             except (TypeError, ValueError):
                 power_level = None
 
-        discord_username: Optional[str] = None
-        if discord_raw is not None and str(discord_raw).strip():
-            discord_username = str(discord_raw).strip()
-
         members.append(
             ParsedMember(
                 name=str(name).strip(),
                 role=role_raw,
                 power_level=power_level,
-                discord_username=discord_username,
+                discord_username=None,
             )
         )
     return members
