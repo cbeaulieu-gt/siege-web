@@ -292,33 +292,29 @@ async def update_building(
                     await session.delete(group)
 
             # Adjust last group's slot count to match target
-            if target_groups > 0 and target_groups <= len(current_groups if target_groups >= current_count else current_groups[:target_groups]):
-                await session.flush()
-                # Re-fetch to get accurate state after adds/deletes
-                last_result = await session.execute(
-                    select(BuildingGroup)
-                    .where(BuildingGroup.building_id == building_id)
-                    .order_by(BuildingGroup.group_number.desc())
-                )
-                actual_last = last_result.scalars().first()
-                if actual_last and actual_last.slot_count != last_slots:
-                    if actual_last.slot_count < last_slots:
-                        # Add positions
-                        for pos_num in range(actual_last.slot_count + 1, last_slots + 1):
-                            session.add(Position(
-                                building_group_id=actual_last.id,
-                                position_number=pos_num,
-                            ))
-                    else:
-                        # Remove excess positions
-                        excess = await session.execute(
-                            select(Position)
-                            .where(Position.building_group_id == actual_last.id)
-                            .where(Position.position_number > last_slots)
-                        )
-                        for pos in excess.scalars().all():
-                            await session.delete(pos)
-                    actual_last.slot_count = last_slots
+            await session.flush()
+            last_result = await session.execute(
+                select(BuildingGroup)
+                .where(BuildingGroup.building_id == building_id)
+                .order_by(BuildingGroup.group_number.desc())
+            )
+            actual_last = last_result.scalars().first()
+            if actual_last and actual_last.slot_count != last_slots:
+                if actual_last.slot_count < last_slots:
+                    for pos_num in range(actual_last.slot_count + 1, last_slots + 1):
+                        session.add(Position(
+                            building_group_id=actual_last.id,
+                            position_number=pos_num,
+                        ))
+                else:
+                    excess = await session.execute(
+                        select(Position)
+                        .where(Position.building_group_id == actual_last.id)
+                        .where(Position.position_number > last_slots)
+                    )
+                    for pos in excess.scalars().all():
+                        await session.delete(pos)
+                actual_last.slot_count = last_slots
 
     await session.commit()
     await session.refresh(building)
