@@ -57,7 +57,7 @@ export async function updateMemberPreferences(
 }
 
 export async function getPostConditions(): Promise<PostCondition[]> {
-  const res = await apiClient.get<PostCondition[]>('/api/members/post-conditions');
+  const res = await apiClient.get<PostCondition[]>('/api/post-conditions');
   return res.data;
 }
 

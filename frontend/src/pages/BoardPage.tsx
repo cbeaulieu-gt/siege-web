@@ -292,6 +292,7 @@ export default function BoardPage() {
   const [autofillOpen, setAutofillOpen] = useState(false);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [validationOpen, setValidationOpen] = useState(false);
+  const [showMemberCounts, setShowMemberCounts] = useState(false);
 
   const { data: board, isLoading: boardLoading } = useQuery({
     queryKey: ['board', siegeId],
@@ -360,6 +361,18 @@ export default function BoardPage() {
     (p) => !p.is_disabled && !p.is_reserve && !p.has_no_assignment && p.member_id == null,
   ).length;
   const disabledCount = allPositions.filter((p) => p.is_disabled).length;
+
+  // Per-member assignment counts
+  const memberAssignments: Record<number, { name: string; count: number }> = {};
+  for (const pos of allPositions) {
+    if (pos.member_id != null && !pos.is_reserve && !pos.is_disabled) {
+      if (!memberAssignments[pos.member_id]) {
+        memberAssignments[pos.member_id] = { name: pos.member_name ?? `#${pos.member_id}`, count: 0 };
+      }
+      memberAssignments[pos.member_id].count++;
+    }
+  }
+  const sortedMemberCounts = Object.values(memberAssignments).sort((a, b) => b.count - a.count);
 
   // Build a lookup of position_id → member name for autofill preview
   const positionLookup: Record<number, PositionResponse> = {};
@@ -465,6 +478,33 @@ export default function BoardPage() {
         <span className="text-sm text-slate-600">
           <span className="font-semibold text-slate-400">{disabledCount}</span> disabled
         </span>
+      </div>
+
+      {/* Member assignment counts */}
+      <div className="mb-4">
+        <button
+          className="text-xs text-slate-500 hover:text-slate-700 underline"
+          onClick={() => setShowMemberCounts((v) => !v)}
+        >
+          {showMemberCounts ? 'Hide' : 'Show'} member assignment counts ({sortedMemberCounts.length})
+        </button>
+        {showMemberCounts && sortedMemberCounts.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {sortedMemberCounts.map((m) => (
+              <span
+                key={m.name}
+                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs ${
+                  m.count > 3
+                    ? 'border-red-200 bg-red-50 text-red-700'
+                    : 'border-slate-200 bg-white text-slate-700'
+                }`}
+              >
+                {m.name}
+                <span className="font-semibold">{m.count}</span>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       {board?.buildings.length === 0 && (

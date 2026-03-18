@@ -160,7 +160,7 @@ export default function PostsPage() {
           </Link>
           <h1 className="text-2xl font-bold text-slate-900">Posts — Siege #{siegeId}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            Set post conditions and priority for each post in this siege.
+            Set post conditions for each post in this siege.
           </p>
         </div>
         <div className="flex gap-2 text-sm">

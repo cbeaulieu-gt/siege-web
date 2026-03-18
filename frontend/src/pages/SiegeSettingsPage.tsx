@@ -340,27 +340,28 @@ export default function SiegeSettingsPage() {
                 <span className="w-32 text-sm font-medium capitalize">
                   {b.building_type.replace(/_/g, ' ')} {b.building_number}
                 </span>
-                <div className="flex items-center gap-1.5">
-                  <Label htmlFor={`lvl-${b.id}`} className="text-xs text-slate-500">
-                    Lvl
-                  </Label>
-                  <Input
-                    id={`lvl-${b.id}`}
-                    type="number"
-                    min="1"
-                    max="10"
-                    className="h-7 w-16 text-xs"
-                    defaultValue={b.level}
-                    onBlur={(e) => {
-                      const val = Number(e.target.value);
-                      if (val !== b.level) {
-                        updateBuildingMutation.mutate({
-                          buildingId: b.id,
-                          data: { level: val },
-                        });
-                      }
-                    }}
-                  />
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-slate-500 mr-1">Lvl</span>
+                  {[1, 2, 3, 4, 5, 6].map((lvl) => (
+                    <button
+                      key={lvl}
+                      className={`h-7 w-7 rounded text-xs font-medium transition-colors ${
+                        b.level === lvl
+                          ? 'bg-violet-600 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                      onClick={() => {
+                        if (lvl !== b.level) {
+                          updateBuildingMutation.mutate({
+                            buildingId: b.id,
+                            data: { level: lvl },
+                          });
+                        }
+                      }}
+                    >
+                      {lvl}
+                    </button>
+                  ))}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <Checkbox
