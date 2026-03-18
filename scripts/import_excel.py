@@ -84,7 +84,7 @@ BUILDING_TYPE_CONFIG: dict[str, tuple[int, int]] = {
 class ParsedMember:
     name: str
     role: str
-    power: Optional[float]
+    power_level: Optional[str]
     discord_username: Optional[str]
 
 
@@ -188,12 +188,23 @@ def parse_members_sheet(ws) -> list[ParsedMember]:
         power_raw = row[2] if len(row) > 2 else None
         discord_raw = row[3] if len(row) > 3 else None
 
-        power: Optional[float] = None
+        # Map numeric power to power_level range
+        power_level: Optional[str] = None
         if power_raw is not None:
             try:
-                power = float(power_raw)
+                power_val = float(power_raw)
+                if power_val < 10_000_000:
+                    power_level = "lt_10m"
+                elif power_val <= 15_000_000:
+                    power_level = "10_15m"
+                elif power_val <= 20_000_000:
+                    power_level = "16_20m"
+                elif power_val <= 25_000_000:
+                    power_level = "21_25m"
+                else:
+                    power_level = "gt_25m"
             except (TypeError, ValueError):
-                power = None
+                power_level = None
 
         discord_username: Optional[str] = None
         if discord_raw is not None and str(discord_raw).strip():
@@ -203,7 +214,7 @@ def parse_members_sheet(ws) -> list[ParsedMember]:
             ParsedMember(
                 name=str(name).strip(),
                 role=role_raw,
-                power=power,
+                power_level=power_level,
                 discord_username=discord_username,
             )
         )
@@ -412,7 +423,7 @@ async def get_or_create_member(
     member = Member(
         name=parsed.name,
         role=MemberRole(role_value),
-        power=parsed.power,
+        power_level=parsed.power_level,
         discord_username=parsed.discord_username,
         is_active=True,
     )
