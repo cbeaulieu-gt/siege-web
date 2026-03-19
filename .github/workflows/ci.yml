@@ -70,6 +70,15 @@ jobs:
       - name: Build
         run: npm run build
 
+  # E2E (Playwright) tests are NOT run in CI automatically — they require a live
+  # docker-compose stack. To run locally:
+  #   docker-compose up -d
+  #   cd frontend && npx playwright install --with-deps chromium
+  #   npm run test:e2e
+  #
+  # To add a CI e2e job: provision a Postgres service container, start backend +
+  # frontend in job steps, then run `npx playwright install` + `npm run test:e2e`.
+
   bot-ci:
     name: Bot Lint & Test
     runs-on: ubuntu-latest
