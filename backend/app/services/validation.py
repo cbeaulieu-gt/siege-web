@@ -25,7 +25,8 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
             selectinload(Siege.buildings)
             .selectinload(Building.groups)
             .selectinload(BuildingGroup.positions)
-            .selectinload(Position.member),
+            .selectinload(Position.member)
+            .selectinload(Member.post_preferences),
             selectinload(Siege.buildings).selectinload(Building.post).selectinload(Post.active_conditions),
             selectinload(Siege.siege_members).selectinload(SiegeMember.member),
         )
@@ -68,14 +69,14 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
         if pos.member_id is not None and pos.member is not None and not pos.member.is_active:
             errors.append(ValidationIssue(
                 rule=1,
-                message=f"Assigned member '{pos.member.name}' (id={pos.member_id}) is not active",
+                message=f"Assigned member '{pos.member.name}' is not active",
                 context={"member_id": pos.member_id, "position_id": pos.id},
             ))
 
     # Rule 2: No member assigned more than defense_scroll_count times
     for member_id, count in assignments_by_member.items():
         if count > siege.defense_scroll_count:
-            member_name = None
+            member_name = "Unknown"
             for pos, _, _ in all_positions:
                 if pos.member_id == member_id and pos.member is not None:
                     member_name = pos.member.name
@@ -83,7 +84,7 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
             errors.append(ValidationIssue(
                 rule=2,
                 message=(
-                    f"Member id={member_id} ('{member_name}') is assigned {count} times "
+                    f"Member '{member_name}' is assigned {count} times "
                     f"but defense_scroll_count is {siege.defense_scroll_count}"
                 ),
                 context={"member_id": member_id, "count": count, "limit": siege.defense_scroll_count},
@@ -127,9 +128,10 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
     # Rule 6: Attack day must be 1 or 2 if set
     for sm in siege.siege_members:
         if sm.attack_day is not None and sm.attack_day not in (1, 2):
+            name = sm.member.name if sm.member else "Unknown"
             errors.append(ValidationIssue(
                 rule=6,
-                message=f"SiegeMember member_id={sm.member_id} has invalid attack_day {sm.attack_day}",
+                message=f"Member '{name}' has invalid attack_day {sm.attack_day}",
                 context={"member_id": sm.member_id, "attack_day": sm.attack_day},
             ))
 
@@ -218,8 +220,8 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
                 warnings.append(ValidationIssue(
                     rule=11,
                     message=(
-                        f"Member '{member.name}' (id={member.id}) is assigned to post building "
-                        f"id={building.id} but none of their preferences match active conditions"
+                        f"Member '{member.name}' is assigned to Post {building.building_number} "
+                        f"but none of their preferences match active conditions"
                     ),
                     context={"member_id": member.id, "building_id": building.id},
                 ))
@@ -228,10 +230,11 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
     assigned_member_ids = set(assignments_by_member.keys())
     for member_id in assigned_member_ids:
         sm = sm_by_member.get(member_id)
+        name = sm.member.name if sm and sm.member else "Unknown"
         if sm is None or sm.attack_day is None:
             warnings.append(ValidationIssue(
                 rule=13,
-                message=f"Member id={member_id} is assigned to positions but has no attack_day set",
+                message=f"Member '{name}' is assigned to positions but has no attack_day set",
                 context={"member_id": member_id},
             ))
 
@@ -247,10 +250,11 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
     # Rule 15: Assigned members with has_reserve_set = NULL
     for member_id in assigned_member_ids:
         sm = sm_by_member.get(member_id)
+        name = sm.member.name if sm and sm.member else "Unknown"
         if sm is None or sm.has_reserve_set is None:
             warnings.append(ValidationIssue(
                 rule=15,
-                message=f"Member id={member_id} is assigned but has_reserve_set is not configured",
+                message=f"Member '{name}' is assigned but has_reserve_set is not configured",
                 context={"member_id": member_id},
             ))
 

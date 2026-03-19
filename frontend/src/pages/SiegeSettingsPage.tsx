@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -41,11 +41,7 @@ import {
 import { Badge } from '../components/ui/badge';
 import {
   ArrowLeft,
-  LayoutGrid,
   MessageSquare,
-  Users,
-  GitCompare,
-  Settings,
   Check,
   X,
   Loader2,
@@ -95,25 +91,6 @@ export default function SiegeSettingsPage() {
     queryKey: ['siegeMembers', siegeId],
     queryFn: () => getSiegeMembers(siegeId),
   });
-
-  // Build a member_id → member_name lookup for resolving IDs in validation messages
-  const memberNameById = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const m of siegeMembers ?? []) {
-      map.set(m.member_id, m.member_name);
-    }
-    return map;
-  }, [siegeMembers]);
-
-  // Replace numeric member IDs in a message string with member names where known
-  function resolveMemberIds(message: string): string {
-    if (memberNameById.size === 0) return message;
-    let result = message;
-    for (const [id, name] of memberNameById.entries()) {
-      result = result.split(String(id)).join(name);
-    }
-    return result;
-  }
 
   // Notification batch polling — runs until all results have success !== null or status === "completed"
   const batchDone = (results: NotificationResultItem[], status: string) =>
@@ -282,44 +259,10 @@ export default function SiegeSettingsPage() {
         Back to Sieges
       </Link>
 
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">
           Siege {siege?.date ?? `#${siegeId}`}
         </h1>
-        <div className="flex gap-2 text-sm">
-          <Link
-            to={`/sieges/${siegeId}/board`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            <LayoutGrid className="h-4 w-4" />
-            Board
-          </Link>
-          <Link
-            to={`/sieges/${siegeId}/posts`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            <MessageSquare className="h-4 w-4" />
-            Posts
-          </Link>
-          <Link
-            to={`/sieges/${siegeId}/members`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            <Users className="h-4 w-4" />
-            Members
-          </Link>
-          <Link
-            to={`/sieges/${siegeId}/compare`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            <GitCompare className="h-4 w-4" />
-            Compare
-          </Link>
-          <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 text-slate-700 font-medium">
-            <Settings className="h-4 w-4" />
-            Settings
-          </span>
-        </div>
       </div>
 
       {/* Lifecycle */}
@@ -386,7 +329,7 @@ export default function SiegeSettingsPage() {
                     Error {e.rule}
                   </Badge>
                 )}
-                <p className="text-sm text-red-700">{resolveMemberIds(e.message)}</p>
+                <p className="text-sm text-red-700">{e.message}</p>
               </div>
             ))}
           </div>
@@ -684,7 +627,7 @@ export default function SiegeSettingsPage() {
                 <Badge variant="destructive" className="mt-0.5 shrink-0">
                   Error {e.rule}
                 </Badge>
-                <p className="text-sm text-red-700">{resolveMemberIds(e.message)}</p>
+                <p className="text-sm text-red-700">{e.message}</p>
               </div>
             ))}
             {validation.warnings.map((w, i) => (
@@ -692,7 +635,7 @@ export default function SiegeSettingsPage() {
                 <Badge variant="yellow" className="mt-0.5 shrink-0">
                   Warning {w.rule}
                 </Badge>
-                <p className="text-sm text-yellow-800">{resolveMemberIds(w.message)}</p>
+                <p className="text-sm text-yellow-800">{w.message}</p>
               </div>
             ))}
           </div>

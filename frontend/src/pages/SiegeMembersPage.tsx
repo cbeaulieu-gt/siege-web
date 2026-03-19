@@ -36,7 +36,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from '../components/ui/dialog';
-import { ArrowLeft, Lock, LayoutGrid, MessageSquare, Users, GitCompare, Settings, UserPlus } from 'lucide-react';
+import { ArrowLeft, Lock, UserPlus, Loader2 } from 'lucide-react';
 
 function AttackDaySelect({
   value,
@@ -126,6 +126,7 @@ export default function SiegeMembersPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState<string>('');
   const [addError, setAddError] = useState<string | null>(null);
+  const [reserveAssigning, setReserveAssigning] = useState(false);
 
   const { data: siege } = useQuery({
     queryKey: ['siege', siegeId],
@@ -181,6 +182,20 @@ export default function SiegeMembersPage() {
     },
   });
 
+  async function handleAutoAssignReserves() {
+    const day2Members = (members ?? []).filter((m) => m.attack_day === 2);
+    if (day2Members.length === 0) return;
+    setReserveAssigning(true);
+    try {
+      for (const m of day2Members) {
+        await updateSiegeMember(siegeId, m.member_id, { has_reserve_set: true });
+      }
+      queryClient.invalidateQueries({ queryKey: ['siegeMembers', siegeId] });
+    } finally {
+      setReserveAssigning(false);
+    }
+  }
+
   function handleAddConfirm() {
     if (!selectedMemberId) return;
     setAddError(null);
@@ -218,42 +233,7 @@ export default function SiegeMembersPage() {
             Members — Siege {siege?.date ?? `#${siegeId}`}
           </h1>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <div className="flex gap-2 text-sm">
-            <Link
-              to={`/sieges/${siegeId}/board`}
-              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-            >
-              <LayoutGrid className="h-4 w-4" />
-              Board
-            </Link>
-            <Link
-              to={`/sieges/${siegeId}/posts`}
-              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-            >
-              <MessageSquare className="h-4 w-4" />
-              Posts
-            </Link>
-            <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 text-slate-700 font-medium">
-              <Users className="h-4 w-4" />
-              Members
-            </span>
-            <Link
-              to={`/sieges/${siegeId}/compare`}
-              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-            >
-              <GitCompare className="h-4 w-4" />
-              Compare
-            </Link>
-            <Link
-              to={`/sieges/${siegeId}`}
-              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-            >
-              <Settings className="h-4 w-4" />
-              Settings
-            </Link>
-          </div>
-          <div className="flex gap-2">
+        <div className="flex gap-2">
             {isPlanning && (
               <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
                 <UserPlus className="mr-1.5 h-4 w-4" />
@@ -261,13 +241,24 @@ export default function SiegeMembersPage() {
               </Button>
             )}
             <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAutoAssignReserves}
+              disabled={reserveAssigning || siege?.status === 'complete'}
+            >
+              {reserveAssigning ? (
+                <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Assigning...</>
+              ) : (
+                'Auto-Assign Reserves'
+              )}
+            </Button>
+            <Button
               size="sm"
               onClick={() => previewMutation.mutate()}
               disabled={previewMutation.isPending || siege?.status === 'complete'}
             >
               {previewMutation.isPending ? 'Loading...' : 'Auto-Assign Attack Days'}
             </Button>
-          </div>
         </div>
       </div>
 

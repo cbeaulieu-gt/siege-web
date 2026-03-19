@@ -10,7 +10,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
-import { ArrowLeft, ChevronDown, ChevronUp, LayoutGrid, MessageSquare, Users, GitCompare, Settings } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 
 const PRIORITY_LABELS: Record<number, string> = { 1: 'Low', 2: 'Medium', 3: 'High' };
 
@@ -183,54 +183,18 @@ export default function PostsPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-start justify-between">
-        <div>
-          <Link
-            to="/sieges"
-            className="mb-2 flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Sieges
-          </Link>
-          <h1 className="text-2xl font-bold text-slate-900">Posts — Siege #{siegeId}</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Set post conditions for each post in this siege.
-          </p>
-        </div>
-        <div className="flex gap-2 text-sm">
-          <Link
-            to={`/sieges/${siegeId}/board`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            <LayoutGrid className="h-4 w-4" />
-            Board
-          </Link>
-          <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 text-slate-700 font-medium">
-            <MessageSquare className="h-4 w-4" />
-            Posts
-          </span>
-          <Link
-            to={`/sieges/${siegeId}/members`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            <Users className="h-4 w-4" />
-            Members
-          </Link>
-          <Link
-            to={`/sieges/${siegeId}/compare`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            <GitCompare className="h-4 w-4" />
-            Compare
-          </Link>
-          <Link
-            to={`/sieges/${siegeId}`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            <Settings className="h-4 w-4" />
-            Settings
-          </Link>
-        </div>
+      <div className="mb-6">
+        <Link
+          to="/sieges"
+          className="mb-2 flex items-center gap-1 text-sm text-slate-500 hover:text-slate-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Sieges
+        </Link>
+        <h1 className="text-2xl font-bold text-slate-900">Posts — Siege #{siegeId}</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Set post conditions for each post in this siege.
+        </p>
       </div>
 
       {error && (

@@ -110,5 +110,5 @@ async def update_siege_member(
         setattr(siege_member, field, value)
 
     await session.commit()
-    await session.refresh(siege_member)
+    await session.refresh(siege_member, attribute_names=["member"])
     return siege_member

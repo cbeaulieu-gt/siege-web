@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Label } from '../components/ui/label';
-import { ArrowLeft, LayoutGrid, MessageSquare, Users, GitCompare, Settings } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 function formatPosition(pos: PositionKey): string {
@@ -109,42 +109,8 @@ export default function ComparisonPage() {
         Back to Sieges
       </Link>
 
-      <div className="mb-6 flex items-start justify-between">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Comparison</h1>
-        <div className="flex gap-2 text-sm">
-          <Link
-            to={`/sieges/${siegeId}/board`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            <LayoutGrid className="h-4 w-4" />
-            Board
-          </Link>
-          <Link
-            to={`/sieges/${siegeId}/posts`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            <MessageSquare className="h-4 w-4" />
-            Posts
-          </Link>
-          <Link
-            to={`/sieges/${siegeId}/members`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            <Users className="h-4 w-4" />
-            Members
-          </Link>
-          <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 text-slate-700 font-medium">
-            <GitCompare className="h-4 w-4" />
-            Compare
-          </span>
-          <Link
-            to={`/sieges/${siegeId}`}
-            className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-          >
-            <Settings className="h-4 w-4" />
-            Settings
-          </Link>
-        </div>
       </div>
 
       {/* Siege selector */}

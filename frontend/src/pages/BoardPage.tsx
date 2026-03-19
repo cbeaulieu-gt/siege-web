@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { getBoard, updatePosition } from '../api/board';
-import { getSiege, getSiegeMembers, previewAutofill, applyAutofill, validateSiege, updateSiegeMember } from '../api/sieges';
+import { getSiege, getSiegeMembers, previewAutofill, applyAutofill, validateSiege } from '../api/sieges';
 import { getPostPriorities } from '../api/posts';
 import { PostsTab } from '../components/PostsTab';
 import type {
@@ -43,11 +43,7 @@ import {
   ChevronRight,
   LayoutGrid,
   MessageSquare,
-  Users,
-  GitCompare,
-  Settings,
   Search,
-  Loader2,
 } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -726,7 +722,6 @@ export default function BoardPage() {
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [validationOpen, setValidationOpen] = useState(false);
   const [activeMemberId, setActiveMemberId] = useState<number | null>(null);
-  const [reserveAssigning, setReserveAssigning] = useState(false);
 
   const { data: board, isLoading: boardLoading } = useQuery({
     queryKey: ['board', siegeId],
@@ -853,20 +848,6 @@ export default function BoardPage() {
 
   // ── DnD ──────────────────────────────────────────────────────────────────────
 
-  async function handleAutoAssignReserves() {
-    const day2Members = (siegeMembers ?? []).filter((m) => m.attack_day === 2);
-    if (day2Members.length === 0) return;
-    setReserveAssigning(true);
-    try {
-      for (const m of day2Members) {
-        await updateSiegeMember(siegeId, m.member_id, { has_reserve_set: true });
-      }
-      queryClient.invalidateQueries({ queryKey: ['siegeMembers', siegeId] });
-    } finally {
-      setReserveAssigning(false);
-    }
-  }
-
   const sensors = useSensors(
     useSensor(PointerSensor, {
       // Short distance before activation so chevron button clicks still work
@@ -919,7 +900,7 @@ export default function BoardPage() {
   return (
     <div>
       {/* ── Header ── */}
-      <div className="sticky top-0 z-10 mb-4 flex flex-wrap items-start justify-between gap-2 bg-slate-50 pb-2 pt-2">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-2">
         <div>
           <Link
             to="/sieges"
@@ -933,73 +914,23 @@ export default function BoardPage() {
           </h1>
         </div>
 
-        <div className="flex flex-col items-end gap-2">
-          {/* Nav links */}
-          <div className="flex gap-2 text-sm">
-            <span className="flex items-center gap-1 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 font-medium text-slate-700">
-              <LayoutGrid className="h-4 w-4" />
-              Board
-            </span>
-            <Link
-              to={`/sieges/${siegeId}/posts`}
-              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-            >
-              <MessageSquare className="h-4 w-4" />
-              Posts
-            </Link>
-            <Link
-              to={`/sieges/${siegeId}/members`}
-              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-            >
-              <Users className="h-4 w-4" />
-              Members
-            </Link>
-            <Link
-              to={`/sieges/${siegeId}/compare`}
-              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-            >
-              <GitCompare className="h-4 w-4" />
-              Compare
-            </Link>
-            <Link
-              to={`/sieges/${siegeId}`}
-              className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-slate-700 hover:bg-slate-50"
-            >
-              <Settings className="h-4 w-4" />
-              Settings
-            </Link>
-          </div>
-
-          {/* Action buttons */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => validateMutation.mutate()}
-              disabled={validateMutation.isPending}
-            >
-              {validateMutation.isPending ? 'Validating...' : 'Validate'}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAutoAssignReserves}
-              disabled={reserveAssigning || isLocked}
-            >
-              {reserveAssigning ? (
-                <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Assigning...</>
-              ) : (
-                'Auto-Assign Reserves'
-              )}
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => previewMutation.mutate()}
-              disabled={previewMutation.isPending || isLocked}
-            >
-              {previewMutation.isPending ? 'Loading...' : 'Preview Auto-fill'}
-            </Button>
-          </div>
+        {/* Action buttons */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => validateMutation.mutate()}
+            disabled={validateMutation.isPending}
+          >
+            {validateMutation.isPending ? 'Validating...' : 'Validate'}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => previewMutation.mutate()}
+            disabled={previewMutation.isPending || isLocked}
+          >
+            {previewMutation.isPending ? 'Loading...' : 'Preview Auto-fill'}
+          </Button>
         </div>
       </div>
 

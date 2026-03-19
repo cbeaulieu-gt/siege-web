@@ -14,7 +14,14 @@
       "Bash(pip show:*)",
       "Bash(npm run:*)",
       "Bash(pip install:*)",
-      "Bash(docker-compose:*)"
+      "Bash(docker-compose:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npm install:*)",
+      "Bash(node:*)",
+      "Bash(grep:*)",
+      "Bash(wc:*)",
+      "Bash(dir:*)"
     ]
   },
   "hooks": {
@@ -25,10 +32,6 @@
           {
             "type": "command",
             "command": "echo \"I have these agents available: [list all available agents], i will use [name agent] to solve this task as it is the best for [reason for choosing that agent]\""
-          },
-          {
-            "type": "command",
-            "command": "echo \"REPEAT OUTLOUD: \\n I WILL NOT CREATE REDUNDANT FILES \\n I WLL CLEAN UP AFTER MY SELF AND KEEP ONLY THE ACTUAL DEMANDED SOLTUTION \\n I WILL NOT OVERENGINEER \\n I WILL USE THE APROPRIATE AGENT\""
           }
         ]
       }
