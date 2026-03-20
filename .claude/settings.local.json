@@ -21,7 +21,10 @@
       "Bash(node:*)",
       "Bash(grep:*)",
       "Bash(wc:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Skill(update-config)",
+      "Write",
+      "Skill(commit-commands:commit)"
     ]
   },
   "hooks": {
