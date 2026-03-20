@@ -16,14 +16,13 @@ from app.schemas.siege import SiegeCreate, SiegeUpdate
 
 
 async def compute_scroll_count(session: AsyncSession, siege_id: int) -> int:
-    """Compute defense scroll count: total non-disabled positions across all defense buildings (excludes posts)."""
+    """Compute total scroll count: non-disabled positions across all buildings including posts."""
     pos_result = await session.execute(
         select(func.count())
         .select_from(Position)
         .join(BuildingGroup, Position.building_group_id == BuildingGroup.id)
         .join(Building, BuildingGroup.building_id == Building.id)
         .where(Building.siege_id == siege_id)
-        .where(Building.building_type != BuildingType.post)
         .where(Position.is_disabled == False)  # noqa: E712
     )
     return pos_result.scalar() or 0

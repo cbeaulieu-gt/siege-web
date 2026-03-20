@@ -789,22 +789,16 @@ export default function BoardPage() {
   ).length;
   const disabledCount = allPositions.filter((p) => p.is_disabled).length;
 
-  // Non-post positions only (for defense scroll counting)
-  const defensePositions = useMemo(
-    () => board?.buildings.filter((b) => b.building_type !== 'post').flatMap((b) => b.groups.flatMap((g) => g.positions)) ?? [],
-    [board],
-  );
-
-  // Per-member assignment counts (defense buildings only — excludes posts)
+  // Per-member assignment counts (all buildings including posts)
   const memberAssignments = useMemo(() => {
     const counts: Record<number, number> = {};
-    for (const pos of defensePositions) {
+    for (const pos of allPositions) {
       if (pos.member_id != null && !pos.is_reserve && !pos.is_disabled) {
         counts[pos.member_id] = (counts[pos.member_id] ?? 0) + 1;
       }
     }
     return counts;
-  }, [defensePositions]);
+  }, [allPositions]);
 
   // Map member_id → role (for coloring position chips)
   const memberRoleMap = useMemo(() => {
