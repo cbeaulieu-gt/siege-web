@@ -29,7 +29,7 @@ load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 # Add backend to path so we can import app models
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "backend"))
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db.base import Base  # noqa: F401 — needed to register all models with metadata
@@ -39,6 +39,8 @@ from app.models.enums import BuildingType, MemberRole, SiegeStatus
 from app.models.member import Member
 from app.models.position import Position
 from app.models.post import Post
+from app.models.post_condition import PostCondition
+from app.models.post_priority_config import PostPriorityConfig
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 
@@ -75,6 +77,79 @@ BUILDING_TYPE_CONFIG: dict[str, tuple[int, int]] = {
     "post": (1, 1),
 }
 
+# building_type -> {total_position_count -> level}
+BUILDING_LEVEL_MAP: dict[str, dict[int, int]] = {
+    "stronghold": {12: 1, 16: 2, 18: 3, 22: 4, 25: 5, 30: 6},
+    "mana_shrine": {6: 1, 7: 2, 9: 3, 11: 4, 13: 5, 15: 6},
+    "magic_tower": {2: 1, 3: 2, 4: 3, 5: 4, 7: 5, 9: 6},
+    "defense_tower": {2: 1, 3: 2, 4: 3, 6: 4, 9: 5, 12: 6},
+    "post": {1: 1},
+}
+
+# post condition short keyword -> PostCondition.id  (case-insensitive lookup)
+POST_CONDITION_KEYWORDS: dict[str, int] = {
+    "telerian league": 1,
+    "telerian": 1,
+    "gaellen pact": 2,
+    "the corrupted": 3,
+    "corrupted": 3,
+    "nyresan union": 4,
+    "nyresan": 4,
+    "hp": 5,
+    "def": 6,
+    "defense": 6,
+    "support": 7,
+    "atk": 8,
+    "attack": 8,
+    "banner lord": 9,
+    "banner lords": 9,
+    "bannerlord": 9,
+    "bannerlords": 9,
+    "high elves": 10,
+    "sacred order": 11,
+    "barbarian": 12,
+    "barbarians": 12,
+    "ogryn tribe": 13,
+    "lizardmen": 14,
+    "lizardman": 14,
+    "skinwalker": 15,
+    "skinwalkers": 15,
+    "orc": 16,
+    "orcs": 16,
+    "tm reduce": 17,
+    "tm-": 17,
+    "tm fill": 18,
+    "tm+": 18,
+    "void": 19,
+    "force": 20,
+    "magic": 21,
+    "spirit": 22,
+    "demonspawn": 23,
+    "undead horde": 24,
+    "dark elves": 25,
+    "knights revenant": 26,
+    "knightrev": 26,
+    "knightsrev": 26,
+    "knight rev": 26,
+    "cd increase": 27,
+    "cd+": 27,
+    "cd decrease": 28,
+    "cd-": 28,
+    "legendary": 29,
+    "epic": 30,
+    "epics only": 30,
+    "epic's only": 30,
+    "epics": 30,
+    "rare": 31,
+    "dwarves": 32,
+    "dwarf": 32,
+    "shadowkin": 33,
+    "sylvan watcher": 34,
+    "sylvan watchers": 34,
+    "sheep": 35,
+    "no revive": 36,
+}
+
 # ---------------------------------------------------------------------------
 # Data classes for parsed sheet rows
 # ---------------------------------------------------------------------------
@@ -86,6 +161,7 @@ class ParsedMember:
     role: str
     power_level: Optional[str]
     discord_username: Optional[str]
+    post_preference_keywords: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -105,6 +181,19 @@ class ParsedReserve:
 
 
 @dataclass
+class ParsedPostConfig:
+    post_number: int
+    priority: int        # mapped to int: High=3, Medium=2, Low=1
+    description: Optional[str]
+
+
+@dataclass
+class ParsedPostConditions:
+    post_number: int          # 1-based, matches building_number for "post" buildings
+    condition_keywords: list[str]   # up to 3, already split/stripped
+
+
+@dataclass
 class ImportStats:
     filename: str
     date: Optional[date] = None
@@ -116,6 +205,9 @@ class ImportStats:
     positions_empty: int = 0
     siege_members_created: int = 0
     posts_created: int = 0
+    preferences_set: int = 0
+    post_configs_updated: int = 0
+    post_conditions_set: int = 0
     siege_id: Optional[int] = None
     skipped: bool = False
     skip_reason: str = ""
@@ -174,7 +266,7 @@ def parse_members_sheet(ws) -> list[ParsedMember]:
     Parse the 'Members' worksheet.
 
     Expected columns:
-      A: name, B: level (ignored), C: player power, D: role, E: post restrictions (ignored)
+      A: name, B: level (ignored), C: player power, D: role, E: post restrictions
     Row 1 is header; data starts at row 2.
     """
     members = []
@@ -187,7 +279,14 @@ def parse_members_sheet(ws) -> list[ParsedMember]:
         # Col B (index 1) is Level — skip it
         power_raw = row[2] if len(row) > 2 else None
         role_raw = str(row[3]).strip() if len(row) > 3 and row[3] is not None else ""
-        # Col E (index 4) is PostRestrictions — not used yet
+
+        # Col E (index 4) is PostRestrictions — parse as comma-separated keywords
+        post_restrictions_raw = row[4] if len(row) > 4 else None
+        post_preference_keywords: list[str] = []
+        if post_restrictions_raw is not None and str(post_restrictions_raw).strip():
+            raw = str(post_restrictions_raw).replace(",", "/")
+            tokens = raw.split("/")
+            post_preference_keywords = [t.strip() for t in tokens if t.strip()]
 
         # Map text power ranges to power_level enum
         power_level: Optional[str] = None
@@ -228,6 +327,7 @@ def parse_members_sheet(ws) -> list[ParsedMember]:
                 role=role_raw,
                 power_level=power_level,
                 discord_username=None,
+                post_preference_keywords=post_preference_keywords,
             )
         )
     return members
@@ -385,6 +485,82 @@ def parse_reserves_sheet(ws) -> list[ParsedReserve]:
     return reserves
 
 
+def parse_posts_sheet_config(ws) -> list[ParsedPostConfig]:
+    """
+    Parse post priority and descriptions from the Posts sheet, rows 2–17, columns B–D.
+
+    Layout is hierarchical: a row whose col B is a non-numeric string is a priority
+    section header ("High Priority", "Medium Priority", "Low Priority"). A row whose
+    col B is an integer is a post data row with col C as the description.
+
+    Priority integer mapping: High=3, Medium=2, Low=1. Default priority is Low (1).
+    """
+    _PRIORITY_MAP = {"high": 3, "medium": 2, "low": 1}
+    configs: list[ParsedPostConfig] = []
+    current_priority = 1  # default: Low
+
+    for row in ws.iter_rows(min_row=2, max_row=17, min_col=2, max_col=4, values_only=True):
+        cell_b = row[0]
+        cell_c = row[1]
+
+        if cell_b is None:
+            continue
+
+        # Try to interpret as an integer (post number)
+        try:
+            post_number = int(cell_b)
+        except (TypeError, ValueError):
+            # Non-numeric string — treat as a priority section header
+            label = str(cell_b).lower()
+            for keyword, pval in _PRIORITY_MAP.items():
+                if keyword in label:
+                    current_priority = pval
+                    break
+            continue
+
+        description = str(cell_c).strip() if cell_c is not None else None
+        if description == "":
+            description = None
+        configs.append(ParsedPostConfig(
+            post_number=post_number,
+            priority=current_priority,
+            description=description,
+        ))
+
+    return configs
+
+
+def parse_posts_sheet_conditions(ws) -> list[ParsedPostConditions]:
+    """
+    Parse post active conditions from the Posts sheet, rows 34–51, columns D–F.
+
+    Row 34 = Post 1, row 35 = Post 2, …, row 51 = Post 18. Each row has up to 3
+    condition keywords in columns D, E, F. Each cell is a single keyword (not
+    comma/slash-separated). Only posts with at least one non-empty keyword are included.
+    """
+    results: list[ParsedPostConditions] = []
+
+    for row_index, row in enumerate(
+        ws.iter_rows(min_row=34, max_row=51, min_col=4, max_col=6, values_only=True),
+        start=34,
+    ):
+        post_number = row_index - 33  # row 34 -> post 1
+        condition_keywords: list[str] = []
+        for cell in row:
+            if cell is not None:
+                stripped = str(cell).strip()
+                if stripped:
+                    condition_keywords.append(stripped)
+
+        if condition_keywords:
+            results.append(ParsedPostConditions(
+                post_number=post_number,
+                condition_keywords=condition_keywords,
+            ))
+
+    return results
+
+
 # ---------------------------------------------------------------------------
 # Database helpers
 # ---------------------------------------------------------------------------
@@ -410,6 +586,101 @@ def build_group_structure(building_type: str) -> list[int]:
     if base_groups == 1:
         return [last_slots]
     return [3] * (base_groups - 1) + [last_slots]
+
+
+def compute_building_group_structure(
+    assignments: list[ParsedAssignment],
+    building_type: str,
+    building_number: int,
+) -> dict[int, int]:
+    """
+    Scan the given list of ParsedAssignments and return {group_number: slot_count}
+    for the specified building instance (identified by building_type + building_number).
+
+    The Assignments sheet has a single global position_count (number of position columns),
+    which is the maximum across all building types — typically 3.  Buildings with fewer
+    real slots per group (Magic Tower: 2, Post: 1) receive trailing all-None position
+    columns that must not be counted as real slots.
+
+    Resolution strategy:
+      - Non-last groups always have exactly 3 slots.
+      - For the last group, start from base_last_slots as the initial minimum.
+      - Walk the last group's slot count DOWN (3 → 2 → 1) until the resulting total
+        maps to a recognised level in BUILDING_LEVEL_MAP.  This handles buildings at
+        upgrade levels where the last group has fewer slots than base_last_slots (e.g.
+        Stronghold level 2 has 16 teams = 5 full groups + 1 slot in the last group).
+      - If the filled-position evidence pushes above the initial minimum (e.g. a member
+        is assigned to position 3 of a magic_tower group), we use max_filled instead
+        since the level map will accept that higher total.
+      - Post (base_last=1): always stays at 1 — no trailing positions are ever filled.
+
+    This means:
+      - Magic Tower (base_last=2): starts at 2; rises to 3 only if position 3 is filled;
+        may stay at 1 when the last group has only 1 real slot (level 3: 4 = 1×3 + 1×1).
+      - Stronghold / Mana Shrine (base_last=3): starts at 3 but may drop to 2 or 1 when
+        the building is at a level where the last group is smaller.
+      - Post (base_last=1): stays at 1 always.
+    """
+    building_assignments = [
+        a for a in assignments
+        if a.building_type == building_type and a.building_number == building_number
+    ]
+    if not building_assignments:
+        return {}
+
+    _, base_last_slots = BUILDING_TYPE_CONFIG.get(building_type, (1, 3))
+
+    # Ordered group numbers so we can identify the last group.
+    group_numbers = sorted(set(a.group_number for a in building_assignments))
+    n_groups = len(group_numbers)
+
+    # For each group, find the highest position that has any non-None value.
+    max_filled: dict[int, int] = {}
+    for a in building_assignments:
+        if a.value is not None and a.position_number > max_filled.get(a.group_number, 0):
+            max_filled[a.group_number] = a.position_number
+
+    # Build the initial group_structure using base_last_slots as the floor for the
+    # last group (and 3 for all non-last groups).
+    group_structure: dict[int, int] = {}
+    last_gnum: Optional[int] = None
+    for i, gnum in enumerate(group_numbers):
+        is_last = (i == n_groups - 1)
+        base_slots = base_last_slots if is_last else 3
+        group_structure[gnum] = max(base_slots, max_filled.get(gnum, 0))
+        if is_last:
+            last_gnum = gnum
+
+    # The last group's slot count was floored to base_last_slots, but at upgrade levels
+    # the real last-group slot count can be lower.  Find the smallest slot count for the
+    # last group that is (a) >= the highest filled position and (b) produces a total
+    # that maps to a recognised level.  We prefer the smallest valid count so we do not
+    # accidentally assign a higher level than the building actually is.
+    level_map = BUILDING_LEVEL_MAP.get(building_type, {})
+    if last_gnum is not None and level_map:
+        # The evidence floor: we cannot go below the highest filled position.
+        evidence_floor = max(1, max_filled.get(last_gnum, 1))
+        # Try each candidate from the evidence floor up to the current (base-floored) value.
+        current_last_slots = group_structure[last_gnum]
+        best_last_slots = current_last_slots  # fallback: keep the base-floored value
+        for candidate in range(evidence_floor, current_last_slots + 1):
+            group_structure[last_gnum] = candidate
+            if sum(group_structure.values()) in level_map:
+                best_last_slots = candidate
+                break
+        group_structure[last_gnum] = best_last_slots
+
+    return group_structure
+
+
+def infer_building_level(building_type: str, group_structure: dict[int, int]) -> int:
+    """
+    Sum all slot counts in group_structure and look up the level for that building type.
+    Falls back to level 1 if the total is not in the level map.
+    """
+    total_positions = sum(group_structure.values())
+    level_map = BUILDING_LEVEL_MAP.get(building_type, {})
+    return level_map.get(total_positions, 1)
 
 
 async def get_or_create_member(
@@ -449,9 +720,15 @@ async def create_building_with_groups_and_positions(
     siege_id: int,
     building_type: str,
     building_number: int,
+    level: int,
+    group_structure: dict[int, int],
 ) -> tuple[Building, dict[tuple[int, int], Position]]:
     """
     Create a Building, its BuildingGroups, and their Positions.
+
+    Uses the provided level and group_structure ({group_number: slot_count}) instead
+    of the hardcoded BUILDING_TYPE_CONFIG so that higher-level buildings are created
+    with the correct number of groups and slots as observed in the sheet.
 
     Returns (building, positions_map) where positions_map is
     {(group_number, position_number): Position}.
@@ -460,19 +737,19 @@ async def create_building_with_groups_and_positions(
         siege_id=siege_id,
         building_type=BuildingType(building_type),
         building_number=building_number,
-        level=1,
+        level=level,
         is_broken=False,
     )
     session.add(building)
     await session.flush()
 
-    slot_counts = build_group_structure(building_type)
     positions_map: dict[tuple[int, int], Position] = {}
 
-    for group_idx, slot_count in enumerate(slot_counts, start=1):
+    for group_num in sorted(group_structure.keys()):
+        slot_count = group_structure[group_num]
         group = BuildingGroup(
             building_id=building.id,
-            group_number=group_idx,
+            group_number=group_num,
             slot_count=slot_count,
         )
         session.add(group)
@@ -485,7 +762,7 @@ async def create_building_with_groups_and_positions(
             )
             session.add(position)
             await session.flush()
-            positions_map[(group_idx, pos_num)] = position
+            positions_map[(group_num, pos_num)] = position
 
     return building, positions_map
 
@@ -536,6 +813,17 @@ async def import_file(
     parsed_members = parse_members_sheet(members_ws)
     parsed_assignments = parse_assignments_sheet(assignments_ws)
     parsed_reserves = parse_reserves_sheet(reserves_ws)
+
+    # Parse Posts sheet (optional — silently skip if absent)
+    parsed_post_configs: list[ParsedPostConfig] = []
+    parsed_post_conditions: list[ParsedPostConditions] = []
+    try:
+        posts_ws = wb["Posts"]
+        parsed_post_configs = parse_posts_sheet_config(posts_ws)
+        parsed_post_conditions = parse_posts_sheet_conditions(posts_ws)
+    except KeyError:
+        pass
+
     wb.close()
 
     print(f"  Parsed: {len(parsed_members)} members, {len(parsed_assignments)} assignments, {len(parsed_reserves)} reserves")
@@ -557,6 +845,70 @@ async def import_file(
                 if pm.power_level:
                     member.power_level = pm.power_level
 
+    # Load PostCondition rows — needed for member preferences (most_recent) and for
+    # post active conditions (every file).  Fetch once and reuse.
+    pc_result = await session.execute(select(PostCondition))
+    post_conditions: dict[int, PostCondition] = {
+        pc.id: pc for pc in pc_result.scalars().all()
+    }
+
+    # 3b. Import post preferences (most recent file only)
+    if is_most_recent:
+
+        # Build a normalised keyword -> condition_id map
+        kw_lower: dict[str, int] = {k.lower(): v for k, v in POST_CONDITION_KEYWORDS.items()}
+
+        for pm in parsed_members:
+            if not pm.post_preference_keywords:
+                continue
+            member = member_name_map.get(pm.name.lower())
+            if member is None:
+                continue
+
+            # Resolve keywords to condition IDs
+            condition_ids: list[int] = []
+            for kw in pm.post_preference_keywords:
+                cid = kw_lower.get(kw.lower())
+                if cid is None:
+                    print(f"  Warning: unknown post preference keyword '{kw}' for member '{pm.name}' — skipping")
+                    continue
+                if cid in post_conditions:
+                    condition_ids.append(cid)
+                else:
+                    print(f"  Warning: PostCondition id={cid} not found in DB for keyword '{kw}' — skipping")
+
+            # Delete existing preferences for this member
+            await session.execute(
+                text("DELETE FROM member_post_preference WHERE member_id = :mid"),
+                {"mid": member.id},
+            )
+
+            # Insert new preferences
+            inserted = 0
+            for cid in condition_ids:
+                await session.execute(
+                    text(
+                        "INSERT INTO member_post_preference (member_id, post_condition_id) "
+                        "VALUES (:mid, :cid) ON CONFLICT DO NOTHING"
+                    ),
+                    {"mid": member.id, "cid": cid},
+                )
+                inserted += 1
+            stats.preferences_set += inserted
+
+        # 3c. Update PostPriorityConfig priority/description (most recent file only)
+        if parsed_post_configs:
+            ppc_result = await session.execute(select(PostPriorityConfig))
+            ppc_map: dict[int, PostPriorityConfig] = {
+                ppc.post_number: ppc for ppc in ppc_result.scalars().all()
+            }
+            for pc in parsed_post_configs:
+                existing_ppc = ppc_map.get(pc.post_number)
+                if existing_ppc is not None:
+                    existing_ppc.priority = pc.priority
+                    existing_ppc.description = pc.description
+                    stats.post_configs_updated += 1
+
     # 4. Create Siege
     siege = Siege(
         date=siege_date,
@@ -573,11 +925,19 @@ async def import_file(
     for assignment in parsed_assignments:
         key = (assignment.building_type, assignment.building_number)
         if key not in seen_buildings:
+            group_structure = compute_building_group_structure(
+                parsed_assignments,
+                assignment.building_type,
+                assignment.building_number,
+            )
+            level = infer_building_level(assignment.building_type, group_structure)
             building, positions_map = await create_building_with_groups_and_positions(
                 session,
                 siege.id,
                 assignment.building_type,
                 assignment.building_number,
+                level=level,
+                group_structure=group_structure,
             )
             seen_buildings[key] = (building, positions_map)
             stats.buildings_created += 1
@@ -644,7 +1004,16 @@ async def import_file(
         stats.siege_members_created += 1
 
     # 8. Create Post rows for all post-type buildings
-    for (building_type, _), (building, _) in seen_buildings.items():
+    # Build a lookup from post_number -> ParsedPostConditions for condition insertion
+    post_conditions_lookup: dict[int, ParsedPostConditions] = {
+        ppc.post_number: ppc for ppc in parsed_post_conditions
+    }
+    # Full description -> condition_id lookup (post conditions use full description strings).
+    desc_to_condition_id: dict[str, int] = {
+        pc.description.strip().lower(): pc.id for pc in post_conditions.values()
+    }
+
+    for (building_type, building_number), (building, _) in seen_buildings.items():
         if building_type == "post":
             post = Post(
                 siege_id=siege.id,
@@ -653,7 +1022,26 @@ async def import_file(
                 description=None,
             )
             session.add(post)
+            await session.flush()
             stats.posts_created += 1
+
+            # Insert active conditions for this post if available.
+            # Cell values are full PostCondition description strings.
+            ppc_entry = post_conditions_lookup.get(building_number)
+            if ppc_entry:
+                for kw in ppc_entry.condition_keywords:
+                    cid = desc_to_condition_id.get(kw.strip().lower())
+                    if cid is None:
+                        print(f"  Warning: unknown post condition '{kw}' for post {building_number} — skipping")
+                        continue
+                    await session.execute(
+                        text(
+                            "INSERT INTO post_active_condition (post_id, post_condition_id) "
+                            "VALUES (:pid, :cid) ON CONFLICT DO NOTHING"
+                        ),
+                        {"pid": post.id, "cid": cid},
+                    )
+                    stats.post_conditions_set += 1
 
     # 9. Mark members not in most recent siege as inactive
     if is_most_recent:
@@ -726,6 +1114,10 @@ async def import_files(
         )
         print(f"  Siege members: {stats.siege_members_created} created")
         print(f"  Posts: {stats.posts_created} created")
+        print(f"  Post conditions: {stats.post_conditions_set} active conditions imported")
+        if is_last:
+            print(f"  Post preferences: {stats.preferences_set} preference records set")
+            print(f"  Post configs: {stats.post_configs_updated} priority/description records updated")
         print(f"  + Siege #{stats.siege_id} created (status: complete)")
         total_imported += 1
 
