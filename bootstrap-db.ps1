@@ -86,7 +86,7 @@ $FrontendJson = az containerapp show `
     -o tsv 2>&1
 
 if ($LASTEXITCODE -ne 0 -or -not $FrontendJson) {
-    Write-Host "    (Could not resolve frontend URL for '$FrontendApp' — deployment may not include a frontend for this environment.)"
+    Write-Host "    (Could not resolve frontend URL for '$FrontendApp' - deployment may not include a frontend for this environment.)"
 } else {
     $FrontendUrl = "https://$FrontendJson"
     Write-Host ""
