@@ -116,54 +116,21 @@ module containerApps 'modules/container-apps.bicep' = {
 
 // ── Key Vault role assignments ────────────────────────────────────────────────
 //
-// We create these in main.bicep AFTER containerApps runs so that the managed
-// identity principal IDs are already known. A module-scoped role assignment
-// loop inside keyvault.bicep can't reference outputs from a sibling module, so
-// this is the correct pattern: use `existing` to get a handle on the vault,
-// then assign the built-in "Key Vault Secrets User" role
-// (4633458b-17de-408a-b874-0445c86b69e6) to each Container App's
-// system-assigned managed identity.
+// Role assignments are delegated to a dedicated module so that the vault name
+// and principal IDs arrive as plain string parameters rather than as module
+// outputs. Bicep BCP120 forbids using module outputs as the `name` of a
+// resource or as the target of an `existing` scope, because those values are
+// only known at runtime. Inside kv-role-assignments.bicep the vault name is a
+// regular parameter string, so `existing` resolves at compile time and
+// `guid(keyVault.id, ...)` is valid.
 
-resource existingKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
-  name: keyVault.outputs.vaultName
-}
-
-resource kvRoleApi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.outputs.vaultId, containerApps.outputs.apiAppPrincipalId, '4633458b-17de-408a-b874-0445c86b69e6')
-  scope: existingKeyVault
-  properties: {
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
-    )
-    principalId: containerApps.outputs.apiAppPrincipalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource kvRoleFrontend 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.outputs.vaultId, containerApps.outputs.frontendAppPrincipalId, '4633458b-17de-408a-b874-0445c86b69e6')
-  scope: existingKeyVault
-  properties: {
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
-    )
-    principalId: containerApps.outputs.frontendAppPrincipalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-resource kvRoleBot 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.outputs.vaultId, containerApps.outputs.botAppPrincipalId, '4633458b-17de-408a-b874-0445c86b69e6')
-  scope: existingKeyVault
-  properties: {
-    roleDefinitionId: subscriptionResourceId(
-      'Microsoft.Authorization/roleDefinitions',
-      '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
-    )
-    principalId: containerApps.outputs.botAppPrincipalId
-    principalType: 'ServicePrincipal'
+module kvRoleAssignments 'modules/kv-role-assignments.bicep' = {
+  name: 'kvRoleAssignments'
+  params: {
+    vaultName: keyVault.outputs.vaultName
+    apiPrincipalId: containerApps.outputs.apiAppPrincipalId
+    frontendPrincipalId: containerApps.outputs.frontendAppPrincipalId
+    botPrincipalId: containerApps.outputs.botAppPrincipalId
   }
 }
 
