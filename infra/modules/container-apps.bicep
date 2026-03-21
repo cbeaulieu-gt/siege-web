@@ -29,9 +29,6 @@ param acrUsername string
 @secure()
 param acrPassword string
 
-@description('Default domain of the Container Apps Environment (e.g. mangotree-7248c553.australiaeast.azurecontainerapps.io)')
-param environmentDefaultDomain string
-
 var apiAppName = '${appPrefix}-api-${environment}'
 var frontendAppName = '${appPrefix}-frontend-${environment}'
 var botAppName = '${appPrefix}-bot-${environment}'
@@ -89,7 +86,7 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
           env: [
             { name: 'DATABASE_URL', secretRef: 'database-url' }
             { name: 'DISCORD_BOT_API_KEY', secretRef: 'discord-bot-api-key' }
-            { name: 'DISCORD_BOT_API_URL', value: 'https://${botAppName}.internal.${environmentDefaultDomain}' }
+            { name: 'DISCORD_BOT_API_URL', value: 'http://${botAppName}' }
             { name: 'DISCORD_GUILD_ID', value: discordGuildId }
             { name: 'ENVIRONMENT', value: environment }
           ]
@@ -156,7 +153,7 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
           }
           env: [
             { name: 'VITE_API_URL', value: '' } // nginx proxies /api/* to siege-api internally
-            { name: 'API_UPSTREAM', value: 'https://${apiAppName}.internal.${environmentDefaultDomain}' }
+            { name: 'API_UPSTREAM', value: 'http://${apiAppName}' }
           ]
         }
       ]

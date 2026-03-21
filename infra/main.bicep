@@ -110,7 +110,6 @@ module containerApps 'modules/container-apps.bicep' = {
     discordGuildId: discordGuildId
     acrUsername: registry.outputs.acrUsername
     acrPassword: registry.outputs.acrPassword
-    environmentDefaultDomain: containerEnv.outputs.defaultDomain
   }
 }
 
