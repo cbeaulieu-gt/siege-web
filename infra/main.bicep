@@ -72,9 +72,6 @@ module postgres 'modules/postgres.bicep' = {
   }
 }
 
-// Key Vault created before container apps so we can pass principal IDs in the
-// second pass. On the first deploy containerAppPrincipalIds will be empty — run
-// the deployment twice, or use the post-deploy role assignment approach.
 module keyVault 'modules/keyvault.bicep' = {
   name: 'keyVault'
   params: {
@@ -86,7 +83,6 @@ module keyVault 'modules/keyvault.bicep' = {
     discordGuildId: discordGuildId
     discordBotApiKey: discordBotApiKey
     botApiKey: botApiKey
-    containerAppPrincipalIds: []
   }
 }
 
@@ -112,6 +108,62 @@ module containerApps 'modules/container-apps.bicep' = {
     imageTag: imageTag
     keyVaultUri: keyVault.outputs.vaultUri
     discordGuildId: discordGuildId
+    acrUsername: registry.outputs.acrUsername
+    acrPassword: registry.outputs.acrPassword
+    environmentDefaultDomain: containerEnv.outputs.defaultDomain
+  }
+}
+
+// ── Key Vault role assignments ────────────────────────────────────────────────
+//
+// We create these in main.bicep AFTER containerApps runs so that the managed
+// identity principal IDs are already known. A module-scoped role assignment
+// loop inside keyvault.bicep can't reference outputs from a sibling module, so
+// this is the correct pattern: use `existing` to get a handle on the vault,
+// then assign the built-in "Key Vault Secrets User" role
+// (4633458b-17de-408a-b874-0445c86b69e6) to each Container App's
+// system-assigned managed identity.
+
+resource existingKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  name: keyVault.outputs.vaultName
+}
+
+resource kvRoleApi 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.outputs.vaultId, containerApps.outputs.apiAppPrincipalId, '4633458b-17de-408a-b874-0445c86b69e6')
+  scope: existingKeyVault
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
+    )
+    principalId: containerApps.outputs.apiAppPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource kvRoleFrontend 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.outputs.vaultId, containerApps.outputs.frontendAppPrincipalId, '4633458b-17de-408a-b874-0445c86b69e6')
+  scope: existingKeyVault
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
+    )
+    principalId: containerApps.outputs.frontendAppPrincipalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource kvRoleBot 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.outputs.vaultId, containerApps.outputs.botAppPrincipalId, '4633458b-17de-408a-b874-0445c86b69e6')
+  scope: existingKeyVault
+  properties: {
+    roleDefinitionId: subscriptionResourceId(
+      'Microsoft.Authorization/roleDefinitions',
+      '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
+    )
+    principalId: containerApps.outputs.botAppPrincipalId
+    principalType: 'ServicePrincipal'
   }
 }
 

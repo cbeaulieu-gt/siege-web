@@ -26,9 +26,6 @@ param discordBotApiKey string
 @secure()
 param botApiKey string
 
-@description('Object IDs of the Container App managed identities that need secret access')
-param containerAppPrincipalIds array = []
-
 var vaultName = '${appPrefix}-kv-${environment}-${take(uniqueString(resourceGroup().id), 6)}'
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
@@ -80,22 +77,6 @@ resource secretBotApiKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   name: 'bot-api-key'
   properties: { value: botApiKey }
 }
-
-// Grant each Container App managed identity the "Key Vault Secrets User" role
-resource kvSecretsUserRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = [
-  for (principalId, i) in containerAppPrincipalIds: {
-    name: guid(keyVault.id, principalId, '4633458b-17de-408a-b874-0445c86b69e6')
-    scope: keyVault
-    properties: {
-      roleDefinitionId: subscriptionResourceId(
-        'Microsoft.Authorization/roleDefinitions',
-        '4633458b-17de-408a-b874-0445c86b69e6' // Key Vault Secrets User
-      )
-      principalId: principalId
-      principalType: 'ServicePrincipal'
-    }
-  }
-]
 
 output vaultId string = keyVault.id
 output vaultName string = keyVault.name

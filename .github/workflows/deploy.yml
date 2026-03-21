@@ -6,66 +6,146 @@ on:
       - main
 
 env:
-  ACR_NAME: siegeacr
+  ACR_NAME: siegeacrprod
+  ACR_LOGIN_SERVER: siegeacrprod.azurecr.io
   RESOURCE_GROUP: siege-rg
+
+# ── Build ──────────────────────────────────────────────────────────────────────
+#
+# Three image builds run in parallel via matrix. Each leg logs into Azure (using
+# the single AZURE_CREDENTIALS secret) and then uses `az acr login` to
+# authenticate Docker against ACR — no ACR_USERNAME/ACR_PASSWORD secrets needed.
+#
+# Each image is tagged with both the commit SHA (immutable, for rollback) and
+# `latest` (so the Bicep `imageTag = 'latest'` default continues to work).
 
 jobs:
   build-and-push:
-    name: Build & Push Images
+    name: Build & Push (${{ matrix.service }})
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - service: siege-api
+            context: ./backend
+          - service: siege-frontend
+            context: ./frontend
+          - service: siege-bot
+            context: ./bot
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Log in to Azure Container Registry
-        uses: azure/docker-login@v2
+      - name: Log in to Azure
+        uses: azure/login@v2
         with:
-          login-server: ${{ env.ACR_NAME }}.azurecr.io
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Build and push backend
+      # Authenticate Docker to ACR via the Azure CLI — no separate ACR credentials
+      # required. The service principal in AZURE_CREDENTIALS needs AcrPush on the
+      # registry (or Contributor on the resource group).
+      - name: Log in to ACR
+        run: az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build and push ${{ matrix.service }}
         run: |
-          docker build -t ${{ env.ACR_NAME }}.azurecr.io/siege-api:${{ github.sha }} ./backend
-          docker push ${{ env.ACR_NAME }}.azurecr.io/siege-api:${{ github.sha }}
+          IMAGE=${{ env.ACR_LOGIN_SERVER }}/${{ matrix.service }}
+          docker build -t "${IMAGE}:${{ github.sha }}" -t "${IMAGE}:latest" ${{ matrix.context }}
+          docker push "${IMAGE}:${{ github.sha }}"
+          docker push "${IMAGE}:latest"
 
-      - name: Build and push frontend
-        run: |
-          docker build -t ${{ env.ACR_NAME }}.azurecr.io/siege-frontend:${{ github.sha }} ./frontend
-          docker push ${{ env.ACR_NAME }}.azurecr.io/siege-frontend:${{ github.sha }}
+# ── Deploy API ─────────────────────────────────────────────────────────────────
+#
+# The API must be deployed and healthy before migrations run and before the
+# frontend/bot are updated (they depend on the API being available).
 
-      - name: Build and push bot
-        run: |
-          docker build -t ${{ env.ACR_NAME }}.azurecr.io/siege-bot:${{ github.sha }} ./bot
-          docker push ${{ env.ACR_NAME }}.azurecr.io/siege-bot:${{ github.sha }}
-
-  deploy:
-    name: Deploy to Azure Container Apps
+  deploy-api:
+    name: Deploy API
     needs: build-and-push
     runs-on: ubuntu-latest
+
     steps:
       - name: Log in to Azure
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy backend
+      - name: Deploy siege-api-prod
         uses: azure/container-apps-deploy-action@v2
         with:
           resourceGroup: ${{ env.RESOURCE_GROUP }}
-          containerAppName: siege-api
-          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/siege-api:${{ github.sha }}
+          containerAppName: siege-api-prod
+          imageToDeploy: ${{ env.ACR_LOGIN_SERVER }}/siege-api:${{ github.sha }}
 
-      - name: Deploy frontend
-        uses: azure/container-apps-deploy-action@v2
-        with:
-          resourceGroup: ${{ env.RESOURCE_GROUP }}
-          containerAppName: siege-frontend
-          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/siege-frontend:${{ github.sha }}
+# ── Database migration ─────────────────────────────────────────────────────────
+#
+# Run `alembic upgrade head` inside the already-deployed API container using
+# `az containerapp exec`. This executes against the production database using
+# the DATABASE_URL secret already configured in the container app — no extra
+# secrets are needed in GitHub.
+#
+# Note: `az containerapp exec --command` requires the container to be running
+# and healthy after the deploy step above completes.
 
-      - name: Deploy bot
+  migrate:
+    name: Run DB Migrations
+    needs: deploy-api
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Run alembic upgrade head
+        run: |
+          az containerapp exec \
+            --name siege-api-prod \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --command "alembic upgrade head"
+
+# ── Deploy frontend & bot ──────────────────────────────────────────────────────
+#
+# Frontend and bot deploy in parallel after migrations succeed. Both depend on
+# `migrate` (which transitively depends on the API deploy) rather than
+# `deploy-api` directly, so migrations are guaranteed to be applied first.
+
+  deploy-frontend:
+    name: Deploy Frontend
+    needs: migrate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy siege-frontend-prod
         uses: azure/container-apps-deploy-action@v2
         with:
           resourceGroup: ${{ env.RESOURCE_GROUP }}
-          containerAppName: siege-bot
-          imageToDeploy: ${{ env.ACR_NAME }}.azurecr.io/siege-bot:${{ github.sha }}
+          containerAppName: siege-frontend-prod
+          imageToDeploy: ${{ env.ACR_LOGIN_SERVER }}/siege-frontend:${{ github.sha }}
+
+  deploy-bot:
+    name: Deploy Bot
+    needs: migrate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy siege-bot-prod
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          resourceGroup: ${{ env.RESOURCE_GROUP }}
+          containerAppName: siege-bot-prod
+          imageToDeploy: ${{ env.ACR_LOGIN_SERVER }}/siege-bot:${{ github.sha }}

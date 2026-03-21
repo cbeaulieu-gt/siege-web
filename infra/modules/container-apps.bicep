@@ -22,6 +22,16 @@ param keyVaultUri string
 @description('Discord guild ID (non-secret)')
 param discordGuildId string
 
+@description('ACR admin username for image pull authentication')
+param acrUsername string
+
+@description('ACR admin password for image pull authentication')
+@secure()
+param acrPassword string
+
+@description('Default domain of the Container Apps Environment (e.g. mangotree-7248c553.australiaeast.azurecontainerapps.io)')
+param environmentDefaultDomain string
+
 var apiAppName = '${appPrefix}-api-${environment}'
 var frontendAppName = '${appPrefix}-frontend-${environment}'
 var botAppName = '${appPrefix}-bot-${environment}'
@@ -46,10 +56,15 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
       registries: [
         {
           server: acrLoginServer
-          identity: 'system'
+          username: acrUsername
+          passwordSecretRef: 'acr-password'
         }
       ]
       secrets: [
+        {
+          name: 'acr-password'
+          value: acrPassword
+        }
         {
           name: 'database-url'
           keyVaultUrl: '${keyVaultUri}secrets/database-url'
@@ -74,7 +89,7 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
           env: [
             { name: 'DATABASE_URL', secretRef: 'database-url' }
             { name: 'DISCORD_BOT_API_KEY', secretRef: 'discord-bot-api-key' }
-            { name: 'DISCORD_BOT_API_URL', value: 'https://${botAppName}.internal.${uniqueString(containerAppsEnvironmentId)}.${location}.azurecontainerapps.io' }
+            { name: 'DISCORD_BOT_API_URL', value: 'https://${botAppName}.internal.${environmentDefaultDomain}' }
             { name: 'DISCORD_GUILD_ID', value: discordGuildId }
             { name: 'ENVIRONMENT', value: environment }
           ]
@@ -119,7 +134,14 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
       registries: [
         {
           server: acrLoginServer
-          identity: 'system'
+          username: acrUsername
+          passwordSecretRef: 'acr-password'
+        }
+      ]
+      secrets: [
+        {
+          name: 'acr-password'
+          value: acrPassword
         }
       ]
     }
@@ -134,6 +156,7 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
           }
           env: [
             { name: 'VITE_API_URL', value: '' } // nginx proxies /api/* to siege-api internally
+            { name: 'API_UPSTREAM', value: 'https://${apiAppName}.internal.${environmentDefaultDomain}' }
           ]
         }
       ]
@@ -165,10 +188,15 @@ resource botApp 'Microsoft.App/containerApps@2024-03-01' = {
       registries: [
         {
           server: acrLoginServer
-          identity: 'system'
+          username: acrUsername
+          passwordSecretRef: 'acr-password'
         }
       ]
       secrets: [
+        {
+          name: 'acr-password'
+          value: acrPassword
+        }
         {
           name: 'discord-token'
           keyVaultUrl: '${keyVaultUri}secrets/discord-token'
@@ -227,5 +255,6 @@ output apiAppName string = apiApp.name
 output apiAppPrincipalId string = apiApp.identity.principalId
 output frontendAppName string = frontendApp.name
 output frontendAppFqdn string = frontendApp.properties.configuration.ingress.fqdn
+output frontendAppPrincipalId string = frontendApp.identity.principalId
 output botAppName string = botApp.name
 output botAppPrincipalId string = botApp.identity.principalId
