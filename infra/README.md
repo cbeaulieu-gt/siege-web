@@ -12,6 +12,21 @@ Azure Bicep templates for the Siege Assignment System.
 | Azure Key Vault | `modules/keyvault.bicep` |
 | Container Apps Environment | `modules/container-env.bicep` |
 | Container Apps (api, frontend, bot) | `modules/container-apps.bicep` |
+| Key Vault role assignments (Secrets User) | `main.bicep` |
+
+Key Vault role assignments are created directly in `main.bicep` after the
+Container Apps module runs, using their system-assigned managed identity
+principal IDs. This is a single-pass deployment — no manual role assignment
+step is required.
+
+## ACR naming
+
+The registry name follows a fixed pattern: `${appPrefix}acr${environment}`.
+
+| Environment | Registry name | Login server |
+|---|---|---|
+| dev | `siegeacrdev` | `siegeacrdev.azurecr.io` |
+| prod | `siegeacrprod` | `siegeacrprod.azurecr.io` |
 
 ## Prerequisites
 
@@ -23,6 +38,8 @@ Azure Bicep templates for the Siege Assignment System.
   ```
 
 ## Deploy from scratch
+
+**Step 1 — provision all infrastructure (single pass):**
 
 ```bash
 cd infra
@@ -38,22 +55,24 @@ az deployment group create \
   --parameters discordGuildId="$DISCORD_GUILD_ID"
 ```
 
-> **Note:** The first deployment creates Key Vault before Container Apps exist,
-> so managed identity role assignments use an empty `containerAppPrincipalIds`
-> array. After the first deploy, retrieve the principal IDs from the outputs and
-> run the deployment a second time to grant Key Vault access:
->
-> ```bash
-> API_PRINCIPAL=$(az containerapp show -g {RESOURCE_GROUP} -n siege-api-dev --query identity.principalId -o tsv)
-> BOT_PRINCIPAL=$(az containerapp show -g {RESOURCE_GROUP} -n siege-bot-dev --query identity.principalId -o tsv)
-> ```
-> Then pass them to the keyvault module (or assign the role manually):
-> ```bash
-> az role assignment create \
->   --assignee $API_PRINCIPAL \
->   --role "Key Vault Secrets User" \
->   --scope $(az keyvault show -g {RESOURCE_GROUP} -n {VAULT_NAME} --query id -o tsv)
-> ```
+This creates all resources including the Container Apps and their Key Vault
+role assignments in one pass. No second run required.
+
+**Step 2 — push images to ACR (run once from the repo root):**
+
+> **Prerequisite:** Docker must be running and you must be logged in to Azure
+> (`az login`) in the same subscription as the resource group.
+
+```powershell
+.\bootstrap-images.ps1
+```
+
+This builds `siege-api`, `siege-frontend`, and `siege-bot` locally and pushes
+them to the registry. Container Apps pull images using ACR admin credentials
+(managed automatically by Bicep via `listCredentials()`).
+
+After this step the Container Apps will pull the images on their next restart
+and the health checks should pass.
 
 ## Deploy to production
 
@@ -71,6 +90,10 @@ az deployment group create \
   --parameters botApiKey="$BOT_API_KEY" \
   --parameters discordGuildId="$DISCORD_GUILD_ID"
 ```
+
+The GitHub Actions deploy workflow (`deploy.yml`) targets `siegeacrprod` and
+the `siege-*-prod` Container Apps. Merge to `main` to trigger it after the
+infrastructure is provisioned.
 
 ## Update a secret in Key Vault
 
@@ -100,6 +123,29 @@ Secrets and their consumers:
 
 > **Important:** `discord-bot-api-key` and `bot-api-key` must always be rotated
 > together and set to the same value.
+
+## The bot API key pair
+
+`discord-bot-api-key` and `bot-api-key` are not issued by Discord or Azure — you generate them yourself. They are a shared secret that secures HTTP communication between the backend and the bot sidecar.
+
+**Why two parameter names for the same value?**
+
+The Bicep deployment separates them because they are injected into different services:
+
+- `discordBotApiKey` → stored as `discord-bot-api-key` in Key Vault → injected into the **backend** as `DISCORD_BOT_API_KEY` for outbound calls to the bot HTTP API
+- `botApiKey` → stored as `bot-api-key` in Key Vault → injected into the **bot** as `BOT_API_KEY` for inbound request validation
+
+Both parameters must always carry the same value. If they ever diverge, the backend's requests to the bot will be rejected with 401.
+
+**Generating a key**
+
+Run this in PowerShell to produce a random 32-byte base64 string:
+
+```powershell
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+```
+
+Pass the output as both `discordBotApiKey` and `botApiKey` when deploying, and store it somewhere safe (e.g. a local `.env` file or a password manager) so you can supply it again on future deployments.
 
 ## View container logs
 

@@ -91,13 +91,13 @@ cd backend && alembic revision --autogenerate -m "description"
 ## Tests
 
 ```bash
-# Backend (110 tests)
+# Backend
 cd backend && python -m pytest --ignore=tests/test_schema.py -v
 
-# Bot (17 tests)
+# Bot
 cd bot && python -m pytest -v
 
-# Excel import script (35 tests)
+# Excel import script
 cd scripts && python -m pytest tests/ -v
 
 # Frontend type check + build
