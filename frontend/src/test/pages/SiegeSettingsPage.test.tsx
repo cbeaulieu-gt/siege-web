@@ -1,0 +1,489 @@
+/**
+ * SiegeSettingsPage — notification polling tests
+ *
+ * Covers:
+ *  - "Notify Members" button is present, disabled for complete sieges
+ *  - Clicking the button opens a confirmation dialog
+ *  - Confirming triggers POST /notify and renders the batch panel (batch id, member count)
+ *  - Batch panel renders per-member status rows:
+ *      pending-with-discord  → spinner (animate-spin)
+ *      pending-no-discord    → warning icon + "No Discord username" text
+ *      success               → green check icon
+ *      failure               → red X icon + error message
+ *  - Polling transitions: status text changes from in_progress → completed and turns green
+ *  - Polling stops once all result items have success !== null
+ *  - "Post to Discord" confirm dialog → success message / error message
+ *  - "Post to Discord" button disabled when siege is complete
+ */
+
+import { screen, waitFor, within, act } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { http, HttpResponse } from 'msw';
+import { beforeAll, afterAll, afterEach, describe, it, expect, vi } from 'vitest';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render } from '@testing-library/react';
+import { server } from '../server';
+import SiegeSettingsPage from '../../pages/SiegeSettingsPage';
+import type {
+  Siege,
+  NotifyResponse,
+  NotificationBatchResponse,
+  NotificationResultItem,
+} from '../../api/types';
+
+// ─── Server lifecycle ──────────────────────────────────────────────────────────
+
+beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+afterEach(() => {
+  server.resetHandlers();
+  vi.useRealTimers();
+});
+afterAll(() => server.close());
+
+// ─── Fixture factories ──────────────────────────────────────────────────────
+
+function makeSiege(overrides: Partial<Siege> = {}): Siege {
+  return {
+    id: 42,
+    date: '2026-03-22',
+    status: 'active',
+    defense_scroll_count: 0,
+    computed_scroll_count: 0,
+    created_at: '2026-03-19T00:00:00Z',
+    updated_at: '2026-03-19T00:00:00Z',
+    ...overrides,
+  };
+}
+
+function makeNotifyResponse(overrides: Partial<NotifyResponse> = {}): NotifyResponse {
+  return {
+    batch_id: 101,
+    status: 'pending',
+    member_count: 2,
+    ...overrides,
+  };
+}
+
+function makeResult(overrides: Partial<NotificationResultItem> = {}): NotificationResultItem {
+  return {
+    member_id: 1,
+    member_name: 'Aethon',
+    discord_username: 'aethon#0001',
+    success: null,
+    error: null,
+    sent_at: null,
+    ...overrides,
+  };
+}
+
+function makeBatchResponse(
+  status: string,
+  results: NotificationResultItem[],
+): NotificationBatchResponse {
+  return { batch_id: 101, status, results };
+}
+
+// ─── Render helper ────────────────────────────────────────────────────────────
+//
+// SiegeSettingsPage reads three routes on mount:
+//   GET /api/sieges/42          — siege details
+//   GET /api/sieges/42/buildings — building list
+//   GET /api/sieges/42/members   — siege member list
+
+function renderPage(siege: Siege = makeSiege()) {
+  server.use(
+    http.get('/api/sieges/42', () => HttpResponse.json(siege)),
+    http.get('/api/sieges/42/buildings', () => HttpResponse.json([])),
+    http.get('/api/sieges/42/members', () => HttpResponse.json([])),
+  );
+
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+    },
+  });
+
+  return render(
+    <MemoryRouter initialEntries={['/sieges/42']}>
+      <QueryClientProvider client={queryClient}>
+        <Routes>
+          <Route path="/sieges/:id" element={<SiegeSettingsPage />} />
+        </Routes>
+      </QueryClientProvider>
+    </MemoryRouter>,
+  );
+}
+
+// Helper: wait for the page loading state to resolve
+async function waitForPageLoad() {
+  await waitFor(() => expect(screen.queryByText('Loading...')).not.toBeInTheDocument());
+}
+
+// ─── Notify Members button ─────────────────────────────────────────────────
+
+describe('SiegeSettingsPage — Notify Members button', () => {
+  it('renders the Notify Members button', async () => {
+    renderPage();
+    await waitForPageLoad();
+    expect(screen.getByRole('button', { name: /notify members/i })).toBeInTheDocument();
+  });
+
+  it('is disabled when siege status is complete', async () => {
+    renderPage(makeSiege({ status: 'complete' }));
+    await waitForPageLoad();
+    expect(screen.getByRole('button', { name: /notify members/i })).toBeDisabled();
+  });
+
+  it('opens a confirmation dialog when the button is clicked', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /notify members/i }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText(/notify members/i)).toBeInTheDocument();
+  });
+});
+
+// ─── Notification batch panel ─────────────────────────────────────────────
+
+describe('SiegeSettingsPage — notification batch panel', () => {
+  /**
+   * Click "Notify Members" → confirm → verify the batch summary panel appears.
+   * The confirm button inside the dialog is "Send Notifications".
+   */
+  it('shows the batch panel after confirming, displaying batch id and member count', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/sieges/42/notify', () =>
+        HttpResponse.json(makeNotifyResponse({ batch_id: 101, member_count: 2 })),
+      ),
+      http.get('/api/sieges/42/notify/101', () =>
+        HttpResponse.json(
+          makeBatchResponse('in_progress', [
+            makeResult({ member_id: 1, member_name: 'Aethon', success: null }),
+            makeResult({
+              member_id: 2,
+              member_name: 'Brint',
+              discord_username: null,
+              success: null,
+            }),
+          ]),
+        ),
+      ),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /notify members/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
+
+    await waitFor(() => expect(screen.getByText(/batch #101/i)).toBeInTheDocument());
+    expect(screen.getByText(/2 members/i)).toBeInTheDocument();
+  });
+
+  it('shows a spinner for a pending member who has a discord username', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/sieges/42/notify', () =>
+        HttpResponse.json(makeNotifyResponse()),
+      ),
+      http.get('/api/sieges/42/notify/101', () =>
+        HttpResponse.json(
+          makeBatchResponse('in_progress', [
+            makeResult({
+              member_id: 1,
+              member_name: 'Aethon',
+              discord_username: 'aethon#0001',
+              success: null,
+            }),
+          ]),
+        ),
+      ),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /notify members/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
+
+    // Wait for the member row to appear
+    await waitFor(() => expect(screen.getByText('Aethon')).toBeInTheDocument());
+
+    // The Lucide Loader2 svg has the animate-spin class
+    const memberRow = screen.getByText('Aethon').closest('li')!;
+    expect(memberRow.querySelector('.animate-spin')).not.toBeNull();
+  });
+
+  it('shows a warning and "No Discord username" for a member without a discord username', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/sieges/42/notify', () =>
+        HttpResponse.json(makeNotifyResponse()),
+      ),
+      http.get('/api/sieges/42/notify/101', () =>
+        HttpResponse.json(
+          makeBatchResponse('in_progress', [
+            makeResult({
+              member_id: 2,
+              member_name: 'Brint',
+              discord_username: null,
+              success: null,
+            }),
+          ]),
+        ),
+      ),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /notify members/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
+
+    await waitFor(() => expect(screen.getByText(/no discord username/i)).toBeInTheDocument());
+    // The warning icon has text-yellow-500
+    const memberRow = screen.getByText('Brint').closest('li')!;
+    expect(memberRow.querySelector('.text-yellow-500')).not.toBeNull();
+  });
+
+  it('shows a green check icon for a successfully notified member', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/sieges/42/notify', () =>
+        HttpResponse.json(makeNotifyResponse()),
+      ),
+      http.get('/api/sieges/42/notify/101', () =>
+        HttpResponse.json(
+          makeBatchResponse('completed', [
+            makeResult({
+              member_id: 1,
+              member_name: 'Aethon',
+              discord_username: 'aethon#0001',
+              success: true,
+              sent_at: '2026-03-22T10:00:00Z',
+            }),
+          ]),
+        ),
+      ),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /notify members/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
+
+    await waitFor(() => expect(screen.getByText('Aethon')).toBeInTheDocument());
+    const memberRow = screen.getByText('Aethon').closest('li')!;
+    // Lucide Check rendered with text-green-600
+    expect(memberRow.querySelector('.text-green-600')).not.toBeNull();
+  });
+
+  it('shows a red X icon and error message for a failed member', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/sieges/42/notify', () =>
+        HttpResponse.json(makeNotifyResponse()),
+      ),
+      http.get('/api/sieges/42/notify/101', () =>
+        HttpResponse.json(
+          makeBatchResponse('completed', [
+            makeResult({
+              member_id: 1,
+              member_name: 'Aethon',
+              discord_username: 'aethon#0001',
+              success: false,
+              error: 'User not found',
+            }),
+          ]),
+        ),
+      ),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /notify members/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
+
+    await waitFor(() => expect(screen.getByText(/user not found/i)).toBeInTheDocument());
+    const memberRow = screen.getByText(/aethon/i).closest('li')!;
+    // Lucide X rendered with text-red-600
+    expect(memberRow.querySelector('.text-red-600')).not.toBeNull();
+  });
+});
+
+// ─── Polling state transitions ─────────────────────────────────────────────
+
+describe('SiegeSettingsPage — notification polling state transitions', () => {
+  /**
+   * batchDone returns false on the first poll (in_progress, success=null) so React Query
+   * uses a 3-second refetchInterval. The second poll returns completed, causing batchDone
+   * to return false (stopping further polling). We verify the text and its green styling.
+   */
+  it('transitions status text from in_progress to completed and applies green styling', async () => {
+    const user = userEvent.setup();
+
+    let callCount = 0;
+    server.use(
+      http.post('/api/sieges/42/notify', () =>
+        HttpResponse.json(makeNotifyResponse()),
+      ),
+      http.get('/api/sieges/42/notify/101', () => {
+        callCount += 1;
+        if (callCount === 1) {
+          // First poll: still processing
+          return HttpResponse.json(
+            makeBatchResponse('in_progress', [
+              makeResult({ member_id: 1, member_name: 'Aethon', success: null }),
+            ]),
+          );
+        }
+        // Subsequent polls: done
+        return HttpResponse.json(
+          makeBatchResponse('completed', [
+            makeResult({
+              member_id: 1,
+              member_name: 'Aethon',
+              discord_username: 'aethon#0001',
+              success: true,
+              sent_at: '2026-03-22T10:00:00Z',
+            }),
+          ]),
+        );
+      }),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /notify members/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
+
+    // Wait for the batch panel
+    await waitFor(() => expect(screen.getByText(/batch #101/i)).toBeInTheDocument());
+
+    // React Query will refetch because batchDone=false on first result.
+    // When the second response arrives, "completed" should appear with the green class.
+    await waitFor(
+      () => {
+        const statusEl = screen.getByText('completed');
+        expect(statusEl).toBeInTheDocument();
+        expect(statusEl).toHaveClass('text-green-600');
+      },
+      { timeout: 10000 },
+    );
+  });
+
+  /**
+   * When all results already have success !== null, batchDone returns true on the very
+   * first poll and refetchInterval returns false — no further fetches should occur.
+   */
+  it('stops polling once all results have success !== null (batchDone=true)', async () => {
+    const user = userEvent.setup();
+
+    let callCount = 0;
+    server.use(
+      http.post('/api/sieges/42/notify', () =>
+        HttpResponse.json(makeNotifyResponse()),
+      ),
+      http.get('/api/sieges/42/notify/101', () => {
+        callCount += 1;
+        // Every response has success=true, so batchDone=true immediately
+        return HttpResponse.json(
+          makeBatchResponse('in_progress', [
+            makeResult({
+              member_id: 1,
+              member_name: 'Aethon',
+              discord_username: 'aethon#0001',
+              success: true,
+              sent_at: '2026-03-22T10:00:00Z',
+            }),
+          ]),
+        );
+      }),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /notify members/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
+
+    // Wait for the first poll to resolve and member row to appear
+    await waitFor(() => expect(screen.getByText('Aethon')).toBeInTheDocument(), {
+      timeout: 5000,
+    });
+
+    const countAfterFirstRender = callCount;
+
+    // Sleep briefly; since refetchInterval=false, no additional polls should fire
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 200));
+    });
+
+    expect(callCount).toBe(countAfterFirstRender);
+  });
+});
+
+// ─── Post to Discord ───────────────────────────────────────────────────────
+
+describe('SiegeSettingsPage — Post to Discord', () => {
+  it('shows "Posted successfully." after a successful post', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/sieges/42/post-to-channel', () =>
+        HttpResponse.json({ status: 'ok' }),
+      ),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /post to discord/i }));
+    const dialog = screen.getByRole('dialog');
+    // Confirm button inside the Post to Discord dialog is "Post"
+    await user.click(within(dialog).getByRole('button', { name: /^post$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/posted successfully/i)).toBeInTheDocument(),
+    );
+  });
+
+  it('shows the error detail when post to channel returns a 4xx', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/sieges/42/post-to-channel', () =>
+        HttpResponse.json({ detail: 'Channel not found' }, { status: 400 }),
+      ),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /post to discord/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /^post$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/channel not found/i)).toBeInTheDocument(),
+    );
+  });
+
+  it('disables Post to Discord button when siege is complete', async () => {
+    renderPage(makeSiege({ status: 'complete' }));
+    await waitForPageLoad();
+    expect(screen.getByRole('button', { name: /post to discord/i })).toBeDisabled();
+  });
+});
