@@ -74,16 +74,63 @@ if ($LASTEXITCODE -ne 0 -or -not $DbUrl) {
 Write-Host "    Secret retrieved."
 Write-Host ""
 
+# ── Add local IP to PostgreSQL firewall ───────────────────────────────────────
+
+Write-Host '==> Looking up PostgreSQL server name...'
+
+$PgServer = az postgres flexible-server list -g siege-rg --query "[0].name" -o tsv 2>&1
+
+if ($LASTEXITCODE -ne 0 -or -not $PgServer) {
+    Write-Error "Could not find a PostgreSQL server in resource group 'siege-rg'."
+    exit 1
+}
+
+Write-Host "    Server: $PgServer"
+
+Write-Host '==> Detecting your public IP address...'
+$MyIp = (Invoke-RestMethod -Uri 'https://api.ipify.org').Trim()
+Write-Host "    IP: $MyIp"
+
+$FirewallRuleName = "local-import-$(Get-Date -Format 'yyyyMMddHHmmss')"
+
+Write-Host "==> Adding temporary firewall rule '$FirewallRuleName'..."
+
+az postgres flexible-server firewall-rule create `
+    --resource-group siege-rg `
+    --name $PgServer `
+    --rule-name $FirewallRuleName `
+    --start-ip-address $MyIp `
+    --end-ip-address $MyIp
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "Failed to add firewall rule. Check the output above."
+    exit 1
+}
+
+Write-Host "    Firewall rule added."
+Write-Host ""
+
 # ── Run the import script ─────────────────────────────────────────────────────
 
 Write-Host '==> Running Excel import...'
 Write-Host ""
 
-python scripts/import_excel.py "$ExcelPath" --database-url $DbUrl
+try {
+    python scripts/import_excel.py "$ExcelPath" --database-url $DbUrl
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Error 'Excel import failed. Check the output above for details.'
-    exit 1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error 'Excel import failed. Check the output above for details.'
+        exit 1
+    }
+} finally {
+    Write-Host ""
+    Write-Host "==> Removing temporary firewall rule '$FirewallRuleName'..."
+    az postgres flexible-server firewall-rule delete `
+        --resource-group siege-rg `
+        --name $PgServer `
+        --rule-name $FirewallRuleName `
+        --yes 2>&1 | Out-Null
+    Write-Host "    Firewall rule removed."
 }
 
 Write-Host ""
