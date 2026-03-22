@@ -26,6 +26,15 @@ param discordBotApiKey string
 @secure()
 param botApiKey string
 
+// Soft-delete retention: minimum is 7 days; Azure default (and recommended for
+// prod) is 90 days. This means a deleted vault or secret can be recovered for
+// up to retentionDays before it is permanently purged. Use 7 for dev (fast
+// teardown), 90 for prod (maximum recovery window).
+@description('Number of days to retain soft-deleted vault/secrets (7 for dev, 90 for prod)')
+@minValue(7)
+@maxValue(90)
+param softDeleteRetentionDays int = 7
+
 var vaultName = '${appPrefix}-kv-${environment}-${take(uniqueString(resourceGroup().id), 6)}'
 
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
@@ -41,9 +50,11 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
       name: 'standard'
     }
     tenantId: subscription().tenantId
+    // RBAC authorization is preferred over legacy access policies — it integrates
+    // with Azure AD Conditional Access and gives fine-grained per-secret control.
     enableRbacAuthorization: true
     enableSoftDelete: true
-    softDeleteRetentionInDays: 7
+    softDeleteRetentionInDays: softDeleteRetentionDays
     publicNetworkAccess: 'Enabled'
   }
 }

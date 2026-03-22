@@ -16,7 +16,7 @@ param postgresAdminUser = 'siegeadmin'
 param postgresAdminPassword = ''
 
 // Discord
-param discordGuildId = ''              // Your Discord server ID (non-secret, ok to fill in)
+param discordGuildId = '' // Your Discord server ID (non-secret, ok to fill in)
 // Set via: --parameters discordToken=$DISCORD_TOKEN
 param discordToken = ''
 // Set via: --parameters discordBotApiKey=$DISCORD_BOT_API_KEY

@@ -8,6 +8,7 @@ Azure Bicep templates for the Siege Assignment System.
 |---|---|
 | Azure Container Registry | `modules/registry.bicep` |
 | Log Analytics Workspace | `modules/log-analytics.bicep` |
+| Application Insights (workspace-based) | `modules/app-insights.bicep` |
 | PostgreSQL Flexible Server | `modules/postgres.bicep` |
 | Azure Key Vault | `modules/keyvault.bicep` |
 | Container Apps Environment | `modules/container-env.bicep` |
@@ -28,24 +29,32 @@ The registry name follows a fixed pattern: `${appPrefix}acr${environment}`.
 | dev | `siegeacrdev` | `siegeacrdev.azurecr.io` |
 | prod | `siegeacrprod` | `siegeacrprod.azurecr.io` |
 
+## Resource group naming convention
+
+| Environment | Resource group |
+|---|---|
+| dev | `siege-rg-dev` |
+| prod | `siege-rg-prod` |
+
 ## Prerequisites
 
 - [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) installed and logged in (`az login`)
 - [Bicep CLI](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install) (`az bicep install`)
 - A resource group already created:
   ```bash
-  az group create --name {RESOURCE_GROUP} --location australiaeast
+  az group create --name siege-rg-dev --location australiaeast   # dev
+  az group create --name siege-rg-prod --location australiaeast  # prod
   ```
 
-## Deploy from scratch
+## Deploy — development
 
-**Step 1 — provision all infrastructure (single pass):**
+**Step 1 — provision all infrastructure:**
 
 ```bash
 cd infra
 
 az deployment group create \
-  --resource-group {RESOURCE_GROUP} \
+  --resource-group siege-rg-dev \
   --template-file main.bicep \
   --parameters main.bicepparam \
   --parameters postgresAdminPassword="$PG_ADMIN_PASSWORD" \
@@ -55,33 +64,39 @@ az deployment group create \
   --parameters discordGuildId="$DISCORD_GUILD_ID"
 ```
 
-This creates all resources including the Container Apps and their Key Vault
-role assignments in one pass. No second run required.
+**Step 2 — push images to ACR:**
 
-**Step 2 — push images to ACR (run once from the repo root):**
-
-> **Prerequisite:** Docker must be running and you must be logged in to Azure
-> (`az login`) in the same subscription as the resource group.
+> Docker must be running and `az login` must target the same subscription.
 
 ```powershell
 .\bootstrap-images.ps1
 ```
 
-This builds `siege-api`, `siege-frontend`, and `siege-bot` locally and pushes
-them to the registry. Container Apps pull images using ACR admin credentials
-(managed automatically by Bicep via `listCredentials()`).
+## Deploy — production
 
-After this step the Container Apps will pull the images on their next restart
-and the health checks should pass.
+Production uses `main.prod.bicepparam`. Key differences from dev:
 
-## Deploy to production
+| Concern | Dev | Prod |
+|---|---|---|
+| ACR SKU | Basic | Standard (geo-replication eligible) |
+| PostgreSQL SKU | Standard_B1ms / Burstable | Standard_D2ds_v5 / General Purpose |
+| PostgreSQL HA | Disabled | ZoneRedundant (cross-zone standby) |
+| PostgreSQL geo-backup | false | true |
+| Storage | 32 GB | 64 GB |
+| Key Vault soft-delete | 7 days | 90 days |
+| Log retention | 30 days | 90 days |
+| API CPU / memory | 0.5 vCPU / 1 Gi | 1.0 vCPU / 2 Gi |
+| API max replicas | 3 | 5 |
+| Frontend CPU / memory | 0.25 vCPU / 0.5 Gi | 0.5 vCPU / 1 Gi |
+| Bot CPU / memory | 0.25 vCPU / 0.5 Gi | 0.5 vCPU / 1 Gi |
 
-Create `main.prod.bicepparam` (copy `main.bicepparam`, set `environment = 'prod'`,
-`acrSku = 'Standard'`, `postgresGeoRedundantBackup = true`), then:
+**Step 1 — provision:**
 
 ```bash
+cd infra
+
 az deployment group create \
-  --resource-group {RESOURCE_GROUP_PROD} \
+  --resource-group siege-rg-prod \
   --template-file main.bicep \
   --parameters main.prod.bicepparam \
   --parameters postgresAdminPassword="$PG_ADMIN_PASSWORD" \
@@ -91,9 +106,58 @@ az deployment group create \
   --parameters discordGuildId="$DISCORD_GUILD_ID"
 ```
 
-The GitHub Actions deploy workflow (`deploy.yml`) targets `siegeacrprod` and
-the `siege-*-prod` Container Apps. Merge to `main` to trigger it after the
-infrastructure is provisioned.
+**Step 2 — push images to ACR:**
+
+```powershell
+.\bootstrap-images.ps1   # adjust the registry name to siegeacrprod inside the script
+```
+
+**Step 3 — verify deployment:**
+
+```bash
+# Check that all three Container Apps are running
+az containerapp list \
+  --resource-group siege-rg-prod \
+  --query "[].{name:name, status:properties.runningStatus, fqdn:properties.configuration.ingress.fqdn}" \
+  --output table
+
+# Confirm health endpoints respond
+curl https://$(az containerapp show \
+  --name siege-frontend-prod \
+  --resource-group siege-rg-prod \
+  --query properties.configuration.ingress.fqdn -o tsv)/api/health
+```
+
+## Application Insights
+
+All three Container Apps receive `APPLICATIONINSIGHTS_CONNECTION_STRING` as an
+environment variable. To enable SDK-level tracing in the Python services, add:
+
+```python
+# In backend/app/main.py and bot/app/main.py
+from azure.monitor.opentelemetry import configure_azure_monitor
+configure_azure_monitor()   # reads APPLICATIONINSIGHTS_CONNECTION_STRING automatically
+```
+
+Install the package:
+
+```bash
+pip install azure-monitor-opentelemetry
+```
+
+For the React frontend, use the `@microsoft/applicationinsights-web` package
+and initialise it with the `connectionString` from the environment.
+
+Query live logs in Log Analytics:
+
+```kusto
+// Exceptions from the API in the last hour
+exceptions
+| where timestamp > ago(1h)
+| where cloud_RoleName == "siege-api"
+| project timestamp, type, outerMessage, customDimensions
+| order by timestamp desc
+```
 
 ## Update a secret in Key Vault
 
@@ -106,8 +170,8 @@ az keyvault secret set \
 
 # Force Container Apps to pick up the new secret (create a new revision)
 az containerapp update \
-  --name siege-bot-{ENV} \
-  --resource-group {RESOURCE_GROUP} \
+  --name siege-bot-prod \
+  --resource-group siege-rg-prod \
   --revision-suffix "secret-rotate-$(date +%Y%m%d)"
 ```
 
@@ -121,39 +185,36 @@ Secrets and their consumers:
 | `discord-bot-api-key` | siege-api → siege-bot HTTP auth |
 | `bot-api-key` | siege-bot inbound auth validation |
 
-> **Important:** `discord-bot-api-key` and `bot-api-key` must always be rotated
-> together and set to the same value.
+> `discord-bot-api-key` and `bot-api-key` must always be rotated together and
+> set to the same value. See below for details.
 
 ## The bot API key pair
 
-`discord-bot-api-key` and `bot-api-key` are not issued by Discord or Azure — you generate them yourself. They are a shared secret that secures HTTP communication between the backend and the bot sidecar.
+`discord-bot-api-key` and `bot-api-key` are not issued by Discord or Azure —
+you generate them yourself. They are a shared secret that secures HTTP
+communication between the backend and the bot sidecar.
 
 **Why two parameter names for the same value?**
 
-The Bicep deployment separates them because they are injected into different services:
+- `discordBotApiKey` → stored as `discord-bot-api-key` in Key Vault → injected into the **backend** as `DISCORD_BOT_API_KEY`
+- `botApiKey` → stored as `bot-api-key` in Key Vault → injected into the **bot** as `BOT_API_KEY`
 
-- `discordBotApiKey` → stored as `discord-bot-api-key` in Key Vault → injected into the **backend** as `DISCORD_BOT_API_KEY` for outbound calls to the bot HTTP API
-- `botApiKey` → stored as `bot-api-key` in Key Vault → injected into the **bot** as `BOT_API_KEY` for inbound request validation
+Both parameters must always carry the same value. If they diverge, backend
+requests to the bot will be rejected with 401.
 
-Both parameters must always carry the same value. If they ever diverge, the backend's requests to the bot will be rejected with 401.
-
-**Generating a key**
-
-Run this in PowerShell to produce a random 32-byte base64 string:
+**Generating a key (PowerShell):**
 
 ```powershell
 [Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
 ```
-
-Pass the output as both `discordBotApiKey` and `botApiKey` when deploying, and store it somewhere safe (e.g. a local `.env` file or a password manager) so you can supply it again on future deployments.
 
 ## View container logs
 
 ```bash
 # Stream live logs from the API container
 az containerapp logs show \
-  --name siege-api-{ENV} \
-  --resource-group {RESOURCE_GROUP} \
+  --name siege-api-prod \
+  --resource-group siege-rg-prod \
   --follow
 
 # Query Log Analytics for errors in the last hour
@@ -162,21 +223,25 @@ az monitor log-analytics query \
   --analytics-query "ContainerAppConsoleLogs_CL | where TimeGenerated > ago(1h) | where Log_s contains 'ERROR'"
 ```
 
-## Scale a container app
+## Scale a Container App
 
 ```bash
 # Set min/max replicas for the API
 az containerapp update \
-  --name siege-api-{ENV} \
-  --resource-group {RESOURCE_GROUP} \
+  --name siege-api-prod \
+  --resource-group siege-rg-prod \
   --min-replicas 1 \
   --max-replicas 5
 ```
 
 ## Tear down
 
-> ⚠️ This deletes all resources including the database. Ensure backups are taken first.
+> This deletes all resources including the database. Ensure backups are taken first.
+>
+> For production Key Vault: soft-delete retention is 90 days, so the vault name
+> will remain reserved for that period. Use `az keyvault purge` to release it
+> immediately if you need to redeploy to the same resource group.
 
 ```bash
-az group delete --name {RESOURCE_GROUP} --yes --no-wait
+az group delete --name siege-rg-prod --yes --no-wait
 ```
