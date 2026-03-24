@@ -1,6 +1,7 @@
 """Schema constraint and seed data tests using in-memory SQLite."""
 
 import pytest
+from datetime import date
 from sqlalchemy import event, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -117,7 +118,7 @@ async def test_building_type_config_count(db_session: AsyncSession):
 async def test_siege_member_pk(db_session: AsyncSession):
     """Inserting a duplicate (siege_id, member_id) pair raises IntegrityError."""
     member = Member(name="Bob", role=MemberRole.medium)
-    siege = Siege(date="2026-03-16", status=SiegeStatus.planning, defense_scroll_count=10)
+    siege = Siege(date=date(2026, 3, 16), status=SiegeStatus.planning, defense_scroll_count=10)
     db_session.add(member)
     db_session.add(siege)
     await db_session.flush()

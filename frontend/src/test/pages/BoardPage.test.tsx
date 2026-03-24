@@ -14,6 +14,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { beforeAll, afterAll, afterEach, describe, it, expect } from 'vitest';
+import { Routes, Route } from 'react-router-dom';
 import { server } from '../server';
 import { renderWithProviders } from '../utils';
 import BoardPage from '../../pages/BoardPage';
@@ -113,7 +114,12 @@ function setupDefaultHandlers(
 }
 
 function renderBoard(initialPath = '/sieges/42/board') {
-  return renderWithProviders(<BoardPage />, { initialEntries: [initialPath] });
+  return renderWithProviders(
+    <Routes>
+      <Route path="/sieges/:id/board" element={<BoardPage />} />
+    </Routes>,
+    { initialEntries: [initialPath] },
+  );
 }
 
 // ─── Loading state ──────────────────────────────────────────────────────────
