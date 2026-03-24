@@ -6,8 +6,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
-    from app.models.siege import Siege
     from app.models.member import Member
+    from app.models.siege import Siege
 
 
 class SiegeMember(Base):
@@ -27,9 +27,7 @@ class SiegeMember(Base):
     )
     attack_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
     has_reserve_set: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
-    attack_day_override: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False
-    )
+    attack_day_override: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     siege: Mapped["Siege"] = relationship(back_populates="siege_members")
     member: Mapped["Member"] = relationship(back_populates="siege_members")

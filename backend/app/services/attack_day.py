@@ -1,14 +1,13 @@
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.member import Member
+from app.models.enums import MemberRole
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
-from app.models.enums import MemberRole
 from app.schemas.attack_day import AttackDayApplyResult, AttackDayAssignment, AttackDayPreviewResult
 
 PREVIEW_TTL_MINUTES = 30
@@ -16,7 +15,7 @@ DAY2_TARGET = 10
 
 
 def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def preview_attack_day(session: AsyncSession, siege_id: int) -> AttackDayPreviewResult:
@@ -112,15 +111,14 @@ async def preview_attack_day(session: AsyncSession, siege_id: int) -> AttackDayP
     return await _build_preview(session, siege, assignments)
 
 
-async def _build_preview(session: AsyncSession, siege: Siege, assignments: dict[int, int]) -> AttackDayPreviewResult:
+async def _build_preview(
+    session: AsyncSession, siege: Siege, assignments: dict[int, int]
+) -> AttackDayPreviewResult:
     assignment_list = [
-        AttackDayAssignment(member_id=mid, attack_day=day)
-        for mid, day in assignments.items()
+        AttackDayAssignment(member_id=mid, attack_day=day) for mid, day in assignments.items()
     ]
     expires_at = _now_utc().replace(tzinfo=None) + timedelta(minutes=PREVIEW_TTL_MINUTES)
-    siege.attack_day_preview = {
-        "assignments": [a.model_dump() for a in assignment_list]
-    }
+    siege.attack_day_preview = {"assignments": [a.model_dump() for a in assignment_list]}
     siege.attack_day_preview_expires_at = expires_at
     await session.commit()
     return AttackDayPreviewResult(
@@ -131,9 +129,7 @@ async def _build_preview(session: AsyncSession, siege: Siege, assignments: dict[
 
 async def apply_attack_day(session: AsyncSession, siege_id: int) -> AttackDayApplyResult:
     siege_result = await session.execute(
-        select(Siege)
-        .where(Siege.id == siege_id)
-        .options(selectinload(Siege.siege_members))
+        select(Siege).where(Siege.id == siege_id).options(selectinload(Siege.siege_members))
     )
     siege = siege_result.scalar_one_or_none()
     if siege is None:
@@ -144,7 +140,7 @@ async def apply_attack_day(session: AsyncSession, siege_id: int) -> AttackDayApp
 
     expires_at = siege.attack_day_preview_expires_at
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
 
     if _now_utc() > expires_at:
         raise HTTPException(status_code=409, detail="No valid preview to apply, generate a new one")

@@ -9,8 +9,8 @@ from app.models.enums import MemberRole
 
 if TYPE_CHECKING:
     from app.models.position import Position
-    from app.models.siege_member import SiegeMember
     from app.models.post_condition import PostCondition
+    from app.models.siege_member import SiegeMember
 
 
 class Member(Base):
@@ -22,16 +22,10 @@ class Member(Base):
     role: Mapped[MemberRole] = mapped_column(nullable=False)
     power_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=text("now()")
-    )
+    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=text("now()"))
 
-    positions: Mapped[list["Position"]] = relationship(
-        back_populates="member"
-    )
-    siege_members: Mapped[list["SiegeMember"]] = relationship(
-        back_populates="member"
-    )
+    positions: Mapped[list["Position"]] = relationship(back_populates="member")
+    siege_members: Mapped[list["SiegeMember"]] = relationship(back_populates="member")
     post_preferences: Mapped[list["PostCondition"]] = relationship(
         secondary="member_post_preference", back_populates="member_preferences"
     )

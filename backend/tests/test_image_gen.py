@@ -1,6 +1,5 @@
 """Tests for the image generation service."""
 
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -14,7 +13,6 @@ from app.services.image_gen import (
     generate_assignments_image,
     generate_reserves_image,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -64,6 +62,7 @@ def _make_position_dict(
         "member_name": member_name,
         "is_reserve": is_reserve,
         "is_disabled": is_disabled,
+        "matched_condition_id": None,
     }
 
 

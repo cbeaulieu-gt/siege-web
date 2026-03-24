@@ -11,7 +11,6 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 from app.models.enums import MemberRole, NotificationBatchStatus, SiegeStatus
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

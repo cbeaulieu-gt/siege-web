@@ -8,8 +8,8 @@ from app.db.base import Base
 from app.models.enums import NotificationBatchStatus
 
 if TYPE_CHECKING:
-    from app.models.siege import Siege
     from app.models.notification_batch_result import NotificationBatchResult
+    from app.models.siege import Siege
 
 
 class NotificationBatch(Base):
@@ -22,9 +22,7 @@ class NotificationBatch(Base):
     status: Mapped[NotificationBatchStatus] = mapped_column(
         nullable=False, default=NotificationBatchStatus.pending
     )
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=text("now()")
-    )
+    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=text("now()"))
 
     siege: Mapped["Siege"] = relationship(back_populates="notification_batches")
     results: Mapped[list["NotificationBatchResult"]] = relationship(

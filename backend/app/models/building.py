@@ -7,9 +7,9 @@ from app.db.base import Base
 from app.models.enums import BuildingType
 
 if TYPE_CHECKING:
-    from app.models.siege import Siege
     from app.models.building_group import BuildingGroup
     from app.models.post import Post
+    from app.models.siege import Siege
 
 
 class Building(Base):
@@ -35,6 +35,4 @@ class Building(Base):
     groups: Mapped[list["BuildingGroup"]] = relationship(
         back_populates="building", cascade="all, delete-orphan", passive_deletes=True
     )
-    post: Mapped["Post | None"] = relationship(
-        back_populates="building", uselist=False
-    )
+    post: Mapped["Post | None"] = relationship(back_populates="building", uselist=False)

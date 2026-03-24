@@ -16,9 +16,7 @@ async def get_siege_member_preferences(
     result = await session.execute(
         select(SiegeMember)
         .where(SiegeMember.siege_id == siege_id)
-        .options(
-            selectinload(SiegeMember.member).selectinload(Member.post_preferences)
-        )
+        .options(selectinload(SiegeMember.member).selectinload(Member.post_preferences))
         .order_by(SiegeMember.member_id)
     )
     siege_members = list(result.scalars().all())
@@ -41,9 +39,7 @@ async def list_siege_members(session: AsyncSession, siege_id: int) -> list[Siege
     return list(result.scalars().all())
 
 
-async def add_siege_member(
-    session: AsyncSession, siege_id: int, member_id: int
-) -> SiegeMember:
+async def add_siege_member(session: AsyncSession, siege_id: int, member_id: int) -> SiegeMember:
     siege = await get_siege(session, siege_id)
     if siege.status != SiegeStatus.planning:
         raise HTTPException(
@@ -51,9 +47,7 @@ async def add_siege_member(
         )
 
     # Verify the member exists and is active
-    member_result = await session.execute(
-        select(Member).where(Member.id == member_id)
-    )
+    member_result = await session.execute(select(Member).where(Member.id == member_id))
     member = member_result.scalar_one_or_none()
     if member is None:
         raise HTTPException(status_code=404, detail="Member not found")

@@ -5,10 +5,10 @@ from sqlalchemy.orm import selectinload
 
 from app.models.building import Building
 from app.models.building_group import BuildingGroup
+from app.models.enums import SiegeStatus
 from app.models.member import Member
 from app.models.position import Position
 from app.models.siege import Siege
-from app.models.enums import SiegeStatus
 from app.schemas.board import PositionUpdate
 
 
@@ -197,9 +197,7 @@ async def bulk_update_positions(
     member_ids = {u["member_id"] for u in updates if u.get("member_id") is not None}
     active_member_ids: set[int] = set()
     if member_ids:
-        members_result = await session.execute(
-            select(Member).where(Member.id.in_(member_ids))
-        )
+        members_result = await session.execute(select(Member).where(Member.id.in_(member_ids)))
         members = members_result.scalars().all()
         for m in members:
             if not m.is_active:
