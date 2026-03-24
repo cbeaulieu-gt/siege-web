@@ -1,14 +1,12 @@
-from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.models.building import Building
 from app.models.building_group import BuildingGroup
+from app.models.enums import SiegeStatus
 from app.models.member import Member
 from app.models.position import Position
 from app.models.siege import Siege
-from app.models.enums import SiegeStatus
 from app.schemas.comparison import ComparisonResult, MemberDiff, PositionKey
 
 
@@ -40,9 +38,7 @@ async def _load_assignments(session: AsyncSession, siege_id: int) -> dict[int, l
 async def _load_member_names(session: AsyncSession, member_ids: set[int]) -> dict[int, str]:
     if not member_ids:
         return {}
-    result = await session.execute(
-        select(Member).where(Member.id.in_(member_ids))
-    )
+    result = await session.execute(select(Member).where(Member.id.in_(member_ids)))
     return {m.id: m.name for m in result.scalars().all()}
 
 
@@ -84,13 +80,15 @@ async def compare_sieges(
         removed = [a_keys[k] for k in sorted(a_set - b_set)]
         unchanged = [a_keys[k] for k in sorted(a_set & b_set)]
 
-        member_diffs.append(MemberDiff(
-            member_id=member_id,
-            member_name=member_names.get(member_id, f"Member {member_id}"),
-            added=added,
-            removed=removed,
-            unchanged=unchanged,
-        ))
+        member_diffs.append(
+            MemberDiff(
+                member_id=member_id,
+                member_name=member_names.get(member_id, f"Member {member_id}"),
+                added=added,
+                removed=removed,
+                unchanged=unchanged,
+            )
+        )
 
     return ComparisonResult(
         siege_a_id=siege_a_id,

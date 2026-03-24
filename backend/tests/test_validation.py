@@ -8,13 +8,15 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+from app.models.building_type_config import BuildingTypeConfig
 from app.models.enums import BuildingType, MemberRole, SiegeStatus
+from app.models.siege import Siege
 from app.schemas.validation import ValidationIssue, ValidationResult
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_siege(id=1, defense_scroll_count=5, status=SiegeStatus.planning):
     return SimpleNamespace(
@@ -35,49 +37,102 @@ def _make_siege(id=1, defense_scroll_count=5, status=SiegeStatus.planning):
 
 
 def _make_member(id=1, name="Alice", role=MemberRole.advanced, is_active=True, power=None):
-    return SimpleNamespace(id=id, name=name, role=role, is_active=is_active, power=power, post_preferences=[])
+    return SimpleNamespace(
+        id=id, name=name, role=role, is_active=is_active, power=power, post_preferences=[]
+    )
 
 
 def _make_building(id=1, siege_id=1, building_type=BuildingType.stronghold, building_number=1):
     return SimpleNamespace(
-        id=id, siege_id=siege_id, building_type=building_type,
-        building_number=building_number, level=1, is_broken=False, groups=[], post=None,
+        id=id,
+        siege_id=siege_id,
+        building_type=building_type,
+        building_number=building_number,
+        level=1,
+        is_broken=False,
+        groups=[],
+        post=None,
     )
 
 
 def _make_group(id=1, building_id=1, group_number=1, slot_count=3):
-    return SimpleNamespace(id=id, building_id=building_id, group_number=group_number, slot_count=slot_count, positions=[])
-
-
-def _make_position(id=1, group_id=1, position_number=1, member_id=None, is_reserve=False, is_disabled=False, member=None):
     return SimpleNamespace(
-        id=id, building_group_id=group_id, position_number=position_number,
-        member_id=member_id, is_reserve=is_reserve, is_disabled=is_disabled, member=member,
+        id=id,
+        building_id=building_id,
+        group_number=group_number,
+        slot_count=slot_count,
+        positions=[],
     )
 
 
-def _make_siege_member(siege_id=1, member_id=1, attack_day=1, has_reserve_set=True, attack_day_override=False, member=None):
+def _make_position(
+    id=1,
+    group_id=1,
+    position_number=1,
+    member_id=None,
+    is_reserve=False,
+    is_disabled=False,
+    member=None,
+):
     return SimpleNamespace(
-        siege_id=siege_id, member_id=member_id, attack_day=attack_day,
-        has_reserve_set=has_reserve_set, attack_day_override=attack_day_override, member=member,
+        id=id,
+        building_group_id=group_id,
+        position_number=position_number,
+        member_id=member_id,
+        is_reserve=is_reserve,
+        is_disabled=is_disabled,
+        member=member,
+    )
+
+
+def _make_siege_member(
+    siege_id=1,
+    member_id=1,
+    attack_day=1,
+    has_reserve_set=True,
+    attack_day_override=False,
+    member=None,
+):
+    return SimpleNamespace(
+        siege_id=siege_id,
+        member_id=member_id,
+        attack_day=attack_day,
+        has_reserve_set=has_reserve_set,
+        attack_day_override=attack_day_override,
+        member=member,
     )
 
 
 def _make_config(building_type, count, base_group_count=1, base_last_group_slots=2):
-    return SimpleNamespace(building_type=building_type, count=count, base_group_count=base_group_count, base_last_group_slots=base_last_group_slots)
+    return SimpleNamespace(
+        building_type=building_type,
+        count=count,
+        base_group_count=base_group_count,
+        base_last_group_slots=base_last_group_slots,
+    )
 
 
 def _make_post(id=1, siege_id=1, building_id=1, active_conditions=None):
-    return SimpleNamespace(id=id, siege_id=siege_id, building_id=building_id, priority=0, description=None, active_conditions=active_conditions or [])
+    return SimpleNamespace(
+        id=id,
+        siege_id=siege_id,
+        building_id=building_id,
+        priority=0,
+        description=None,
+        active_conditions=active_conditions or [],
+    )
 
 
 def _make_condition(id=1, description="Cond"):
-    return SimpleNamespace(id=id, description=description, stronghold_level=1, posts=[], member_preferences=[])
+    return SimpleNamespace(
+        id=id, description=description, stronghold_level=1, posts=[], member_preferences=[]
+    )
 
 
 # ---------------------------------------------------------------------------
 # API fixture
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def client():
@@ -88,9 +143,11 @@ def client():
 # Endpoint: 404 if siege not found
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_validate_endpoint_404(client):
     from unittest.mock import MagicMock
+
     from app.db.session import get_db
 
     mock_result = MagicMock()
@@ -114,6 +171,7 @@ async def test_validate_endpoint_404(client):
 @pytest.mark.asyncio
 async def test_validate_endpoint_returns_result(client):
     from unittest.mock import MagicMock
+
     from app.db.session import get_db
 
     result = ValidationResult(
@@ -131,7 +189,9 @@ async def test_validate_endpoint_returns_result(client):
 
     app.dependency_overrides[get_db] = override_get_db
     try:
-        with patch("app.api.validation.validation_service.validate_siege", new_callable=AsyncMock) as mock_svc:
+        with patch(
+            "app.api.validation.validation_service.validate_siege", new_callable=AsyncMock
+        ) as mock_svc:
             mock_svc.return_value = result
             async with client as c:
                 response = await c.post("/api/sieges/1/validate")
@@ -148,7 +208,7 @@ async def test_validate_endpoint_returns_result(client):
 # Service unit tests — all 16 rules
 # ---------------------------------------------------------------------------
 
-from app.services.validation import validate_siege as svc_validate
+from app.services.validation import validate_siege as svc_validate  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -165,20 +225,7 @@ async def test_rule1_inactive_member_error():
     sm = _make_siege_member(member_id=1, attack_day=1, has_reserve_set=True, member=member)
     siege.siege_members = [sm]
 
-    from unittest.mock import MagicMock, AsyncMock as AM
-    session = AsyncMock()
-
-    # Mock DB calls
-    async def fake_execute(stmt):
-        result = MagicMock()
-        # For the siege query
-        result.scalar_one_or_none.return_value = siege
-        # For the config query
-        result.scalars.return_value.all.return_value = _default_configs()
-        return result
-
-    session.execute = fake_execute
-
+    session = _session_with_siege_and_configs(siege)
     result = await svc_validate(session, 1)
     rule1_errors = [e for e in result.errors if e.rule == 1]
     assert len(rule1_errors) >= 1
@@ -206,21 +253,22 @@ async def test_rule1_active_member_no_error():
 
 @pytest.mark.asyncio
 async def test_rule2_exceeds_scroll_count():
-    """Rule 2: member assigned 3 times with scroll count 2 → error."""
+    """Rule 2: member assigned 4 times when scrolls_per_player limit is 3 → error."""
     member = _make_member(id=1, is_active=True)
     positions = [
-        _make_position(id=i, position_number=i, member_id=1, member=member)
-        for i in range(1, 4)
+        _make_position(id=i, position_number=i, member_id=1, member=member) for i in range(1, 5)
     ]
-    group = _make_group(id=1, slot_count=3)
+    group = _make_group(id=1, slot_count=4)
     group.positions = positions
     building = _make_building(id=1)
     building.groups = [group]
-    siege = _make_siege(defense_scroll_count=2)
+    siege = _make_siege()
     siege.buildings = [building]
     sm = _make_siege_member(member_id=1, attack_day=1, has_reserve_set=True, member=member)
     siege.siege_members = [sm]
 
+    # _session_with_siege_and_configs mocks compute_scroll_count to return 5,
+    # so scrolls_per_player(5) = 3; member with 4 assignments exceeds the limit
     session = _session_with_siege_and_configs(siege)
     result = await svc_validate(session, 1)
     rule2_errors = [e for e in result.errors if e.rule == 2]
@@ -629,8 +677,7 @@ async def test_rule14_fewer_than_10_day2():
     siege = _make_siege()
     siege.buildings = []
     siege.siege_members = [
-        _make_siege_member(member_id=i, attack_day=2, has_reserve_set=True)
-        for i in range(1, 6)
+        _make_siege_member(member_id=i, attack_day=2, has_reserve_set=True) for i in range(1, 6)
     ]
 
     session = _session_with_siege_and_configs(siege)
@@ -645,8 +692,7 @@ async def test_rule14_ten_or_more_day2():
     siege = _make_siege()
     siege.buildings = []
     siege.siege_members = [
-        _make_siege_member(member_id=i, attack_day=2, has_reserve_set=True)
-        for i in range(1, 11)
+        _make_siege_member(member_id=i, attack_day=2, has_reserve_set=True) for i in range(1, 11)
     ]
 
     session = _session_with_siege_and_configs(siege)
@@ -741,6 +787,7 @@ async def test_rule16_post_has_3_conditions():
 # Helpers for session mocking
 # ---------------------------------------------------------------------------
 
+
 def _default_configs() -> list[BuildingTypeConfig]:
     return [
         _make_config(BuildingType.stronghold, 1, base_group_count=4),
@@ -752,7 +799,7 @@ def _default_configs() -> list[BuildingTypeConfig]:
 
 
 def _session_with_siege_and_configs(siege: Siege):
-    from unittest.mock import MagicMock, AsyncMock as AM
+    from unittest.mock import MagicMock
 
     call_count = 0
 
@@ -762,8 +809,11 @@ def _session_with_siege_and_configs(siege: Siege):
         if call_count == 0:
             # First call: siege query
             result.scalar_one_or_none.return_value = siege
+        elif call_count == 1:
+            # Second call: compute_scroll_count → result.scalar() returns int
+            result.scalar.return_value = 5
         else:
-            # Second call: config query
+            # Third call: config query
             result.scalars.return_value.all.return_value = _default_configs()
         call_count += 1
         return result

@@ -11,10 +11,10 @@ from app.main import app
 from app.models.enums import MemberRole, SiegeStatus
 from app.schemas.attack_day import AttackDayApplyResult, AttackDayAssignment, AttackDayPreviewResult
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_siege(id=1):
     return SimpleNamespace(
@@ -38,7 +38,14 @@ def _make_member(id, role=MemberRole.advanced, power=None):
 
 
 def _make_sm(siege_id=1, member_id=1, attack_day=None, attack_day_override=False, member=None):
-    return SimpleNamespace(siege_id=siege_id, member_id=member_id, attack_day=attack_day, has_reserve_set=True, attack_day_override=attack_day_override, member=member)
+    return SimpleNamespace(
+        siege_id=siege_id,
+        member_id=member_id,
+        attack_day=attack_day,
+        has_reserve_set=True,
+        attack_day_override=attack_day_override,
+        member=member,
+    )
 
 
 @pytest.fixture
@@ -49,6 +56,7 @@ def client():
 # ---------------------------------------------------------------------------
 # Endpoint tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_preview_attack_day_endpoint_200(client):
@@ -86,7 +94,7 @@ async def test_apply_attack_day_endpoint_200(client):
 # Service unit tests
 # ---------------------------------------------------------------------------
 
-from app.services.attack_day import preview_attack_day, apply_attack_day
+from app.services.attack_day import apply_attack_day, preview_attack_day  # noqa: E402
 
 
 def _session_for_siege(siege):
@@ -107,10 +115,7 @@ async def test_heavy_hitters_and_advanced_always_day2():
     siege = _make_siege()
     members_hh = [_make_member(i, role=MemberRole.heavy_hitter) for i in range(1, 4)]
     members_adv = [_make_member(i, role=MemberRole.advanced) for i in range(4, 7)]
-    siege.siege_members = [
-        _make_sm(member_id=m.id, member=m)
-        for m in members_hh + members_adv
-    ]
+    siege.siege_members = [_make_sm(member_id=m.id, member=m) for m in members_hh + members_adv]
 
     session = _session_for_siege(siege)
     result = await preview_attack_day(session, 1)
@@ -131,10 +136,7 @@ async def test_medium_promoted_when_under_10():
         _make_member(11, role=MemberRole.medium, power=500),
         _make_member(12, role=MemberRole.medium, power=100),
     ]
-    siege.siege_members = [
-        _make_sm(member_id=m.id, member=m)
-        for m in hh_members + medium_members
-    ]
+    siege.siege_members = [_make_sm(member_id=m.id, member=m) for m in hh_members + medium_members]
 
     session = _session_for_siege(siege)
     result = await preview_attack_day(session, 1)
@@ -160,10 +162,7 @@ async def test_novice_promoted_when_still_under_10():
         _make_member(23, role=MemberRole.novice, power=600),
         _make_member(24, role=MemberRole.novice, power=100),
     ]
-    siege.siege_members = [
-        _make_sm(member_id=m.id, member=m)
-        for m in hh + med + novice
-    ]
+    siege.siege_members = [_make_sm(member_id=m.id, member=m) for m in hh + med + novice]
 
     session = _session_for_siege(siege)
     result = await preview_attack_day(session, 1)
@@ -185,8 +184,7 @@ async def test_pinned_members_count_toward_threshold():
     siege = _make_siege()
     # 8 overridden Day 2 members → only need 2 more from the rest
     overridden = [
-        _make_sm(member_id=i, attack_day=2, attack_day_override=True)
-        for i in range(1, 9)
+        _make_sm(member_id=i, attack_day=2, attack_day_override=True) for i in range(1, 9)
     ]
     medium = [
         _make_member(10, role=MemberRole.medium, power=1000),
@@ -231,10 +229,7 @@ async def test_boundary_at_exactly_10():
     siege = _make_siege()
     hh = [_make_member(i, role=MemberRole.heavy_hitter) for i in range(1, 11)]
     medium = [_make_member(20, role=MemberRole.medium, power=9999)]
-    siege.siege_members = [
-        _make_sm(member_id=m.id, member=m)
-        for m in hh + medium
-    ]
+    siege.siege_members = [_make_sm(member_id=m.id, member=m) for m in hh + medium]
 
     session = _session_for_siege(siege)
     result = await preview_attack_day(session, 1)
@@ -249,15 +244,13 @@ async def test_boundary_at_exactly_10():
 @pytest.mark.asyncio
 async def test_apply_attack_day_commits():
     """Apply reads stored preview and updates siege_member attack_day values."""
-    from datetime import timezone, timedelta
+    from datetime import timedelta
 
-    expires = datetime.datetime.now(timezone.utc) + timedelta(hours=1)
+    expires = datetime.datetime.now(datetime.UTC) + timedelta(hours=1)
     sm = _make_sm(member_id=1, attack_day=None)
 
     siege = _make_siege()
-    siege.attack_day_preview = {
-        "assignments": [{"member_id": 1, "attack_day": 2}]
-    }
+    siege.attack_day_preview = {"assignments": [{"member_id": 1, "attack_day": 2}]}
     siege.attack_day_preview_expires_at = expires
     siege.siege_members = [sm]
 
@@ -305,10 +298,11 @@ async def test_apply_attack_day_409_no_preview():
 @pytest.mark.asyncio
 async def test_apply_attack_day_409_expired():
     """Returns 409 when preview has expired."""
-    from fastapi import HTTPException
-    from datetime import timezone, timedelta
+    from datetime import timedelta
 
-    expires = datetime.datetime.now(timezone.utc) - timedelta(hours=1)
+    from fastapi import HTTPException
+
+    expires = datetime.datetime.now(datetime.UTC) - timedelta(hours=1)
 
     siege = _make_siege()
     siege.attack_day_preview = {"assignments": [{"member_id": 1, "attack_day": 2}]}

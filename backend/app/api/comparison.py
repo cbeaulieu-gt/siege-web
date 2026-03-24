@@ -32,9 +32,7 @@ async def compare_with_specific(
     other_id: int,
     db: AsyncSession = Depends(get_db),
 ):
-    results = await db.execute(
-        select(Siege).where(Siege.id.in_([siege_id, other_id]))
-    )
+    results = await db.execute(select(Siege).where(Siege.id.in_([siege_id, other_id])))
     found_ids = {s.id for s in results.scalars().all()}
     if siege_id not in found_ids:
         raise HTTPException(status_code=404, detail="Siege not found")

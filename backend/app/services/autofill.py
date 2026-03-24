@@ -1,6 +1,6 @@
 import random
 from collections import defaultdict
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -15,12 +15,13 @@ from app.models.position import Position
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 from app.schemas.autofill import AutofillApplyResult, AutofillAssignment, AutofillPreviewResult
+from app.services.sieges import compute_scroll_count, scrolls_per_player
 
 PREVIEW_TTL_MINUTES = 30
 
 
 def _now_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def preview_autofill(session: AsyncSession, siege_id: int) -> AutofillPreviewResult:
@@ -58,9 +59,7 @@ async def preview_autofill(session: AsyncSession, siege_id: int) -> AutofillPrev
 
     # 3. Build list of active members from siege_members
     active_members: list[Member] = [
-        sm.member
-        for sm in siege.siege_members
-        if sm.member is not None and sm.member.is_active
+        sm.member for sm in siege.siege_members if sm.member is not None and sm.member.is_active
     ]
 
     # 4. Fisher-Yates shuffle
@@ -70,7 +69,8 @@ async def preview_autofill(session: AsyncSession, siege_id: int) -> AutofillPrev
     # 5. Fill empty positions
     assignments: list[AutofillAssignment] = []
     member_index = 0
-    limit = siege.defense_scroll_count
+    total_positions = await compute_scroll_count(session, siege_id)
+    limit = scrolls_per_player(total_positions)
 
     for pos in empty_positions:
         assigned = False
@@ -79,11 +79,13 @@ async def preview_autofill(session: AsyncSession, siege_id: int) -> AutofillPrev
             candidate = shuffled[member_index % len(shuffled)]
             if assignment_counts[candidate.id] < limit:
                 assignment_counts[candidate.id] += 1
-                assignments.append(AutofillAssignment(
-                    position_id=pos.id,
-                    member_id=candidate.id,
-                    is_reserve=False,
-                ))
+                assignments.append(
+                    AutofillAssignment(
+                        position_id=pos.id,
+                        member_id=candidate.id,
+                        is_reserve=False,
+                    )
+                )
                 member_index += 1
                 assigned = True
                 break
@@ -92,18 +94,18 @@ async def preview_autofill(session: AsyncSession, siege_id: int) -> AutofillPrev
 
         if not assigned:
             # 6. All members hit the limit — mark as reserve
-            assignments.append(AutofillAssignment(
-                position_id=pos.id,
-                member_id=None,
-                is_reserve=True,
-            ))
+            assignments.append(
+                AutofillAssignment(
+                    position_id=pos.id,
+                    member_id=None,
+                    is_reserve=True,
+                )
+            )
 
     # 7. Store preview with TTL
     # Strip timezone before storing — DB column is TIMESTAMP (naive), implicitly UTC
     expires_at = _now_utc().replace(tzinfo=None) + timedelta(minutes=PREVIEW_TTL_MINUTES)
-    siege.autofill_preview = {
-        "assignments": [a.model_dump() for a in assignments]
-    }
+    siege.autofill_preview = {"assignments": [a.model_dump() for a in assignments]}
     siege.autofill_preview_expires_at = expires_at
     await session.commit()
 
@@ -125,7 +127,7 @@ async def apply_autofill(session: AsyncSession, siege_id: int) -> AutofillApplyR
     # Normalize expires_at to UTC-aware for comparison
     expires_at = siege.autofill_preview_expires_at
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
 
     if _now_utc() > expires_at:
         raise HTTPException(status_code=409, detail="No valid preview to apply, generate a new one")

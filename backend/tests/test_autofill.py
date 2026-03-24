@@ -8,13 +8,13 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
-from app.models.enums import BuildingType, SiegeStatus, MemberRole
+from app.models.enums import BuildingType, MemberRole, SiegeStatus
 from app.schemas.autofill import AutofillApplyResult, AutofillAssignment, AutofillPreviewResult
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_siege(id=1, defense_scroll_count=5):
     return SimpleNamespace(
@@ -34,28 +34,56 @@ def _make_siege(id=1, defense_scroll_count=5):
 
 
 def _make_member(id, name="M", is_active=True):
-    return SimpleNamespace(id=id, name=name, role=MemberRole.advanced, is_active=is_active, power=None)
+    return SimpleNamespace(
+        id=id, name=name, role=MemberRole.advanced, is_active=is_active, power=None
+    )
 
 
 def _make_building(id=1):
-    return SimpleNamespace(id=id, siege_id=1, building_type=BuildingType.stronghold, building_number=1, level=1, is_broken=False, groups=[])
+    return SimpleNamespace(
+        id=id,
+        siege_id=1,
+        building_type=BuildingType.stronghold,
+        building_number=1,
+        level=1,
+        is_broken=False,
+        groups=[],
+    )
 
 
 def _make_group(id=1, slot_count=3):
-    return SimpleNamespace(id=id, building_id=1, group_number=1, slot_count=slot_count, positions=[])
+    return SimpleNamespace(
+        id=id, building_id=1, group_number=1, slot_count=slot_count, positions=[]
+    )
 
 
 def _make_position(id, position_number=1, member_id=None, is_reserve=False, is_disabled=False):
-    return SimpleNamespace(id=id, building_group_id=1, position_number=position_number, member_id=member_id, is_reserve=is_reserve, is_disabled=is_disabled, member=None)
+    return SimpleNamespace(
+        id=id,
+        building_group_id=1,
+        position_number=position_number,
+        member_id=member_id,
+        is_reserve=is_reserve,
+        is_disabled=is_disabled,
+        member=None,
+    )
 
 
 def _make_sm(member_id, member=None):
-    return SimpleNamespace(siege_id=1, member_id=member_id, attack_day=1, has_reserve_set=True, attack_day_override=False, member=member)
+    return SimpleNamespace(
+        siege_id=1,
+        member_id=member_id,
+        attack_day=1,
+        has_reserve_set=True,
+        attack_day_override=False,
+        member=member,
+    )
 
 
 # ---------------------------------------------------------------------------
 # API fixture
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def client():
@@ -66,13 +94,16 @@ def client():
 # Endpoint tests (mocking service layer)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_preview_endpoint_returns_200(client):
     preview = AutofillPreviewResult(
         assignments=[AutofillAssignment(position_id=1, member_id=2, is_reserve=False)],
         expires_at="2026-03-17T12:00:00+00:00",
     )
-    with patch("app.api.autofill.autofill_service.preview_autofill", new_callable=AsyncMock) as mock:
+    with patch(
+        "app.api.autofill.autofill_service.preview_autofill", new_callable=AsyncMock
+    ) as mock:
         mock.return_value = preview
         async with client as c:
             response = await c.post("/api/sieges/1/auto-fill")
@@ -101,24 +132,32 @@ async def test_apply_endpoint_returns_200(client):
 # Service unit tests
 # ---------------------------------------------------------------------------
 
-from app.services.autofill import preview_autofill, apply_autofill
+from app.services.autofill import apply_autofill, preview_autofill  # noqa: E402
 
 
 @pytest.mark.asyncio
 async def test_preview_respects_scroll_count():
-    """Scroll count of 2 with 2 members and 5 empty positions: no member gets > 2 slots."""
-    members = [_make_member(i) for i in range(1, 3)]
-    positions = [_make_position(id=i, position_number=i) for i in range(1, 6)]
-    group = _make_group(id=1, slot_count=5)
+    """With 3 members, 10 positions, and <90 total positions, limit=3.
+
+    All 10 positions are distributed across 3 members in round-robin fashion,
+    so no member should exceed 3 assignments (scrolls_per_player returns 3
+    for position_count < 90).  With 10 positions / 3 members the most any
+    member can receive is ceil(10/3) = 4, but the scroll cap of 3 means the
+    last position overflows to reserve instead.
+    """
+    members = [_make_member(i) for i in range(1, 4)]  # 3 members
+    positions = [_make_position(id=i, position_number=i) for i in range(1, 11)]  # 10 positions
+    group = _make_group(id=1, slot_count=10)
     group.positions = positions
     building = _make_building()
     building.groups = [group]
 
-    siege = _make_siege(defense_scroll_count=2)
+    siege = _make_siege()
     siege.buildings = [building]
     siege.siege_members = [_make_sm(m.id, m) for m in members]
 
-    session = _make_session_for_preview(siege)
+    # position_count=10 → scrolls_per_player(10) = 3
+    session = _make_session_for_preview(siege, position_count=10)
     result = await preview_autofill(session, 1)
 
     counts = {}
@@ -127,39 +166,45 @@ async def test_preview_respects_scroll_count():
             counts[a.member_id] = counts.get(a.member_id, 0) + 1
 
     for count in counts.values():
-        assert count <= 2
+        assert count <= 3
 
 
 @pytest.mark.asyncio
 async def test_preview_marks_leftover_as_reserve():
-    """When members exhaust their scroll count, remaining positions become reserve."""
+    """With 1 member, 5 positions, and position_count=5 (<90), limit=3.
+
+    The member fills 3 slots and the remaining 2 become reserve because
+    the member has hit the scroll cap.
+    """
     members = [_make_member(1)]
-    # 3 positions but scroll count = 1: only 1 assigned, 2 become reserve
-    positions = [_make_position(id=i, position_number=i) for i in range(1, 4)]
-    group = _make_group(id=1, slot_count=3)
+    positions = [_make_position(id=i, position_number=i) for i in range(1, 6)]  # 5 positions
+    group = _make_group(id=1, slot_count=5)
     group.positions = positions
     building = _make_building()
     building.groups = [group]
 
-    siege = _make_siege(defense_scroll_count=1)
+    siege = _make_siege()
     siege.buildings = [building]
     siege.siege_members = [_make_sm(1, members[0])]
 
-    session = _make_session_for_preview(siege)
+    # position_count=5 → scrolls_per_player(5) = 3
+    session = _make_session_for_preview(siege, position_count=5)
     result = await preview_autofill(session, 1)
 
     reserve_assignments = [a for a in result.assignments if a.is_reserve]
-    member_assignments = [a for a in result.assignments if not a.is_reserve and a.member_id is not None]
-    assert len(member_assignments) == 1
+    member_assignments = [
+        a for a in result.assignments if not a.is_reserve and a.member_id is not None
+    ]
+    assert len(member_assignments) == 3
     assert len(reserve_assignments) == 2
 
 
 @pytest.mark.asyncio
 async def test_apply_commits_preview():
     """Apply reads the stored preview and updates positions."""
-    from datetime import timezone, timedelta
+    from datetime import timedelta
 
-    expires = datetime.datetime.now(timezone.utc) + timedelta(hours=1)
+    expires = datetime.datetime.now(datetime.UTC) + timedelta(hours=1)
     pos = _make_position(id=1)
 
     siege = _make_siege()
@@ -218,10 +263,11 @@ async def test_apply_returns_409_when_no_preview():
 @pytest.mark.asyncio
 async def test_apply_returns_409_when_preview_expired():
     """Apply returns 409 when preview has expired."""
-    from fastapi import HTTPException
-    from datetime import timezone, timedelta
+    from datetime import timedelta
 
-    expires = datetime.datetime.now(timezone.utc) - timedelta(hours=1)  # past
+    from fastapi import HTTPException
+
+    expires = datetime.datetime.now(datetime.UTC) - timedelta(hours=1)  # past
 
     siege = _make_siege()
     siege.autofill_preview = {"assignments": []}
@@ -244,13 +290,24 @@ async def test_apply_returns_409_when_preview_expired():
 # Session helpers
 # ---------------------------------------------------------------------------
 
-def _make_session_for_preview(siege: Siege):
+
+def _make_session_for_preview(siege, position_count: int = 5):
+    """Return a mock AsyncSession that handles the two execute calls in preview_autofill.
+
+    Call 1 — siege lookup: result.scalar_one_or_none() returns the siege object.
+    Call 2 — COUNT query from compute_scroll_count: result.scalar() returns position_count.
+    """
     call_count = 0
 
     async def fake_execute(stmt):
         nonlocal call_count
         result = MagicMock()
-        result.scalar_one_or_none.return_value = siege
+        if call_count == 0:
+            # First call: select(Siege).where(...) in preview_autofill
+            result.scalar_one_or_none.return_value = siege
+        else:
+            # Second call: select(func.count()) in compute_scroll_count
+            result.scalar.return_value = position_count
         call_count += 1
         return result
 

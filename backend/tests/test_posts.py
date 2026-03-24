@@ -12,7 +12,14 @@ from app.models.enums import BuildingType
 
 
 def _make_building(id: int = 10, building_number: int = 1) -> SimpleNamespace:
-    return SimpleNamespace(id=id, siege_id=1, building_type=BuildingType.post, building_number=building_number, level=1, is_broken=False)
+    return SimpleNamespace(
+        id=id,
+        siege_id=1,
+        building_type=BuildingType.post,
+        building_number=building_number,
+        level=1,
+        is_broken=False,
+    )
 
 
 def _make_post(
@@ -23,8 +30,13 @@ def _make_post(
     description: str | None = None,
 ) -> SimpleNamespace:
     return SimpleNamespace(
-        id=id, siege_id=siege_id, building_id=building_id, priority=priority,
-        description=description, active_conditions=[], building=_make_building(id=building_id),
+        id=id,
+        siege_id=siege_id,
+        building_id=building_id,
+        priority=priority,
+        description=description,
+        active_conditions=[],
+        building=_make_building(id=building_id),
     )
 
 
@@ -78,9 +90,7 @@ async def test_update_post_priority(client):
 
 @pytest.mark.asyncio
 async def test_set_post_conditions_too_many_returns_400(client):
-    with patch(
-        "app.api.posts.posts_service.set_post_conditions", new_callable=AsyncMock
-    ) as mock:
+    with patch("app.api.posts.posts_service.set_post_conditions", new_callable=AsyncMock) as mock:
         mock.side_effect = HTTPException(
             status_code=400, detail="A post can have at most 3 active conditions"
         )

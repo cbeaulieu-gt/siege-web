@@ -123,9 +123,7 @@ async def test_get_member_not_found_returns_404(client):
 @pytest.mark.asyncio
 async def test_delete_member_returns_204(client):
     member = _make_member(is_active=False)
-    with patch(
-        "app.api.members.members_service.deactivate_member", new_callable=AsyncMock
-    ) as mock:
+    with patch("app.api.members.members_service.deactivate_member", new_callable=AsyncMock) as mock:
         mock.return_value = member
         async with client as c:
             response = await c.delete("/api/members/1")

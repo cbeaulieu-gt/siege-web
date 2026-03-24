@@ -5,13 +5,11 @@ from sqlalchemy.orm import selectinload
 
 from app.models.building import Building
 from app.models.building_group import BuildingGroup
-from app.models.member import Member
+from app.models.enums import BuildingType, SiegeStatus
 from app.models.position import Position
 from app.models.post import Post
-from app.models.post_condition import PostCondition  # noqa: F401 — imported for relationship loading
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
-from app.models.enums import BuildingType, SiegeStatus
 from app.services import validation as validation_service
 
 
@@ -181,7 +179,11 @@ async def clone_siege(session: AsyncSession, siege_id: int) -> Siege:
                         is_reserve=True,
                         is_disabled=src_pos.is_disabled,
                     )
-                elif src_pos.member_id is not None and src_pos.member is not None and src_pos.member.is_active:
+                elif (
+                    src_pos.member_id is not None
+                    and src_pos.member is not None
+                    and src_pos.member.is_active
+                ):
                     # Active member — preserve assignment
                     new_pos = Position(
                         building_group_id=new_group.id,

@@ -41,9 +41,7 @@ class BotClient:
         except httpx.HTTPError:
             return False
 
-    async def post_image(
-        self, channel_name: str, image_bytes: bytes, filename: str
-    ) -> bool:
+    async def post_image(self, channel_name: str, image_bytes: bytes, filename: str) -> bool:
         """Post image to channel. Returns True on success, False on error."""
         try:
             async with self._make_client() as client:

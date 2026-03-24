@@ -3,19 +3,17 @@
 import base64
 
 from fastapi import APIRouter, Depends
-from fastapi import HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
+from app.models.siege_member import SiegeMember
 from app.services import board as board_service
 from app.services import image_gen
 from app.services.image_gen import SiegeMemberWithName
 from app.services.sieges import get_siege
-from app.models.enums import SiegeStatus
-from app.models.siege_member import SiegeMember
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 router = APIRouter(tags=["images"])
 
@@ -40,6 +38,7 @@ async def generate_images(
     # Load board
     board_dict = await board_service.get_board(db, siege_id)
     from app.schemas.board import BoardResponse
+
     board = BoardResponse.model_validate(board_dict)
 
     # Load siege members with member data

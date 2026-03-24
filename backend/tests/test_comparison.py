@@ -9,12 +9,12 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 from app.models.enums import BuildingType, SiegeStatus
-from app.schemas.comparison import ComparisonResult, MemberDiff, PositionKey
-
+from app.schemas.comparison import ComparisonResult, MemberDiff
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_siege(id=1, status=SiegeStatus.planning):
     return SimpleNamespace(
@@ -42,6 +42,7 @@ def client():
 # Endpoint tests
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.asyncio
 async def test_compare_returns_404_when_no_completed_siege(client):
     from app.db.session import get_db
@@ -58,7 +59,8 @@ async def test_compare_returns_404_when_no_completed_siege(client):
     app.dependency_overrides[get_db] = override_get_db
     try:
         with patch(
-            "app.api.comparison.comparison_service.get_most_recent_completed", new_callable=AsyncMock
+            "app.api.comparison.comparison_service.get_most_recent_completed",
+            new_callable=AsyncMock,
         ) as mock_recent:
             mock_recent.return_value = None
             async with client as c:
@@ -111,14 +113,20 @@ async def test_compare_with_specific_endpoint_200(client):
 # Service unit tests
 # ---------------------------------------------------------------------------
 
-from app.services.comparison import compare_sieges, get_most_recent_completed
+from app.services.comparison import compare_sieges, get_most_recent_completed  # noqa: E402
 
 
 def _build_siege_assignments(siege_id: int, assignments: list[tuple]) -> list[tuple]:
     """Build (Position, BuildingGroup, Building) rows for mock execute results."""
     rows = []
     for pos_num, group_num, btype, bnum, member_id in assignments:
-        pos = SimpleNamespace(id=len(rows) + 1, position_number=pos_num, member_id=member_id, is_reserve=False, is_disabled=False)
+        pos = SimpleNamespace(
+            id=len(rows) + 1,
+            position_number=pos_num,
+            member_id=member_id,
+            is_reserve=False,
+            is_disabled=False,
+        )
         group = SimpleNamespace(id=len(rows) + 100, group_number=group_num, slot_count=3)
         building = SimpleNamespace(id=len(rows) + 200, building_type=btype, building_number=bnum)
         rows.append((pos, group, building))
@@ -131,10 +139,13 @@ async def test_compare_added_positions():
     # Siege A: member 1 at stronghold/1/group1/pos1
     # Siege B: member 1 at stronghold/1/group1/pos1 AND stronghold/1/group1/pos2
     a_rows = _build_siege_assignments(1, [(1, 1, BuildingType.stronghold, 1, 1)])
-    b_rows = _build_siege_assignments(2, [
-        (1, 1, BuildingType.stronghold, 1, 1),
-        (2, 1, BuildingType.stronghold, 1, 1),
-    ])
+    b_rows = _build_siege_assignments(
+        2,
+        [
+            (1, 1, BuildingType.stronghold, 1, 1),
+            (2, 1, BuildingType.stronghold, 1, 1),
+        ],
+    )
     member = SimpleNamespace(id=1, name="Alice")
 
     call_count = 0
@@ -168,10 +179,13 @@ async def test_compare_added_positions():
 @pytest.mark.asyncio
 async def test_compare_removed_positions():
     """Position in A but not B → appears in removed."""
-    a_rows = _build_siege_assignments(1, [
-        (1, 1, BuildingType.stronghold, 1, 1),
-        (2, 1, BuildingType.stronghold, 1, 1),
-    ])
+    a_rows = _build_siege_assignments(
+        1,
+        [
+            (1, 1, BuildingType.stronghold, 1, 1),
+            (2, 1, BuildingType.stronghold, 1, 1),
+        ],
+    )
     b_rows = _build_siege_assignments(2, [(1, 1, BuildingType.stronghold, 1, 1)])
     member = SimpleNamespace(id=1, name="Alice")
 
@@ -256,6 +270,7 @@ async def test_compare_reserve_positions_excluded():
 @pytest.mark.asyncio
 async def test_get_most_recent_completed_returns_none():
     """Returns None when no completed siege exists."""
+
     async def fake_execute(stmt):
         result = MagicMock()
         result.scalar_one_or_none.return_value = None

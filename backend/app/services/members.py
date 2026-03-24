@@ -5,11 +5,11 @@ from sqlalchemy.orm import selectinload
 
 from app.models.building import Building
 from app.models.building_group import BuildingGroup
+from app.models.enums import SiegeStatus
 from app.models.member import Member
 from app.models.member_post_preference import member_post_preference
 from app.models.position import Position
 from app.models.post_condition import PostCondition
-from app.models.enums import SiegeStatus
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 from app.schemas.member import MemberCreate, MemberPreferencesUpdate, MemberUpdate
@@ -41,7 +41,8 @@ async def create_member(session: AsyncSession, data: MemberCreate) -> Member:
     )
     if active_count >= 30:
         raise HTTPException(
-            status_code=409, detail="Cannot create member: the 30-active-member limit has been reached"
+            status_code=409,
+            detail="Cannot create member: the 30-active-member limit has been reached",
         )
     member = Member(**data.model_dump())
     session.add(member)
@@ -67,7 +68,8 @@ async def update_member(session: AsyncSession, member_id: int, data: MemberUpdat
         )
         if active_count >= 30:
             raise HTTPException(
-                status_code=409, detail="Cannot reactivate member: the 30-active-member limit has been reached"
+                status_code=409,
+                detail="Cannot reactivate member: the 30-active-member limit has been reached",
             )
     for field, value in updates.items():
         setattr(member, field, value)
@@ -99,14 +101,10 @@ async def deactivate_member(session: AsyncSession, member_id: int) -> Member:
     return member
 
 
-async def get_member_preferences(
-    session: AsyncSession, member_id: int
-) -> list[PostCondition]:
+async def get_member_preferences(session: AsyncSession, member_id: int) -> list[PostCondition]:
     await get_member(session, member_id)
     result = await session.execute(
-        select(Member)
-        .options(selectinload(Member.post_preferences))
-        .where(Member.id == member_id)
+        select(Member).options(selectinload(Member.post_preferences)).where(Member.id == member_id)
     )
     member = result.scalar_one()
     return list(member.post_preferences)
@@ -132,9 +130,7 @@ async def set_member_preferences(
 
     # Replace all preferences for this member
     await session.execute(
-        delete(member_post_preference).where(
-            member_post_preference.c.member_id == member_id
-        )
+        delete(member_post_preference).where(member_post_preference.c.member_id == member_id)
     )
 
     for pc_id in data.post_condition_ids:
@@ -146,9 +142,7 @@ async def set_member_preferences(
 
     # Return the updated preferences
     result = await session.execute(
-        select(Member)
-        .options(selectinload(Member.post_preferences))
-        .where(Member.id == member_id)
+        select(Member).options(selectinload(Member.post_preferences)).where(Member.id == member_id)
     )
     member = result.scalar_one()
     return list(member.post_preferences)
