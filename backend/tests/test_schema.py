@@ -1,7 +1,8 @@
 """Schema constraint and seed data tests using in-memory SQLite."""
 
-import pytest
 from datetime import date
+
+import pytest
 from sqlalchemy import event, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine

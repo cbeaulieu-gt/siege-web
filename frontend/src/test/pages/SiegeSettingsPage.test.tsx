@@ -141,8 +141,10 @@ describe('SiegeSettingsPage — Notify Members button', () => {
     await waitForPageLoad();
 
     await user.click(screen.getByRole('button', { name: /notify members/i }));
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText(/notify members/i)).toBeInTheDocument();
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeInTheDocument();
+    // Check the dialog heading specifically (button and heading both contain "Notify Members")
+    expect(within(dialog).getByText(/notify members/i)).toBeInTheDocument();
   });
 });
 
@@ -247,9 +249,10 @@ describe('SiegeSettingsPage — notification batch panel', () => {
     const dialog = screen.getByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
 
+    // member_name and "— No Discord username" are in the same span, so use the combined text
     await waitFor(() => expect(screen.getByText(/no discord username/i)).toBeInTheDocument());
     // The warning icon has text-yellow-500
-    const memberRow = screen.getByText('Brint').closest('li')!;
+    const memberRow = screen.getByText(/no discord username/i).closest('li')!;
     expect(memberRow.querySelector('.text-yellow-500')).not.toBeNull();
   });
 
