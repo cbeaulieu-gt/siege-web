@@ -56,8 +56,11 @@ async def test_list_sieges_returns_empty_list(client):
 @pytest.mark.asyncio
 async def test_create_siege_returns_201(client):
     siege = _make_siege()
-    with patch("app.api.sieges.sieges_service.create_siege", new_callable=AsyncMock) as mock:
+    with patch("app.api.sieges.sieges_service.create_siege", new_callable=AsyncMock) as mock, patch(
+        "app.api.sieges.sieges_service.compute_scroll_count", new_callable=AsyncMock
+    ) as mock_scroll:
         mock.return_value = siege
+        mock_scroll.return_value = 0
         async with client as c:
             response = await c.post(
                 "/api/sieges",

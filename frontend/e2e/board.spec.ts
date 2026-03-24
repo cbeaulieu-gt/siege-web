@@ -49,14 +49,6 @@ async function apiAddBuilding(
   return existing.id;
 }
 
-/**
- * Create a member. If the 30-active-member limit is hit, deactivate the
- * active member with the highest id (most recently added) to free a slot,
- * then retry. The freed member is stored in `_freedMemberId` for optional
- * restoration after tests.
- */
-let _freedMemberId: number | null = null;
-
 async function apiCreateMember(
   request: APIRequestContext,
   name: string,
@@ -76,7 +68,6 @@ async function apiCreateMember(
   const toFree = active.reduce((a, b) => (b.id > a.id ? b : a));
   const deactRes = await request.delete(`/api/members/${toFree.id}`);
   expect(deactRes.status()).toBe(204);
-  _freedMemberId = toFree.id;
 
   const retryRes = await request.post('/api/members', {
     data: { name, role: 'novice', is_active: true },
@@ -242,11 +233,6 @@ test.describe('Buildings section', () => {
     await apiAddBuilding(request, siegeId, 'stronghold', 1);
 
     await page.goto(`/sieges/${siegeId}/board`);
-
-    // Hover a position cell to reveal the ChevronDown button
-    const positionCells = page.locator(
-      '[class*="group"]:has([class*="ChevronDown"]), .group'
-    );
 
     // Locate position cells via the numbered position span (e.g. "1.")
     const firstPositionSpan = page.locator('span', { hasText: /^1\.$/ }).first();
