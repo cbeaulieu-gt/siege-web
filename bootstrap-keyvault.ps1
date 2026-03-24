@@ -1,12 +1,13 @@
 param(
     [Parameter(Mandatory)][string]$ResourceGroup,
-    [Parameter(Mandatory)][string]$VaultName
+    [Parameter(Mandatory)][string]$VaultName,
+    [string]$Environment = 'dev'
 )
 
 $ErrorActionPreference = 'Stop'
 
 $RoleDefinitionName = 'Key Vault Secrets User'
-$Apps = @('siege-api-dev', 'siege-bot-dev')
+$Apps = @("siege-web-api-$Environment", "siege-web-bot-$Environment")
 
 Write-Host "==> Looking up Key Vault scope for '$VaultName'..."
 $VaultId = az keyvault show --name $VaultName --resource-group $ResourceGroup --query "id" -o tsv
@@ -41,4 +42,4 @@ foreach ($App in $Apps) {
 Write-Host ""
 Write-Host "==> Role assignments complete."
 Write-Host "    Re-run your Bicep deployment to apply Key Vault references to the Container Apps:"
-Write-Host "    az deployment group create --resource-group $ResourceGroup --template-file infra/main.bicep --parameters @infra/main.parameters.json"
+Write-Host "    az deployment group create --resource-group $ResourceGroup --template-file infra/main.bicep --parameters infra/main.$Environment.bicepparam"

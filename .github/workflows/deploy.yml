@@ -1,28 +1,51 @@
 name: Deploy
 
+# ── Triggers ───────────────────────────────────────────────────────────────────
+#
+# push to main  → full dev → prod promotion pipeline:
+#                   build images → deploy dev → (approval gate) → deploy prod
+#
+# workflow_dispatch with image_tag → emergency prod promotion only:
+#                   skip build and dev deploy entirely; promote an already-
+#                   validated SHA tag directly to prod. Use this when a hotfix
+#                   image has been validated outside the normal pipeline and
+#                   needs to reach prod without re-running dev.
+# ─────────────────────────────────────────────────────────────────────────────
+
 on:
   push:
     branches:
       - main
-
-env:
-  ACR_NAME: siegeacrprod
-  ACR_LOGIN_SERVER: siegeacrprod.azurecr.io
-  RESOURCE_GROUP: siege-rg
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: >
+          SHA tag of an already-built image to promote directly to prod.
+          Example: a3f8c21d... (full or short commit SHA). Skips build and
+          dev deploy — goes straight to the prod approval gate.
+        required: true
+        type: string
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 #
-# Three image builds run in parallel via matrix. Each leg logs into Azure (using
-# the single AZURE_CREDENTIALS secret) and then uses `az acr login` to
-# authenticate Docker against ACR — no ACR_USERNAME/ACR_PASSWORD secrets needed.
+# Three image builds run in parallel via matrix. Each leg logs into Azure using
+# the dev environment's AZURE_CREDENTIALS (AcrPush is needed; dev SP works fine
+# since ACR is shared). `az acr login` authenticates Docker — no separate
+# ACR_USERNAME/ACR_PASSWORD secrets required.
 #
-# Each image is tagged with both the commit SHA (immutable, for rollback) and
-# `latest` (so the Bicep `imageTag = 'latest'` default continues to work).
+# Images are tagged with the commit SHA only (no :latest). Immutable SHA tags
+# are the foundation of reliable promotion: the exact bytes built here are what
+# gets deployed to dev and, if approved, promoted unchanged to prod.
+#
+# This job is skipped on workflow_dispatch (image_tag supplied → image already
+# exists in ACR; nothing to build).
 
 jobs:
   build-and-push:
     name: Build & Push (${{ matrix.service }})
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    environment: dev
 
     strategy:
       fail-fast: true
@@ -44,28 +67,35 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Authenticate Docker to ACR via the Azure CLI — no separate ACR credentials
-      # required. The service principal in AZURE_CREDENTIALS needs AcrPush on the
-      # registry (or Contributor on the resource group).
+      # Authenticate Docker to ACR via the Azure CLI — the service principal in
+      # AZURE_CREDENTIALS needs AcrPush on the registry (or Contributor on the
+      # resource group).
       - name: Log in to ACR
-        run: az acr login --name ${{ env.ACR_NAME }}
+        run: az acr login --name ${{ vars.ACR_NAME }}
 
       - name: Build and push ${{ matrix.service }}
         run: |
-          IMAGE=${{ env.ACR_LOGIN_SERVER }}/${{ matrix.service }}
-          docker build -t "${IMAGE}:${{ github.sha }}" -t "${IMAGE}:latest" ${{ matrix.context }}
+          IMAGE=${{ vars.ACR_LOGIN_SERVER }}/${{ matrix.service }}
+          docker build -t "${IMAGE}:${{ github.sha }}" ${{ matrix.context }}
           docker push "${IMAGE}:${{ github.sha }}"
-          docker push "${IMAGE}:latest"
 
-# ── Deploy API ─────────────────────────────────────────────────────────────────
+# ── Deploy API (dev) ───────────────────────────────────────────────────────────
 #
 # The API must be deployed and healthy before migrations run and before the
-# frontend/bot are updated (they depend on the API being available).
+# frontend/bot are updated — they depend on the API's HTTP contract being
+# available.
+#
+# vars.RESOURCE_GROUP is an environment-scoped variable (not a secret). GitHub
+# resolves the correct value for each environment automatically:
+#   dev  → siege-rg-dev
+#   prod → siege-rg-prod
 
-  deploy-api:
-    name: Deploy API
+  deploy-api-dev:
+    name: Deploy API (dev)
     needs: build-and-push
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    environment: dev
 
     steps:
       - name: Log in to Azure
@@ -73,27 +103,25 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy siege-api-prod
+      - name: Deploy siege-web-api-dev
         uses: azure/container-apps-deploy-action@v2
         with:
-          resourceGroup: ${{ env.RESOURCE_GROUP }}
-          containerAppName: siege-api-prod
-          imageToDeploy: ${{ env.ACR_LOGIN_SERVER }}/siege-api:${{ github.sha }}
+          resourceGroup: ${{ vars.RESOURCE_GROUP }}
+          containerAppName: siege-web-api-dev
+          imageToDeploy: ${{ vars.ACR_LOGIN_SERVER }}/siege-api:${{ github.sha }}
 
-# ── Database migration ─────────────────────────────────────────────────────────
+# ── Database migration (dev) ───────────────────────────────────────────────────
 #
-# Run `alembic upgrade head` inside the already-deployed API container using
-# `az containerapp exec`. This executes against the production database using
-# the DATABASE_URL secret already configured in the container app — no extra
-# secrets are needed in GitHub.
-#
-# Note: `az containerapp exec --command` requires the container to be running
-# and healthy after the deploy step above completes.
+# Run `alembic upgrade head` inside the already-deployed dev API container.
+# `az containerapp exec` uses the DATABASE_URL already configured in the
+# container app — no extra secrets needed in GitHub.
 
-  migrate:
-    name: Run DB Migrations
-    needs: deploy-api
+  migrate-dev:
+    name: Run DB Migrations (dev)
+    needs: deploy-api-dev
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    environment: dev
 
     steps:
       - name: Log in to Azure
@@ -101,23 +129,25 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Run alembic upgrade head
+      - name: Run alembic upgrade head (dev)
         run: |
           az containerapp exec \
-            --name siege-api-prod \
-            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --name siege-web-api-dev \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
             --command "alembic upgrade head"
 
-# ── Deploy frontend & bot ──────────────────────────────────────────────────────
+# ── Deploy frontend & bot (dev) ────────────────────────────────────────────────
 #
-# Frontend and bot deploy in parallel after migrations succeed. Both depend on
-# `migrate` (which transitively depends on the API deploy) rather than
-# `deploy-api` directly, so migrations are guaranteed to be applied first.
+# Frontend and bot deploy in parallel after dev migrations succeed. Both depend
+# on `migrate-dev` (which transitively gates on `deploy-api-dev`) so migrations
+# are guaranteed applied before any traffic hits the new API version.
 
-  deploy-frontend:
-    name: Deploy Frontend
-    needs: migrate
+  deploy-frontend-dev:
+    name: Deploy Frontend (dev)
+    needs: migrate-dev
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    environment: dev
 
     steps:
       - name: Log in to Azure
@@ -125,17 +155,19 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy siege-frontend-prod
+      - name: Deploy siege-web-frontend-dev
         uses: azure/container-apps-deploy-action@v2
         with:
-          resourceGroup: ${{ env.RESOURCE_GROUP }}
-          containerAppName: siege-frontend-prod
-          imageToDeploy: ${{ env.ACR_LOGIN_SERVER }}/siege-frontend:${{ github.sha }}
+          resourceGroup: ${{ vars.RESOURCE_GROUP }}
+          containerAppName: siege-web-frontend-dev
+          imageToDeploy: ${{ vars.ACR_LOGIN_SERVER }}/siege-frontend:${{ github.sha }}
 
-  deploy-bot:
-    name: Deploy Bot
-    needs: migrate
+  deploy-bot-dev:
+    name: Deploy Bot (dev)
+    needs: migrate-dev
     runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    environment: dev
 
     steps:
       - name: Log in to Azure
@@ -143,9 +175,134 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Deploy siege-bot-prod
+      - name: Deploy siege-web-bot-dev
         uses: azure/container-apps-deploy-action@v2
         with:
-          resourceGroup: ${{ env.RESOURCE_GROUP }}
-          containerAppName: siege-bot-prod
-          imageToDeploy: ${{ env.ACR_LOGIN_SERVER }}/siege-bot:${{ github.sha }}
+          resourceGroup: ${{ vars.RESOURCE_GROUP }}
+          containerAppName: siege-web-bot-dev
+          imageToDeploy: ${{ vars.ACR_LOGIN_SERVER }}/siege-bot:${{ github.sha }}
+
+# ── Deploy API (prod) — APPROVAL GATE ─────────────────────────────────────────
+#
+# This is the promotion gate. GitHub pauses here and waits for a required
+# reviewer to approve before any prod job runs. Configure required reviewers
+# in: repo Settings → Environments → prod → Required reviewers.
+#
+# On push:             needs deploy-bot-dev (all dev jobs must pass first).
+# On workflow_dispatch: no needs — runs immediately after manual trigger,
+#                       straight to the prod approval gate.
+#
+# The image tag to deploy resolves as follows:
+#   push              → github.sha   (built in this run)
+#   workflow_dispatch → inputs.image_tag (caller-supplied, already in ACR)
+
+  deploy-api-prod:
+    name: Deploy API (prod)
+    runs-on: ubuntu-latest
+    # On push: gate on dev bot deploy (last dev job in the chain).
+    # On workflow_dispatch: no upstream jobs — drop straight to approval.
+    needs:
+      - deploy-bot-dev
+    if: |
+      always() &&
+      (
+        (github.event_name == 'push' && needs.deploy-bot-dev.result == 'success') ||
+        github.event_name == 'workflow_dispatch'
+      )
+    environment: prod
+
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy siege-web-api-prod
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          resourceGroup: ${{ vars.RESOURCE_GROUP }}
+          containerAppName: siege-web-api-prod
+          imageToDeploy: >-
+            ${{ vars.ACR_LOGIN_SERVER }}/siege-api:${{
+              github.event_name == 'workflow_dispatch'
+                && inputs.image_tag
+                || github.sha
+            }}
+
+# ── Database migration (prod) ──────────────────────────────────────────────────
+#
+# Same pattern as dev: exec into the running prod API container and run
+# Alembic. The DATABASE_URL configured in the prod container app points to the
+# prod PostgreSQL instance — no extra credentials needed here.
+
+  migrate-prod:
+    name: Run DB Migrations (prod)
+    needs: deploy-api-prod
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Run alembic upgrade head (prod)
+        run: |
+          az containerapp exec \
+            --name siege-web-api-prod \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --command "alembic upgrade head"
+
+# ── Deploy frontend & bot (prod) ───────────────────────────────────────────────
+#
+# Final step: promote frontend and bot to prod in parallel, after prod
+# migrations succeed. Same image-tag resolution as deploy-api-prod.
+
+  deploy-frontend-prod:
+    name: Deploy Frontend (prod)
+    needs: migrate-prod
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy siege-web-frontend-prod
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          resourceGroup: ${{ vars.RESOURCE_GROUP }}
+          containerAppName: siege-web-frontend-prod
+          imageToDeploy: >-
+            ${{ vars.ACR_LOGIN_SERVER }}/siege-frontend:${{
+              github.event_name == 'workflow_dispatch'
+                && inputs.image_tag
+                || github.sha
+            }}
+
+  deploy-bot-prod:
+    name: Deploy Bot (prod)
+    needs: migrate-prod
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy siege-web-bot-prod
+        uses: azure/container-apps-deploy-action@v2
+        with:
+          resourceGroup: ${{ vars.RESOURCE_GROUP }}
+          containerAppName: siege-web-bot-prod
+          imageToDeploy: >-
+            ${{ vars.ACR_LOGIN_SERVER }}/siege-bot:${{
+              github.event_name == 'workflow_dispatch'
+                && inputs.image_tag
+                || github.sha
+            }}

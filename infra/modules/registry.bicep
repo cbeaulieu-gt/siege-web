@@ -10,10 +10,15 @@ param appPrefix string
 @description('SKU for the container registry (Basic, Standard, Premium)')
 param acrSku string = 'Basic'
 
+@description('Override the generated ACR name (must be globally unique, 5-50 alphanumeric chars). Leave empty to use the default: appPrefix + "acr" + environment.')
+param acrNameOverride string = ''
+
 // ACR names must be alphanumeric only, 5-50 chars. Using a fixed, predictable
 // name (e.g. siegeacrdev / siegeacrprod) so the GitHub Actions workflow can
 // reference it without reading Bicep output at deploy time.
-var sanitizedName = '${appPrefix}acr${environment}'
+// acrNameOverride lets the dev environment supply a pre-checked globally-unique
+// name (e.g. 'siegewebacr') without changing the default convention for prod.
+var sanitizedName = empty(acrNameOverride) ? '${appPrefix}acr${environment}' : acrNameOverride
 
 resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
   name: sanitizedName

@@ -452,7 +452,7 @@ describe('BoardPage — MemberBucket', () => {
     // Note: the MemberBucket is in the same DOM tree as the board, so scope to Aethon's row
     const memberRows = screen.getAllByText('Aethon');
     // First match is the bucket row; find the "2" count badge inside its parent
-    const bucketRow = memberRows[0].closest('div[class*="flex"]')!;
+    const bucketRow = memberRows[0].closest('div[class*="flex"]') as HTMLElement;
     expect(within(bucketRow).getByText('2')).toBeInTheDocument();
   });
 });

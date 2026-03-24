@@ -5,7 +5,15 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+if ($Environment -notin @('dev', 'prod')) {
+    Write-Error "Invalid environment '$Environment'. Must be 'dev' or 'prod'."
+    exit 1
+}
+
+$ResourceGroup = if ($Environment -eq 'dev') { 'siege-web-dev' } else { 'siege-rg' }
+
 Write-Host "==> Excel import for environment: $Environment"
+Write-Host "    Resource group: $ResourceGroup"
 Write-Host "    Excel path: $ExcelPath"
 Write-Host ""
 
@@ -50,12 +58,12 @@ Write-Host ""
 
 # ── Look up database URL from Azure Key Vault ─────────────────────────────────
 
-Write-Host '==> Looking up Key Vault name in resource group siege-rg...'
+Write-Host "==> Looking up Key Vault name in resource group $ResourceGroup..."
 
-$VaultName = az keyvault list -g siege-rg --query "[0].name" -o tsv 2>&1
+$VaultName = az keyvault list -g $ResourceGroup --query "[0].name" -o tsv 2>&1
 
 if ($LASTEXITCODE -ne 0 -or -not $VaultName) {
-    Write-Error "Could not find a Key Vault in resource group 'siege-rg'.`nEnsure the Bicep deployment has run and you are logged in to the correct Azure subscription."
+    Write-Error "Could not find a Key Vault in resource group '$ResourceGroup'.`nEnsure the Bicep deployment has run and you are logged in to the correct Azure subscription."
     exit 1
 }
 
@@ -78,10 +86,10 @@ Write-Host ""
 
 Write-Host '==> Looking up PostgreSQL server name...'
 
-$PgServer = az postgres flexible-server list -g siege-rg --query "[0].name" -o tsv 2>&1
+$PgServer = az postgres flexible-server list -g $ResourceGroup --query "[0].name" -o tsv 2>&1
 
 if ($LASTEXITCODE -ne 0 -or -not $PgServer) {
-    Write-Error "Could not find a PostgreSQL server in resource group 'siege-rg'."
+    Write-Error "Could not find a PostgreSQL server in resource group '$ResourceGroup'."
     exit 1
 }
 
@@ -96,7 +104,7 @@ $FirewallRuleName = "local-import-$(Get-Date -Format 'yyyyMMddHHmmss')"
 Write-Host "==> Adding temporary firewall rule '$FirewallRuleName'..."
 
 az postgres flexible-server firewall-rule create `
-    --resource-group siege-rg `
+    --resource-group $ResourceGroup `
     --name $PgServer `
     --rule-name $FirewallRuleName `
     --start-ip-address $MyIp `
@@ -126,7 +134,7 @@ try {
     Write-Host ""
     Write-Host "==> Removing temporary firewall rule '$FirewallRuleName'..."
     az postgres flexible-server firewall-rule delete `
-        --resource-group siege-rg `
+        --resource-group $ResourceGroup `
         --name $PgServer `
         --rule-name $FirewallRuleName `
         --yes 2>&1 | Out-Null

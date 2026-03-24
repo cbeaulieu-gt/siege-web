@@ -24,7 +24,24 @@
       "Bash(dir:*)",
       "Skill(update-config)",
       "Write",
-      "Skill(commit-commands:commit)"
+      "Skill(commit-commands:commit)",
+      "Bash(docker ps:*)",
+      "Bash(docker:*)",
+      "Bash(npx playwright:*)",
+      "Bash(curl -s -X POST http://localhost:8000/api/sieges -H \"Content-Type: application/json\" -d '{\"\"date\"\": \"\"\"\"}')",
+      "Bash(curl -s \"http://localhost:8000/api/members?is_active=true\")",
+      "Bash(python3 -c \"import json,sys; m=json.load\\(sys.stdin\\); print\\([x[''''name''''] for x in m[:5]]\\)\")",
+      "Bash(curl -s \"http://localhost:8000/api/members\")",
+      "Bash(python3 -c \"import json,sys; m=json.load\\(sys.stdin\\); e2e=[x for x in m if x[''''name''''].startswith\\(''''E2E-''''\\)]; print\\(f''''E2E members: {len\\(e2e\\)}, active: {sum\\(1 for x in e2e if x[\"\"is_active\"\"]\\)}''''\\)\")",
+      "Bash(python3 -c \"import json,sys; m=json.load\\(sys.stdin\\); print\\(f''''Total: {len\\(m\\)}, active: {sum\\(1 for x in m if x[\"\"is_active\"\"]\\)}''''\\)\")",
+      "Bash(az containerapp:*)",
+      "Bash(az config:*)",
+      "Bash(az extension:*)",
+      "Bash(az monitor:*)",
+      "Bash(curl:*)",
+      "mcp__azure__acr",
+      "mcp__azure__containerapps",
+      "Bash(python3:*)"
     ]
   },
   "hooks": {

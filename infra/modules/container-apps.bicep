@@ -54,6 +54,12 @@ param apiMemory string = '1Gi'
 @description('Max replicas for the API app')
 param apiMaxReplicas int = 3
 
+@description('Minimum replicas for the API app (0 = scale to zero when idle)')
+param apiMinReplicas int = 1
+
+@description('Minimum replicas for the frontend app (0 = scale to zero when idle)')
+param frontendMinReplicas int = 1
+
 @description('CPU cores for the frontend app (e.g. "0.25")')
 param frontendCpu string = '0.25'
 
@@ -155,7 +161,7 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
         }
       ]
       scale: {
-        minReplicas: 1
+        minReplicas: apiMinReplicas
         maxReplicas: apiMaxReplicas
       }
     }
@@ -215,7 +221,7 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
         }
       ]
       scale: {
-        minReplicas: 1
+        minReplicas: frontendMinReplicas
         maxReplicas: 2
       }
     }

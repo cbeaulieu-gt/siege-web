@@ -6,8 +6,8 @@ using 'main.bicep'
 // variables or Azure CLI --parameters flags — never commit real secrets here.
 
 param environment = 'dev'
-param appPrefix = 'siege'
-param location = 'australiaeast'
+param appPrefix = 'siege-web'
+param location = 'westus'
 param acrSku = 'Basic'
 param imageTag = 'latest'
 

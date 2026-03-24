@@ -11,6 +11,9 @@ param appPrefix string = 'siege'
 @description('Container Registry SKU (Basic for dev, Standard for prod)')
 param acrSku string = 'Basic'
 
+@description('Override the generated ACR name. Leave empty to use the default convention (appPrefix + "acr" + environment).')
+param acrNameOverride string = ''
+
 @description('Image tag to deploy')
 param imageTag string = 'latest'
 
@@ -101,6 +104,12 @@ param botCpu string = '0.25'
 @description('Bot Container App memory')
 param botMemory string = '0.5Gi'
 
+@description('Minimum replicas for the API app (0 = scale to zero when idle)')
+param apiMinReplicas int = 1
+
+@description('Minimum replicas for the frontend app (0 = scale to zero when idle)')
+param frontendMinReplicas int = 1
+
 // ── Modules ──────────────────────────────────────────────────────────────────
 
 module logAnalytics 'modules/log-analytics.bicep' = {
@@ -120,6 +129,7 @@ module registry 'modules/registry.bicep' = {
     environment: environment
     appPrefix: appPrefix
     acrSku: acrSku
+    acrNameOverride: acrNameOverride
   }
 }
 
@@ -201,6 +211,8 @@ module containerApps 'modules/container-apps.bicep' = {
     frontendMemory: frontendMemory
     botCpu: botCpu
     botMemory: botMemory
+    apiMinReplicas: apiMinReplicas
+    frontendMinReplicas: frontendMinReplicas
   }
 }
 

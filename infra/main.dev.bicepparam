@@ -1,13 +1,13 @@
 using 'main.bicep'
 
-// ── Production parameter file ─────────────────────────────────────────────────
+// ── Development parameter file ────────────────────────────────────────────────
 //
 // Deploy command:
 //
 //   az deployment group create \
-//     --resource-group siege-rg-prod \
+//     --resource-group siege-rg-dev \
 //     --template-file infra/main.bicep \
-//     --parameters infra/main.prod.bicepparam \
+//     --parameters infra/main.dev.bicepparam \
 //     --parameters postgresAdminPassword="$PG_ADMIN_PASSWORD" \
 //     --parameters discordToken="$DISCORD_TOKEN" \
 //     --parameters discordBotApiKey="$DISCORD_BOT_API_KEY" \
@@ -15,37 +15,38 @@ using 'main.bicep'
 //     --parameters discordGuildId="$DISCORD_GUILD_ID"
 //
 // NEVER commit real secrets here. All @secure() params must be supplied at
-// deploy time via environment variables or a CI/CD secret store.
+// deploy time via environment variables or CLI --parameters flags.
 //
 // Resource group convention:
 //   dev  → siege-rg-dev
 //   prod → siege-rg-prod
 // ─────────────────────────────────────────────────────────────────────────────
 
-param environment = 'prod'
+param environment = 'dev'
 param appPrefix = 'siege-web'
 param location = 'westus'
 
 // ── Container Registry ────────────────────────────────────────────────────────
-// Standard SKU enables geo-replication, content trust, and higher throughput
-// pull limits compared to Basic. Required for production workloads.
-param acrSku = 'Standard'
+// Basic SKU is sufficient for dev: lower throughput limits and no geo-
+// replication, but all required features (push/pull, webhooks) are present.
+param acrSku = 'Basic'
 
-// Prod ACR is already deployed as siegeacrprod — override keeps the existing
-// registry rather than creating a new hyphenated name.
-param acrNameOverride = 'siegeacrprod'
+// The default generated name 'siegeacrdev' is already taken globally (ACR names
+// are unique across all Azure tenants). 'siegewebacr' was confirmed available at
+// provisioning time — verify with:
+//   az acr check-name --name siegewebacr
+param acrNameOverride = 'siegewebacr'
 
 param imageTag = 'latest'
 
 // ── PostgreSQL ────────────────────────────────────────────────────────────────
-// Burstable B1ms: 1 vCore (burstable), 2 GiB RAM — sufficient for a clan-sized
-// user base (<100 concurrent users). Upgrade to D2ds_v5 (GeneralPurpose) if
-// query latency becomes an issue under real load. HA can be re-enabled at any
-// time without data loss.
+// Burstable B1ms: 1 vCore (burstable), 2 GiB RAM — sufficient for dev/testing
+// workloads. Saves ~$15/month vs B2s. Not eligible for HA; no geo-redundant
+// backup. Switch to B2s or GeneralPurpose if load-testing is needed.
 param postgresSku = 'Standard_B1ms'
 param postgresSkuTier = 'Burstable'
 param postgresStorageGB = 32
-param postgresBackupRetentionDays = 7   // increase to 35 for maximum retention
+param postgresBackupRetentionDays = 7
 param postgresGeoRedundantBackup = false
 param postgresHighAvailability = 'Disabled'
 
@@ -61,36 +62,40 @@ param discordBotApiKey = ''
 param botApiKey = ''
 
 // ── Key Vault ─────────────────────────────────────────────────────────────────
-// 90-day soft-delete retention gives the maximum recovery window for secrets
-// accidentally deleted or overwritten. The dev value of 7 days enables fast
-// teardown of test environments but is not appropriate for production.
-param kvSoftDeleteRetentionDays = 90
+// 7-day soft-delete retention is the minimum allowed by Azure and enables fast
+// teardown of the dev environment without waiting out a long purge window.
+// Do not use 7 days in production — accidental deletion is harder to recover.
+param kvSoftDeleteRetentionDays = 7
 
 // ── Log Analytics ─────────────────────────────────────────────────────────────
-// 30 days covers the typical incident investigation window and avoids premium
-// data retention charges. Increase to 90 if longer trend analysis is needed.
+// 30 days is sufficient for dev debugging. Reduces data ingestion cost while
+// still covering a reasonable debugging window for active development.
 param logRetentionDays = 30
 
 // ── Container App sizing ──────────────────────────────────────────────────────
+// Minimum viable allocations for dev — keeps Container Apps costs low while
+// the environment is mostly idle between test sessions.
+//
 // siege-api runs Playwright (headless Chromium) for image generation.
-// 0.5/1Gi is tight for Playwright — monitor cold start times and upgrade to
-// 1.0/2Gi if image generation times out under real load.
+// 0.5 vCPU / 1 GiB is tight; increase to 1.0/2Gi if browser launch timeouts
+// are observed during dev testing.
 param apiCpu = '0.5'
 param apiMemory = '1Gi'
-param apiMaxReplicas = 3
+param apiMaxReplicas = 2
 
-// Frontend is static content served by Nginx — 0.25/0.5Gi is sufficient.
+// Frontend is static Nginx — minimal resources needed.
 param frontendCpu = '0.25'
 param frontendMemory = '0.5Gi'
 
-// Bot holds a single Discord WebSocket connection — always 1 replica.
-// 0.25/0.5Gi is sufficient for connection management and lightweight event handling.
+// Bot holds one Discord WebSocket — always 1 replica; 0.25/0.5Gi is enough
+// for the connection and lightweight event handling in dev.
 param botCpu = '0.25'
 param botMemory = '0.5Gi'
 
 // ── Replica scaling ────────────────────────────────────────────────────────────
-// API stays warm in prod — Playwright cold starts on a scaled-to-zero replica
-// are too slow for an acceptable user experience.
-// Frontend is Nginx only; a 2–3s cold start is acceptable in prod.
-param apiMinReplicas = 1
+// Scale API and frontend to zero when dev is idle. Saves ~$40/month when the
+// environment is not being actively used. Trade-off: expect a 5–10s cold start
+// after an idle period while the Container App spins up a new replica.
+// Bot is excluded — it holds a Discord WebSocket and must stay warm.
+param apiMinReplicas = 0
 param frontendMinReplicas = 0
