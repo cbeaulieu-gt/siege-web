@@ -31,9 +31,7 @@ async def add_building(
     return await buildings_service.add_building(db, siege_id, data)
 
 
-@router.put(
-    "/sieges/{siege_id}/buildings/{building_id}", response_model=BuildingResponse
-)
+@router.put("/sieges/{siege_id}/buildings/{building_id}", response_model=BuildingResponse)
 async def update_building(
     siege_id: int,
     building_id: int,
@@ -67,9 +65,7 @@ async def add_group(
     return await buildings_service.add_group(db, siege_id, building_id, data)
 
 
-@router.delete(
-    "/sieges/{siege_id}/buildings/{building_id}/groups/{group_id}", status_code=204
-)
+@router.delete("/sieges/{siege_id}/buildings/{building_id}/groups/{group_id}", status_code=204)
 async def delete_group(
     siege_id: int,
     building_id: int,

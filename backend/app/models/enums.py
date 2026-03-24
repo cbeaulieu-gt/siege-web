@@ -1,13 +1,13 @@
 import enum
 
 
-class SiegeStatus(str, enum.Enum):
+class SiegeStatus(enum.StrEnum):
     planning = "planning"
     active = "active"
     complete = "complete"
 
 
-class BuildingType(str, enum.Enum):
+class BuildingType(enum.StrEnum):
     stronghold = "stronghold"
     mana_shrine = "mana_shrine"
     magic_tower = "magic_tower"
@@ -15,14 +15,14 @@ class BuildingType(str, enum.Enum):
     post = "post"
 
 
-class MemberRole(str, enum.Enum):
+class MemberRole(enum.StrEnum):
     heavy_hitter = "heavy_hitter"
     advanced = "advanced"
     medium = "medium"
     novice = "novice"
 
 
-class PowerLevel(str, enum.Enum):
+class PowerLevel(enum.StrEnum):
     lt_10m = "lt_10m"
     m_10_15 = "10_15m"
     m_16_20 = "16_20m"
@@ -30,6 +30,6 @@ class PowerLevel(str, enum.Enum):
     gt_25m = "gt_25m"
 
 
-class NotificationBatchStatus(str, enum.Enum):
+class NotificationBatchStatus(enum.StrEnum):
     pending = "pending"
     completed = "completed"

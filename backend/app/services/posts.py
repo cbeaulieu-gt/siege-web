@@ -3,12 +3,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.building import Building
+from app.models.enums import SiegeStatus
 from app.models.post import Post
 from app.models.post_active_condition import post_active_condition
 from app.models.post_condition import PostCondition
 from app.models.siege import Siege
-from app.models.enums import SiegeStatus
 from app.schemas.post import PostUpdate
 
 
@@ -49,9 +48,7 @@ async def list_posts(session: AsyncSession, siege_id: int) -> list[Post]:
     return list(result.scalars().all())
 
 
-async def update_post(
-    session: AsyncSession, siege_id: int, post_id: int, data: PostUpdate
-) -> Post:
+async def update_post(session: AsyncSession, siege_id: int, post_id: int, data: PostUpdate) -> Post:
     """Update a post's priority and/or description.
 
     Raises:

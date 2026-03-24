@@ -11,7 +11,6 @@ on:
         description: 'Branch to run tests on'
         required: false
         default: 'main'
-
 jobs:
   backend-ci:
     name: Backend Lint & Test

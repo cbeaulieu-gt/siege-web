@@ -1,11 +1,9 @@
 """Image generation service — renders HTML/CSS to PNG via Playwright."""
 
 from dataclasses import dataclass
-from typing import TypedDict
 
-from app.schemas.board import BoardResponse
 from app.models.enums import BuildingType, MemberRole
-
+from app.schemas.board import BoardResponse
 
 # ---------------------------------------------------------------------------
 # Data types
@@ -89,7 +87,10 @@ def _build_assignments_html(board: BoardResponse, siege_date: str) -> str:
                         cell_style = "background:#111827;color:#6b7280;"
                         cell_text = "—"
 
-                    cells_html += f'<td style="padding:2px 4px;border:1px solid #374151;font-size:11px;{cell_style}">{cell_text}</td>'
+                    td_style = (
+                        "padding:2px 4px;border:1px solid #374151;" f"font-size:11px;{cell_style}"
+                    )
+                    cells_html += f'<td style="{td_style}">{cell_text}</td>'
 
                 rows_html += f"<tr>{cells_html}</tr>"
 
@@ -148,7 +149,9 @@ def _build_reserves_html(members: list[SiegeMemberWithName], siege_date: str) ->
         else:
             day_style = "color:#6b7280;"
 
-        reserve_label = "Yes" if m.has_reserve_set else ("No" if m.has_reserve_set is False else "—")
+        reserve_label = (
+            "Yes" if m.has_reserve_set else ("No" if m.has_reserve_set is False else "—")
+        )
         role_abbrev = _ROLE_ABBREV.get(m.role, str(m.role))
 
         rows_html += f"""
@@ -247,9 +250,7 @@ async def generate_assignments_image(board: BoardResponse, siege_date: str) -> b
     return await _render_html_to_png(html)
 
 
-async def generate_reserves_image(
-    members: list[SiegeMemberWithName], siege_date: str
-) -> bytes:
+async def generate_reserves_image(members: list[SiegeMemberWithName], siege_date: str) -> bytes:
     """Render the members/reserves list as a PNG. Returns raw PNG bytes."""
     html = _build_reserves_html(members, siege_date)
     return await _render_html_to_png(html)

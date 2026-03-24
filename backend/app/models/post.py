@@ -6,9 +6,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
 if TYPE_CHECKING:
-    from app.models.siege import Siege
     from app.models.building import Building
     from app.models.post_condition import PostCondition
+    from app.models.siege import Siege
 
 
 class Post(Base):

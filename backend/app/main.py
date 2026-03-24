@@ -4,7 +4,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.attack_day import router as attack_day_router
-from app.api.post_priority_config import router as post_priority_config_router
 from app.api.autofill import router as autofill_router
 from app.api.board import router as board_router
 from app.api.buildings import router as buildings_router
@@ -14,6 +13,7 @@ from app.api.images import router as images_router
 from app.api.lifecycle import router as lifecycle_router
 from app.api.members import router as members_router
 from app.api.notifications import router as notifications_router
+from app.api.post_priority_config import router as post_priority_config_router
 from app.api.posts import router as posts_router
 from app.api.reference import router as reference_router
 from app.api.siege_members import router as siege_members_router

@@ -47,6 +47,11 @@ on:
 # workflow_dispatch is triggered with image_tag left blank.
 
 jobs:
+  run-ci:
+    name: Run Tests
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/ci.yml
+
   build-and-push:
     name: Build & Push (${{ matrix.service }})
     runs-on: ubuntu-latest

@@ -117,9 +117,7 @@ async def test_complete_planning_siege_returns_400(client):
 @pytest.mark.asyncio
 async def test_clone_siege_returns_201(client):
     cloned = _make_siege(id=99, status=SiegeStatus.planning, date=None)
-    with patch(
-        "app.api.lifecycle.lifecycle_service.clone_siege", new_callable=AsyncMock
-    ) as mock:
+    with patch("app.api.lifecycle.lifecycle_service.clone_siege", new_callable=AsyncMock) as mock:
         mock.return_value = cloned
         async with client as c:
             response = await c.post("/api/sieges/1/clone")

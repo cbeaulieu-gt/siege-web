@@ -1,9 +1,10 @@
-import pytest
-from httpx import ASGITransport, AsyncClient
 from unittest.mock import AsyncMock
 
-from app.main import app
+import pytest
+from httpx import ASGITransport, AsyncClient
+
 from app.db.session import get_db
+from app.main import app
 
 
 @pytest.fixture

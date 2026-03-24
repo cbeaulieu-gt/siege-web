@@ -24,9 +24,7 @@ class PostPriorityUpdate(BaseModel):
 
 @router.get("/post-priorities", response_model=list[PostPriorityResponse])
 async def list_post_priorities(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(PostPriorityConfig).order_by(PostPriorityConfig.post_number)
-    )
+    result = await db.execute(select(PostPriorityConfig).order_by(PostPriorityConfig.post_number))
     return list(result.scalars().all())
 
 

@@ -1,7 +1,6 @@
 """Notification endpoints — send DMs and post images to Discord."""
 
-import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
@@ -9,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.db.session import get_db, AsyncSessionLocal
+from app.db.session import AsyncSessionLocal, get_db
 from app.models.enums import NotificationBatchStatus, SiegeStatus
 from app.models.notification_batch import NotificationBatch
 from app.models.notification_batch_result import NotificationBatchResult
@@ -72,7 +71,7 @@ async def _send_dms(batch_id: int, members_data: list[dict]) -> None:
                 if not ok:
                     error_text = "Bot failed to deliver message"
                 else:
-                    sent_at = datetime.now(timezone.utc)
+                    sent_at = datetime.now(UTC)
             else:
                 error_text = "No discord_username set for member"
 
@@ -128,9 +127,7 @@ async def notify_siege_members(
     await db.flush()
 
     # Create result rows
-    message = (
-        "Siege assignments are ready! Check the latest siege board at <URL>."
-    )
+    message = "Siege assignments are ready! Check the latest siege board at <URL>."
     members_data: list[dict] = []
     for sm in siege_members:
         result_row = NotificationBatchResult(
@@ -180,9 +177,7 @@ async def get_notification_batch(
             NotificationBatch.siege_id == siege_id,
         )
         .options(
-            selectinload(NotificationBatch.results).selectinload(
-                NotificationBatchResult.batch
-            )
+            selectinload(NotificationBatch.results).selectinload(NotificationBatchResult.batch)
         )
     )
     batch = result.scalar_one_or_none()
@@ -207,7 +202,9 @@ async def get_notification_batch(
     items = [
         NotificationResultItem(
             member_id=r.member_id,
-            member_name=members_by_id.get(r.member_id, None) and members_by_id[r.member_id].name or "Unknown",
+            member_name=members_by_id.get(r.member_id, None)
+            and members_by_id[r.member_id].name
+            or "Unknown",
             discord_username=r.discord_username,
             success=r.success,
             error=r.error,
@@ -240,6 +237,7 @@ async def post_to_channel(
     # Load board
     board_dict = await board_service.get_board(db, siege_id)
     from app.schemas.board import BoardResponse as BoardResp
+
     board = BoardResp.model_validate(board_dict)
 
     # Load siege members with member data
@@ -274,9 +272,7 @@ async def post_to_channel(
     if not ok1:
         return {"status": "failed", "detail": "Failed to post assignments image"}
 
-    ok2 = await bot_client.post_image(
-        images_channel, reserves_bytes, f"reserves-{siege_date}.png"
-    )
+    ok2 = await bot_client.post_image(images_channel, reserves_bytes, f"reserves-{siege_date}.png")
     if not ok2:
         return {"status": "failed", "detail": "Failed to post reserves image"}
 

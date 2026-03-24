@@ -11,7 +11,6 @@ from app.models.post import Post
 from app.schemas.building import BuildingCreate, BuildingUpdate, GroupCreate
 from app.services.sieges import get_siege
 
-
 # Teams per building type per level (from game data)
 _LEVEL_TEAMS: dict[str, dict[int, int]] = {
     "stronghold": {1: 12, 2: 16, 3: 18, 4: 22, 5: 25, 6: 30},
@@ -42,9 +41,7 @@ async def _get_building_type_config(
     return config
 
 
-async def _get_building(
-    session: AsyncSession, siege_id: int, building_id: int
-) -> Building:
+async def _get_building(session: AsyncSession, siege_id: int, building_id: int) -> Building:
     result = await session.execute(
         select(Building).where(
             Building.id == building_id,
@@ -57,9 +54,7 @@ async def _get_building(
     return building
 
 
-async def _require_planning_or_not_locked(
-    siege: object, allow_planning_only: bool = True
-) -> None:
+async def _require_planning_or_not_locked(siege: object, allow_planning_only: bool = True) -> None:
     """Raise 400 if the siege is locked for layout changes."""
     if allow_planning_only and siege.status != SiegeStatus.planning:
         raise HTTPException(
@@ -95,15 +90,11 @@ async def _create_groups_and_positions(
 
 
 async def list_buildings(session: AsyncSession, siege_id: int) -> list[Building]:
-    result = await session.execute(
-        select(Building).where(Building.siege_id == siege_id)
-    )
+    result = await session.execute(select(Building).where(Building.siege_id == siege_id))
     return list(result.scalars().all())
 
 
-async def add_building(
-    session: AsyncSession, siege_id: int, data: BuildingCreate
-) -> Building:
+async def add_building(session: AsyncSession, siege_id: int, data: BuildingCreate) -> Building:
     siege = await get_siege(session, siege_id)
     if siege.status != SiegeStatus.planning:
         raise HTTPException(
@@ -151,9 +142,7 @@ async def add_building(
     if current_count >= config.count:
         raise HTTPException(
             status_code=400,
-            detail=(
-                f"Cannot add more than {config.count} buildings of type {data.building_type}"
-            ),
+            detail=(f"Cannot add more than {config.count} buildings of type {data.building_type}"),
         )
 
     building = Building(
@@ -216,7 +205,7 @@ async def update_building(
             groups = list(groups_result.scalars().all())
 
             # Delete groups beyond base_group_count
-            for group in groups[config.base_group_count:]:
+            for group in groups[config.base_group_count :]:
                 await session.delete(group)
 
             # Update last group's slot_count and trim excess positions
@@ -263,10 +252,12 @@ async def update_building(
                     prev_last = current_groups[-1]
                     if prev_last.slot_count < 3:
                         for pos_num in range(prev_last.slot_count + 1, 4):
-                            session.add(Position(
-                                building_group_id=prev_last.id,
-                                position_number=pos_num,
-                            ))
+                            session.add(
+                                Position(
+                                    building_group_id=prev_last.id,
+                                    position_number=pos_num,
+                                )
+                            )
                         prev_last.slot_count = 3
 
                 # Add new groups
@@ -281,10 +272,12 @@ async def update_building(
                     session.add(new_group)
                     await session.flush()
                     for pos_num in range(1, slot_count + 1):
-                        session.add(Position(
-                            building_group_id=new_group.id,
-                            position_number=pos_num,
-                        ))
+                        session.add(
+                            Position(
+                                building_group_id=new_group.id,
+                                position_number=pos_num,
+                            )
+                        )
 
             elif target_groups < current_count:
                 # Level decreased — remove excess groups
@@ -302,10 +295,12 @@ async def update_building(
             if actual_last and actual_last.slot_count != last_slots:
                 if actual_last.slot_count < last_slots:
                     for pos_num in range(actual_last.slot_count + 1, last_slots + 1):
-                        session.add(Position(
-                            building_group_id=actual_last.id,
-                            position_number=pos_num,
-                        ))
+                        session.add(
+                            Position(
+                                building_group_id=actual_last.id,
+                                position_number=pos_num,
+                            )
+                        )
                 else:
                     excess = await session.execute(
                         select(Position)
@@ -321,9 +316,7 @@ async def update_building(
     return building
 
 
-async def delete_building(
-    session: AsyncSession, siege_id: int, building_id: int
-) -> None:
+async def delete_building(session: AsyncSession, siege_id: int, building_id: int) -> None:
     siege = await get_siege(session, siege_id)
     if siege.status in (SiegeStatus.active, SiegeStatus.complete):
         raise HTTPException(

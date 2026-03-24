@@ -55,7 +55,5 @@ async def set_post_conditions(
     data: PostConditionsUpdate,
     db: AsyncSession = Depends(get_db),
 ):
-    post = await posts_service.set_post_conditions(
-        db, siege_id, post_id, data.post_condition_ids
-    )
+    post = await posts_service.set_post_conditions(db, siege_id, post_id, data.post_condition_ids)
     return _serialize_post(post)

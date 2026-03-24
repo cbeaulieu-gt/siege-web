@@ -189,6 +189,9 @@ def _make_session(siege):
         if call_count == 0:
             # First call: siege query (used by validate_siege)
             result.scalar_one_or_none.return_value = siege
+        elif call_count == 1:
+            # Second call: compute_scroll_count → returns an integer
+            result.scalar.return_value = 5
         else:
             # Subsequent calls: config query or repeated siege queries
             result.scalar_one_or_none.return_value = siege
@@ -242,6 +245,9 @@ async def test_full_siege_lifecycle():
         result = MagicMock()
         if call_count == 0:
             result.scalar_one_or_none.return_value = configured_siege
+        elif call_count == 1:
+            # compute_scroll_count
+            result.scalar.return_value = 5
         else:
             result.scalar_one_or_none.return_value = configured_siege
             result.scalars.return_value.all.return_value = _default_configs()
@@ -279,6 +285,9 @@ async def test_full_siege_lifecycle():
         elif activate_call_count == 2:
             # validate_siege siege query
             r.scalar_one_or_none.return_value = configured_siege
+        elif activate_call_count == 3:
+            # validate_siege: compute_scroll_count
+            r.scalar.return_value = 5
         else:
             # validate_siege config query
             r.scalar_one_or_none.return_value = None

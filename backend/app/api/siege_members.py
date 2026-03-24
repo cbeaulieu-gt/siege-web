@@ -41,9 +41,7 @@ async def add_siege_member(
     return await siege_members_service.add_siege_member(db, siege_id, data.member_id)
 
 
-@router.put(
-    "/sieges/{siege_id}/members/{member_id}", response_model=SiegeMemberResponse
-)
+@router.put("/sieges/{siege_id}/members/{member_id}", response_model=SiegeMemberResponse)
 async def update_siege_member(
     siege_id: int,
     member_id: int,

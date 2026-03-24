@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.models.siege import Siege
 from app.schemas.validation import ValidationResult
 from app.services import validation as validation_service
-from sqlalchemy import select
-from app.models.siege import Siege
 
 router = APIRouter(tags=["validation"])
 
