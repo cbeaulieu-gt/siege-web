@@ -41,11 +41,12 @@ def client():
 @pytest.mark.asyncio
 async def test_activate_planning_siege(client):
     siege = _make_siege(status=SiegeStatus.active)
-    with patch(
-        "app.api.lifecycle.lifecycle_service.activate_siege", new_callable=AsyncMock
-    ) as mock, patch(
-        "app.api.lifecycle.sieges_service.compute_scroll_count", new_callable=AsyncMock
-    ) as mock_scroll:
+    with (
+        patch("app.api.lifecycle.lifecycle_service.activate_siege", new_callable=AsyncMock) as mock,
+        patch(
+            "app.api.lifecycle.sieges_service.compute_scroll_count", new_callable=AsyncMock
+        ) as mock_scroll,
+    ):
         mock.return_value = siege
         mock_scroll.return_value = 0
         async with client as c:
@@ -82,11 +83,12 @@ async def test_activate_already_active_returns_400(client):
 @pytest.mark.asyncio
 async def test_complete_active_siege(client):
     siege = _make_siege(status=SiegeStatus.complete)
-    with patch(
-        "app.api.lifecycle.lifecycle_service.complete_siege", new_callable=AsyncMock
-    ) as mock, patch(
-        "app.api.lifecycle.sieges_service.compute_scroll_count", new_callable=AsyncMock
-    ) as mock_scroll:
+    with (
+        patch("app.api.lifecycle.lifecycle_service.complete_siege", new_callable=AsyncMock) as mock,
+        patch(
+            "app.api.lifecycle.sieges_service.compute_scroll_count", new_callable=AsyncMock
+        ) as mock_scroll,
+    ):
         mock.return_value = siege
         mock_scroll.return_value = 0
         async with client as c:
@@ -123,9 +125,12 @@ async def test_complete_planning_siege_returns_400(client):
 @pytest.mark.asyncio
 async def test_clone_siege_returns_201(client):
     cloned = _make_siege(id=99, status=SiegeStatus.planning, date=None)
-    with patch("app.api.lifecycle.lifecycle_service.clone_siege", new_callable=AsyncMock) as mock, patch(
-        "app.api.lifecycle.sieges_service.compute_scroll_count", new_callable=AsyncMock
-    ) as mock_scroll:
+    with (
+        patch("app.api.lifecycle.lifecycle_service.clone_siege", new_callable=AsyncMock) as mock,
+        patch(
+            "app.api.lifecycle.sieges_service.compute_scroll_count", new_callable=AsyncMock
+        ) as mock_scroll,
+    ):
         mock.return_value = cloned
         mock_scroll.return_value = 0
         async with client as c:
