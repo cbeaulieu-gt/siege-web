@@ -15,6 +15,7 @@ from app.models.position import Position
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 from app.schemas.autofill import AutofillApplyResult, AutofillAssignment, AutofillPreviewResult
+from app.services.sieges import compute_scroll_count, scrolls_per_player
 
 PREVIEW_TTL_MINUTES = 30
 
@@ -70,7 +71,8 @@ async def preview_autofill(session: AsyncSession, siege_id: int) -> AutofillPrev
     # 5. Fill empty positions
     assignments: list[AutofillAssignment] = []
     member_index = 0
-    limit = siege.defense_scroll_count
+    total_positions = await compute_scroll_count(session, siege_id)
+    limit = scrolls_per_player(total_positions)
 
     for pos in empty_positions:
         assigned = False

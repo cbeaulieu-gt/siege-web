@@ -15,6 +15,7 @@ from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 from app.models.enums import BuildingType
 from app.schemas.validation import ValidationIssue, ValidationResult
+from app.services.sieges import compute_scroll_count, scrolls_per_player
 
 
 async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResult:
@@ -34,6 +35,10 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
     siege = siege_result.scalar_one_or_none()
     if siege is None:
         return ValidationResult(errors=[], warnings=[])
+
+    # Compute the live per-player scroll limit from actual position count
+    total_positions = await compute_scroll_count(session, siege_id)
+    scroll_limit = scrolls_per_player(total_positions)
 
     # Load building type configs keyed by type
     config_result = await session.execute(select(BuildingTypeConfig))
@@ -75,7 +80,7 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
 
     # Rule 2: No member assigned more than defense_scroll_count times
     for member_id, count in assignments_by_member.items():
-        if count > siege.defense_scroll_count:
+        if count > scroll_limit:
             member_name = "Unknown"
             for pos, _, _ in all_positions:
                 if pos.member_id == member_id and pos.member is not None:
@@ -85,9 +90,9 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
                 rule=2,
                 message=(
                     f"Member '{member_name}' is assigned {count} times "
-                    f"but defense_scroll_count is {siege.defense_scroll_count}"
+                    f"but scroll limit is {scroll_limit}"
                 ),
-                context={"member_id": member_id, "count": count, "limit": siege.defense_scroll_count},
+                context={"member_id": member_id, "count": count, "limit": scroll_limit},
             ))
 
     # Rule 3: Building numbers within type-specific range

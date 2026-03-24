@@ -15,6 +15,15 @@ from app.models.enums import BuildingType, SiegeStatus
 from app.schemas.siege import SiegeCreate, SiegeUpdate
 
 
+def scrolls_per_player(total_positions: int) -> int:
+    """Return the per-player scroll limit for a siege.
+
+    Matches the UI formula: 4 scrolls when there are 90+ total positions,
+    3 scrolls otherwise.  Single source of truth for validation and auto-fill.
+    """
+    return 4 if total_positions >= 90 else 3
+
+
 async def compute_scroll_count(session: AsyncSession, siege_id: int) -> int:
     """Compute total scroll count: non-disabled positions across all buildings including posts."""
     pos_result = await session.execute(
