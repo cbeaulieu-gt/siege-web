@@ -21,7 +21,9 @@ class Siege(Base):
     date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[SiegeStatus] = mapped_column(nullable=False, default=SiegeStatus.planning)
     defense_scroll_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    created_at: Mapped[datetime] = mapped_column(
+        nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
     updated_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")
     )

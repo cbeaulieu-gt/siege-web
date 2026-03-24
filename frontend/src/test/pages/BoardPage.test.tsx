@@ -14,6 +14,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { beforeAll, afterAll, afterEach, describe, it, expect } from 'vitest';
+import { Routes, Route } from 'react-router-dom';
 import { server } from '../server';
 import { renderWithProviders } from '../utils';
 import BoardPage from '../../pages/BoardPage';
@@ -113,7 +114,12 @@ function setupDefaultHandlers(
 }
 
 function renderBoard(initialPath = '/sieges/42/board') {
-  return renderWithProviders(<BoardPage />, { initialEntries: [initialPath] });
+  return renderWithProviders(
+    <Routes>
+      <Route path="/sieges/:id/board" element={<BoardPage />} />
+    </Routes>,
+    { initialEntries: [initialPath] },
+  );
 }
 
 // ─── Loading state ──────────────────────────────────────────────────────────
@@ -171,7 +177,8 @@ describe('BoardPage — position cell states', () => {
     renderBoard();
 
     await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
-    expect(screen.getByText('Aethon')).toBeInTheDocument();
+    // Aethon appears in both the position cell and the member bucket
+    expect(screen.getAllByText('Aethon').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders RESERVE badge for a reserve position', async () => {
@@ -189,7 +196,8 @@ describe('BoardPage — position cell states', () => {
     renderBoard();
 
     await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
-    expect(screen.getByText('N/A')).toBeInTheDocument();
+    // N/A appears in both the position cell and the summary bar label
+    expect(screen.getAllByText('N/A').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders DISABLED text with strikethrough style for a disabled position', async () => {
@@ -484,8 +492,8 @@ describe('BoardPage — action buttons', () => {
     renderBoard();
     await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
 
-    // BuildingTypeSection renders the type label as uppercase
-    expect(screen.getByText('STRONGHOLD')).toBeInTheDocument();
+    // BuildingTypeSection renders the type label via BUILDING_LABELS; CSS uppercase doesn't change DOM text
+    expect(screen.getByText('Stronghold')).toBeInTheDocument();
   });
 });
 
@@ -504,7 +512,7 @@ describe('BoardPage — building section collapse/expand', () => {
 
     // Click the section header to collapse
     const sectionHeader = screen
-      .getByText('STRONGHOLD')
+      .getByText('Stronghold')
       .closest('div[class*="cursor-pointer"]')!;
     await user.click(sectionHeader);
 

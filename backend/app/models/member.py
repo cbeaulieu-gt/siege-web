@@ -22,7 +22,9 @@ class Member(Base):
     role: Mapped[MemberRole] = mapped_column(nullable=False)
     power_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=text("CURRENT_TIMESTAMP"))
+    created_at: Mapped[datetime] = mapped_column(
+        nullable=False, server_default=text("CURRENT_TIMESTAMP")
+    )
 
     positions: Mapped[list["Position"]] = relationship(back_populates="member")
     siege_members: Mapped[list["SiegeMember"]] = relationship(back_populates="member")
