@@ -22,7 +22,7 @@ class NotificationBatch(Base):
     status: Mapped[NotificationBatchStatus] = mapped_column(
         nullable=False, default=NotificationBatchStatus.pending
     )
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=text("now()"))
+    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=text("CURRENT_TIMESTAMP"))
 
     siege: Mapped["Siege"] = relationship(back_populates="notification_batches")
     results: Mapped[list["NotificationBatchResult"]] = relationship(

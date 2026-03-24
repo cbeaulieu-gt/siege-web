@@ -2,14 +2,19 @@ name: Deploy
 
 # ── Triggers ───────────────────────────────────────────────────────────────────
 #
-# push to main  → full dev → prod promotion pipeline:
-#                   build images → deploy dev → (approval gate) → deploy prod
+# push to main                    → full dev → prod promotion pipeline:
+#                                    build images → deploy dev → (approval gate) → deploy prod
+#
+# workflow_dispatch (image_tag blank) → same full pipeline, triggered manually.
+#                                    Useful for re-running the pipeline on the
+#                                    current HEAD without a new push.
 #
 # workflow_dispatch with image_tag → emergency prod promotion only:
-#                   skip build and dev deploy entirely; promote an already-
-#                   validated SHA tag directly to prod. Use this when a hotfix
-#                   image has been validated outside the normal pipeline and
-#                   needs to reach prod without re-running dev.
+#                                    skip build and dev deploy entirely; promote
+#                                    an already-validated SHA tag directly to
+#                                    prod. Use this when a hotfix image has been
+#                                    validated outside the normal pipeline and
+#                                    needs to reach prod without re-running dev.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -21,9 +26,9 @@ on:
       image_tag:
         description: >
           SHA tag of an already-built image to promote directly to prod.
-          Example: a3f8c21d... (full or short commit SHA). Skips build and
-          dev deploy — goes straight to the prod approval gate.
-        required: true
+          Leave blank to run the full pipeline (build → dev → prod).
+        required: false
+        default: ''
         type: string
 
 # ── Build ──────────────────────────────────────────────────────────────────────
@@ -37,8 +42,9 @@ on:
 # are the foundation of reliable promotion: the exact bytes built here are what
 # gets deployed to dev and, if approved, promoted unchanged to prod.
 #
-# This job is skipped on workflow_dispatch (image_tag supplied → image already
-# exists in ACR; nothing to build).
+# This job is skipped when workflow_dispatch is used with a non-empty image_tag
+# (image already exists in ACR; nothing to build). It runs on push or when
+# workflow_dispatch is triggered with image_tag left blank.
 
 jobs:
   run-ci:
@@ -49,8 +55,7 @@ jobs:
   build-and-push:
     name: Build & Push (${{ matrix.service }})
     runs-on: ubuntu-latest
-    needs: run-ci
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
     environment: dev
 
     strategy:
@@ -100,7 +105,7 @@ jobs:
     name: Deploy API (dev)
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
     environment: dev
 
     steps:
@@ -126,7 +131,7 @@ jobs:
     name: Run DB Migrations (dev)
     needs: deploy-api-dev
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
     environment: dev
 
     steps:
@@ -152,7 +157,7 @@ jobs:
     name: Deploy Frontend (dev)
     needs: migrate-dev
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
     environment: dev
 
     steps:
@@ -172,7 +177,7 @@ jobs:
     name: Deploy Bot (dev)
     needs: migrate-dev
     runs-on: ubuntu-latest
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
     environment: dev
 
     steps:
@@ -212,8 +217,8 @@ jobs:
     if: |
       always() &&
       (
-        (github.event_name == 'push' && needs.deploy-bot-dev.result == 'success') ||
-        github.event_name == 'workflow_dispatch'
+        ((github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')) && needs.deploy-bot-dev.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.image_tag != '')
       )
     environment: prod
 

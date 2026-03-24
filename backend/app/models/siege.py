@@ -21,9 +21,9 @@ class Siege(Base):
     date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[SiegeStatus] = mapped_column(nullable=False, default=SiegeStatus.planning)
     defense_scroll_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=text("now()"))
+    created_at: Mapped[datetime] = mapped_column(nullable=False, server_default=text("CURRENT_TIMESTAMP"))
     updated_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=text("now()"), onupdate=text("now()")
+        nullable=False, server_default=text("CURRENT_TIMESTAMP"), onupdate=text("CURRENT_TIMESTAMP")
     )
     autofill_preview: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     autofill_preview_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)

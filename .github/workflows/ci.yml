@@ -5,7 +5,12 @@ on:
     branches:
       - main
   workflow_call:
-
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run tests on'
+        required: false
+        default: 'main'
 jobs:
   backend-ci:
     name: Backend Lint & Test
