@@ -5,6 +5,12 @@ on:
     branches:
       - main
   workflow_call:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run tests on'
+        required: false
+        default: 'main'
 
 # Cancel any in-progress CI run for the same branch when a new commit is pushed.
 # group uses head_ref (PR source branch) for pull_request events so each PR gets
