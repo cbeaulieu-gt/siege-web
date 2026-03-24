@@ -31,6 +31,19 @@ on:
         default: ''
         type: string
 
+# ── Concurrency ────────────────────────────────────────────────────────────────
+#
+# Only one deploy pipeline runs at a time per ref. If a second push lands while
+# a deploy is in-progress (e.g. still in dev), the old run is cancelled and the
+# new one takes over. Once a run reaches the prod approval gate it will also be
+# cancelled if a newer push arrives — the approver should approve the new run.
+# Emergency workflow_dispatch promotions each get a unique group (run_id) so
+# they are never cancelled by each other.
+
+concurrency:
+  group: deploy-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.image_tag != '' && github.run_id || 'pipeline' }}
+  cancel-in-progress: true
+
 # ── Build ──────────────────────────────────────────────────────────────────────
 #
 # Three image builds run in parallel via matrix. Each leg logs into Azure using

@@ -11,6 +11,15 @@ on:
         description: 'Branch to run tests on'
         required: false
         default: 'main'
+
+# Cancel any in-progress CI run for the same branch when a new commit is pushed.
+# group uses head_ref (PR source branch) for pull_request events so each PR gets
+# its own group; falls back to run_id for workflow_call so reusable invocations
+# from deploy.yml are never cancelled by each other.
+concurrency:
+  group: ci-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   backend-ci:
     name: Backend Lint & Test
