@@ -420,14 +420,30 @@ async def test_post_to_channel_posts_images_to_images_channel_and_summary_to_tex
     mock_post_message = AsyncMock(return_value=True)
 
     with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
-        with patch("app.api.notifications.board_service.get_board", new_callable=AsyncMock, return_value=board_dict):
-            with patch("app.api.notifications.image_gen.generate_assignments_image", new_callable=AsyncMock, return_value=b"fake-assignments-png"):
-                with patch("app.api.notifications.image_gen.generate_reserves_image", new_callable=AsyncMock, return_value=b"fake-reserves-png"):
+        with patch(
+            "app.api.notifications.board_service.get_board",
+            new_callable=AsyncMock,
+            return_value=board_dict,
+        ):
+            with patch(
+                "app.api.notifications.image_gen.generate_assignments_image",
+                new_callable=AsyncMock,
+                return_value=b"fake-assignments-png",
+            ):
+                with patch(
+                    "app.api.notifications.image_gen.generate_reserves_image",
+                    new_callable=AsyncMock,
+                    return_value=b"fake-reserves-png",
+                ):
                     with patch("app.api.notifications.bot_client.post_image", mock_post_image):
-                        with patch("app.api.notifications.bot_client.post_message", mock_post_message):
+                        with patch(
+                            "app.api.notifications.bot_client.post_message", mock_post_message
+                        ):
                             with patch("app.api.notifications.settings") as mock_settings:
                                 mock_settings.discord_siege_channel = "clan-siege-assignments"
-                                mock_settings.discord_siege_images_channel = "clan-siege-assignment-images"
+                                mock_settings.discord_siege_images_channel = (
+                                    "clan-siege-assignment-images"
+                                )
                                 async with client as c:
                                     response = await c.post("/api/sieges/1/post-to-channel")
 
@@ -504,9 +520,7 @@ async def test_post_to_channel_image_failure_returns_failed(client):
                             return_value=True,
                         ):
                             async with client as c:
-                                response = await c.post(
-                                    "/api/sieges/1/post-to-channel"
-                                )
+                                response = await c.post("/api/sieges/1/post-to-channel")
 
     app.dependency_overrides.clear()
     assert response.status_code == 200

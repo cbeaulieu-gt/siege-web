@@ -273,9 +273,7 @@ async def post_to_channel(
     if url1 is None:
         return {"status": "failed", "detail": "Failed to post assignments image"}
 
-    url2 = await bot_client.post_image(
-        images_channel, reserves_bytes, f"reserves-{siege_date}.png"
-    )
+    url2 = await bot_client.post_image(images_channel, reserves_bytes, f"reserves-{siege_date}.png")
     if url2 is None:
         return {"status": "failed", "detail": "Failed to post reserves image"}
 
