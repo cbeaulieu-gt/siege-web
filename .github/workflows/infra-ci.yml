@@ -1,0 +1,244 @@
+name: Infra CI
+
+# ── Gate structure ─────────────────────────────────────────────────────────────
+#
+# Four sequential gates protect the infra/ directory on every PR to main:
+#
+#   Gate 1 — infra-lint (no Azure auth)
+#             az bicep lint on main.bicep and all modules/*.bicep.
+#             Catches syntax errors, deprecated APIs, and best-practice
+#             violations before any Azure call is made.
+#
+#   Gate 2 — infra-build (no Azure auth)
+#             az bicep build compiles main.bicep → ARM JSON.
+#             Proves the full template (including all module references and
+#             cross-module type bindings) produces valid ARM JSON.
+#
+#   Gate 3 — infra-validate-dev (Azure auth, dev environment)
+#             az deployment group validate sends the compiled template to the
+#             Azure ARM API for a server-side preflight check. Azure validates
+#             resource types, property names, and API version availability
+#             against the real ARM layer — but creates NO resources.
+#
+#   Gate 4 — infra-what-if-dev (Azure auth, dev environment)
+#             az deployment group what-if computes the exact set of changes
+#             the deployment would make and posts the results as a PR comment.
+#             Always runs (even on success) so reviewers can see the impact
+#             before merging.
+#
+# ──────────────────────────────────────────────────────────────────────────────
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'infra/**'
+      - '.github/workflows/infra-ci.yml'
+  workflow_dispatch:
+
+# Cancel any in-progress infra-ci run for the same branch when a new commit is
+# pushed. group uses head_ref (PR source branch) for pull_request events so each
+# PR gets its own group; falls back to run_id for workflow_dispatch so manual
+# runs are never cancelled by each other.
+concurrency:
+  group: infra-ci-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+# Least-privilege permissions. pull-requests: write is required for the
+# on-failure comment steps and the what-if results comment that tag @claude
+# on failing PRs.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  # ── Gate 1: Bicep Lint ────────────────────────────────────────────────────
+  #
+  # Runs locally — no Azure credentials required. Lints main.bicep and every
+  # module independently so lint errors are reported per-file.
+  infra-lint:
+    name: Bicep Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Bicep
+        run: az bicep install
+
+      - name: Lint main.bicep
+        run: az bicep lint --file infra/main.bicep
+
+      - name: Lint modules
+        run: |
+          for f in infra/modules/*.bicep; do
+            echo "Linting $f"
+            az bicep lint --file "$f"
+          done
+
+      - name: Post failure comment
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ❌ Bicep Lint failed\n\n[View full logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n@claude please investigate the infra CI failure and push a fix.`
+            })
+
+  # ── Gate 2: Bicep Build ───────────────────────────────────────────────────
+  #
+  # Compiles main.bicep to ARM JSON. This catches cross-module type errors and
+  # missing module references that lint alone cannot detect, because lint
+  # operates per-file while build resolves the full module graph.
+  infra-build:
+    name: Bicep Build
+    needs: infra-lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Bicep
+        run: az bicep install
+
+      - name: Build main.bicep → ARM JSON
+        run: az bicep build --file infra/main.bicep --outfile /tmp/main.json
+
+      - name: Post failure comment
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ❌ Bicep Build failed\n\n[View full logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n@claude please investigate the infra CI failure and push a fix.`
+            })
+
+  # ── Gate 3: ARM Preflight Validation (dev) ────────────────────────────────
+  #
+  # Sends the compiled template to the Azure ARM API for a server-side preflight
+  # check. Azure validates resource type names, property constraints, and API
+  # version availability against real ARM — but creates NO resources. Secrets
+  # that are required by the param file but must not be stored in the repo are
+  # overridden here with placeholder values; ARM validates the shape (type,
+  # length, allowed characters) but does not use them.
+  infra-validate-dev:
+    name: ARM Preflight Validation (dev)
+    needs: infra-build
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Validate deployment (dev)
+        run: |
+          az deployment group validate \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --template-file infra/main.bicep \
+            --parameters infra/main.dev.bicepparam \
+            --parameters postgresAdminPassword="ci-placeholder-value" \
+            --parameters discordToken="ci-placeholder-value" \
+            --parameters discordBotApiKey="ci-placeholder-value" \
+            --parameters botApiKey="ci-placeholder-value" \
+            --parameters discordGuildId="000000000000000000"
+
+      - name: Post failure comment
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ❌ ARM Preflight Validation (dev) failed\n\n[View full logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n@claude please investigate the infra CI failure and push a fix.`
+            })
+
+  # ── Gate 4: What-if Change Impact (dev) ──────────────────────────────────
+  #
+  # Computes the exact set of Azure resource changes this deployment would make
+  # (create / modify / delete / no-change) and posts the results as a PR comment
+  # so reviewers can assess the blast radius before approving.
+  #
+  # ResourceIdOnly format keeps the output concise — it lists each affected
+  # resource ID and its change type without diffing every property value.
+  # The full property diff is still visible in the Azure portal if needed.
+  #
+  # The PR comment is always posted (even when what-if succeeds) because the
+  # change impact is the primary reviewer signal. Output is truncated at 8 000
+  # characters to stay within GitHub's comment size limits.
+  infra-what-if-dev:
+    name: What-if Change Impact (dev)
+    needs: infra-validate-dev
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Run what-if (dev)
+        run: |
+          az deployment group what-if \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --template-file infra/main.bicep \
+            --parameters infra/main.dev.bicepparam \
+            --parameters postgresAdminPassword="ci-placeholder-value" \
+            --parameters discordToken="ci-placeholder-value" \
+            --parameters discordBotApiKey="ci-placeholder-value" \
+            --parameters botApiKey="ci-placeholder-value" \
+            --parameters discordGuildId="000000000000000000" \
+            --result-format ResourceIdOnly \
+            2>&1 | tee /tmp/what-if.txt; exit ${PIPESTATUS[0]}
+
+      - name: Post what-if results as PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT }}
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('/tmp/what-if.txt', 'utf8');
+            const truncated = output.length > 8000 ? output.slice(0, 8000) + '\n\n... (truncated)' : output;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## 🔍 Infra What-if (dev)\n\n\`\`\`\n${truncated}\n\`\`\``
+            })
+
+      - name: Post failure comment
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GH_PAT }}
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ❌ What-if Change Impact (dev) failed\n\n[View full logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n@claude please investigate the infra CI failure and push a fix.`
+            })
