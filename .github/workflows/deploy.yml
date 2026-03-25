@@ -77,21 +77,15 @@ jobs:
 
 # ── CI ─────────────────────────────────────────────────────────────────────────
 #
-# Run tests and infra CI only on pushes to main (not on tag pushes or manual
-# dispatches). Both suites run in parallel — the application test suite (ci.yml)
-# and the infra gate sequence (infra-ci.yml). The commit was already tested when
-# it landed on main; tags just promote the pre-validated image.
+# Run tests only on pushes to main (not on tag pushes or manual dispatches).
+# The commit was already tested when it landed on main; tags just promote the
+# pre-validated image. Infra CI runs as part of infra-deploy.yml — it is no
+# longer needed here.
 
   run-ci:
     name: Run Tests
     if: github.ref_type == 'branch' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/ci.yml
-
-  run-infra-ci:
-    name: Run Infra CI
-    if: github.ref_type == 'branch' && github.ref == 'refs/heads/main'
-    uses: ./.github/workflows/infra-ci.yml
-    secrets: inherit
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 #
