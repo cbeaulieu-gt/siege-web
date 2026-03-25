@@ -112,6 +112,29 @@ async def test_post_message_raises_value_error_if_channel_not_found():
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# post_image
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_post_image_returns_cdn_url():
+    channel = _make_text_channel("siege-images")
+    # Make channel.send return a message mock with attachments
+    msg = MagicMock()
+    msg.attachments = [MagicMock(url="https://cdn.discordapp.com/attachments/123/board.png")]
+    channel.send = AsyncMock(return_value=msg)
+    guild = _make_guild(channels=[channel])
+    bot = _make_bot(guild=guild)
+
+    import discord
+    with patch("app.discord_client.discord.File") as mock_file:
+        url = await bot.post_image("siege-images", b"fake-bytes", "board.png")
+
+    assert url == "https://cdn.discordapp.com/attachments/123/board.png"
+    channel.send.assert_awaited_once()
+
+
 @pytest.mark.asyncio
 async def test_get_members_returns_correct_dict_format():
     members = [

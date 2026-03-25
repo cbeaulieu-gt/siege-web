@@ -104,10 +104,10 @@ async def post_image(
     bot = _get_bot()
     image_bytes = await file.read()
     try:
-        await bot.post_image(channel_name, image_bytes, file.filename or "image.png")
+        url = await bot.post_image(channel_name, image_bytes, file.filename or "image.png")
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
-    return {"status": "sent"}
+    return {"status": "sent", "url": url}
 
 
 @app.get("/api/members")

@@ -150,6 +150,7 @@ async def test_post_message_bot_not_ready_returns_503(client):
 @pytest.mark.asyncio
 async def test_post_image_success(client):
     bot = _make_mock_bot()
+    bot.post_image.return_value = "https://cdn.discordapp.com/attachments/123/board.png"
     http_api_module._bot = bot
     async with client as c:
         response = await c.post(
@@ -158,7 +159,9 @@ async def test_post_image_success(client):
             headers=AUTH_HEADER,
         )
     assert response.status_code == 200
-    assert response.json() == {"status": "sent"}
+    data = response.json()
+    assert data["status"] == "sent"
+    assert data["url"] == "https://cdn.discordapp.com/attachments/123/board.png"
     bot.post_image.assert_awaited_once_with("siege-images", b"fake-png-bytes", "board.png")
     http_api_module._bot = None
 

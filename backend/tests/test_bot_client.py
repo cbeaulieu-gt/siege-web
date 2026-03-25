@@ -65,12 +65,12 @@ async def test_post_message_returns_false_on_http_error():
 
 
 @pytest.mark.asyncio
-async def test_post_image_returns_false_on_http_error():
-    """post_image() returns False when the bot HTTP call raises an HTTPError."""
+async def test_post_image_returns_none_on_http_error():
+    """post_image() returns None when the bot HTTP call raises an HTTPError."""
     client_mock = _async_client_that_raises(httpx.ConnectError("unreachable"))
     with patch.object(BotClient, "_make_client", return_value=client_mock):
         result = await BotClient().post_image("siege-channel", b"\x89PNG", "board.png")
-    assert result is False
+    assert result is None
 
 
 @pytest.mark.asyncio

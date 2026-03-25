@@ -43,8 +43,11 @@ class SiegeBot(discord.Client):
 
     async def post_image(
         self, channel_name: str, image_bytes: bytes, filename: str = "image.png"
-    ) -> None:
-        """Find text channel by name, post image as Discord file attachment."""
+    ) -> str:
+        """Find text channel by name, post image as Discord file attachment.
+
+        Returns the Discord CDN URL of the posted attachment.
+        """
         guild = self._require_guild()
         channel = discord.utils.find(
             lambda c: isinstance(c, discord.TextChannel) and c.name == channel_name,
@@ -52,7 +55,8 @@ class SiegeBot(discord.Client):
         )
         if channel is None:
             raise ValueError(f"Channel '{channel_name}' not found in guild")
-        await channel.send(file=discord.File(io.BytesIO(image_bytes), filename=filename))
+        msg = await channel.send(file=discord.File(io.BytesIO(image_bytes), filename=filename))
+        return msg.attachments[0].url
 
     async def get_members(self) -> list[dict]:
         """Return list of guild members as dicts with id, username, display_name."""
