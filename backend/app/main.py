@@ -19,6 +19,7 @@ from app.api.reference import router as reference_router
 from app.api.siege_members import router as siege_members_router
 from app.api.sieges import router as sieges_router
 from app.api.validation import router as validation_router
+from app.api.version import router as version_router
 from app.config import settings
 from app.middleware import RequestLoggingMiddleware
 
@@ -59,3 +60,4 @@ app.include_router(attack_day_router, prefix="/api")
 app.include_router(images_router, prefix="/api")
 app.include_router(notifications_router, prefix="/api")
 app.include_router(post_priority_config_router, prefix="/api")
+app.include_router(version_router, prefix="/api")

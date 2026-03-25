@@ -1,5 +1,10 @@
 FROM python:3.12-slim
 
+# Inject git SHA at build time so the version endpoint can surface it.
+# Default to "unknown" when building locally without passing --build-arg.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
+
 WORKDIR /app
 
 # Install system dependencies

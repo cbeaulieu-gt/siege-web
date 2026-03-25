@@ -11,6 +11,7 @@ import PostsPage from './pages/PostsPage';
 import SiegeMembersPage from './pages/SiegeMembersPage';
 import ComparisonPage from './pages/ComparisonPage';
 import PostPrioritiesPage from './pages/PostPrioritiesPage';
+import SystemPage from './pages/SystemPage';
 
 function App() {
   return (
@@ -30,6 +31,7 @@ function App() {
           <Route path="compare" element={<ComparisonPage />} />
         </Route>
         <Route path="/post-priorities" element={<PostPrioritiesPage />} />
+        <Route path="/system" element={<SystemPage />} />
       </Route>
     </Routes>
   );

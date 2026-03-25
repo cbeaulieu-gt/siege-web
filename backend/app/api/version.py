@@ -1,0 +1,54 @@
+import logging
+import os
+from pathlib import Path
+
+import httpx
+from fastapi import APIRouter
+
+from app.config import settings
+from app.schemas.version import VersionResponse
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+# VERSION file sits two levels above this file: backend/VERSION
+_VERSION_FILE = Path(__file__).parent.parent.parent / "VERSION"
+
+
+def _read_backend_version() -> str:
+    """Read the version string from the backend VERSION file."""
+    try:
+        return _VERSION_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        logger.warning("backend/VERSION not found; defaulting to 'unknown'")
+        return "unknown"
+
+
+async def _fetch_bot_version() -> str | None:
+    """Call the bot sidecar's /version endpoint. Returns None if unreachable."""
+    url = f"{settings.discord_bot_api_url.rstrip('/')}/version"
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            return resp.json().get("version")
+    except Exception as exc:
+        logger.warning("Could not reach bot version endpoint (%s): %s", url, exc)
+        return None
+
+
+@router.get("/version", response_model=VersionResponse)
+async def get_version() -> VersionResponse:
+    """Return version information for all components."""
+    backend_version = _read_backend_version()
+    bot_version = await _fetch_bot_version()
+    frontend_version = os.environ.get("FRONTEND_VERSION") or None
+    git_sha = os.environ.get("GIT_SHA") or None
+
+    return VersionResponse(
+        backend_version=backend_version,
+        bot_version=bot_version,
+        frontend_version=frontend_version,
+        git_sha=git_sha,
+    )
