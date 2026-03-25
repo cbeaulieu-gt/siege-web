@@ -1,0 +1,136 @@
+name: Infra Deploy
+
+# ── Purpose ────────────────────────────────────────────────────────────────────
+#
+# Manual-only workflow for deploying infrastructure changes via Bicep.
+#
+# workflow_dispatch only — infra changes are intentional, never automatic.
+# Automatic deploys on push are deliberately excluded; infra changes require
+# a human to pick a target environment and initiate the run.
+#
+# Infra CI gates run first before any deployment (lint → build → validate →
+# what-if). The deploy job will not start until all four gates pass.
+#
+# Each environment has a GitHub Environment approval gate. Configure Required
+# Reviewers under: GitHub → Settings → Environments → dev (or prod)
+#
+# BOT_API_KEY is used for both the discordBotApiKey and botApiKey params.
+# These two params must always hold the same value — see infra/README.md for
+# the rationale.
+#
+# New secrets required per environment (add under Settings → Environments):
+#   Secrets  : POSTGRES_ADMIN_PASSWORD, DISCORD_TOKEN, BOT_API_KEY
+#   Variables: DISCORD_GUILD_ID
+#
+# ──────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment to deploy infrastructure to'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+
+# ── Concurrency ─────────────────────────────────────────────────────────────
+#
+# One infra deploy at a time per environment. cancel-in-progress: false ensures
+# an in-progress deployment is never interrupted mid-apply — the newer run will
+# queue and wait.
+
+concurrency:
+  group: infra-deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+# ── Permissions ──────────────────────────────────────────────────────────────
+#
+# pull-requests: write is required because the reusable infra-ci.yml workflow
+# declares that permission (for its on-failure PR comment steps). GitHub
+# constrains a called workflow's permissions to the caller's grant.
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+
+# ── Infra CI Gates ───────────────────────────────────────────────────────────
+#
+# Run all four gates (lint → build → validate → what-if) before deploying.
+# The deploy jobs below will not start until this job completes successfully.
+
+  infra-gates:
+    name: Infra CI Gates
+    uses: ./.github/workflows/infra-ci.yml
+    secrets: inherit
+
+# ── Deploy (dev) ─────────────────────────────────────────────────────────────
+#
+# Deploys infra to the dev environment. The `environment: dev` block is the
+# GitHub Environment approval gate — configure Required Reviewers in Settings
+# → Environments → dev to enforce manual sign-off before deployment begins.
+
+  deploy-dev:
+    name: Deploy Infra (dev)
+    needs: infra-gates
+    if: inputs.environment == 'dev'
+    runs-on: ubuntu-latest
+    environment: dev
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy infra (dev)
+        run: |
+          az deployment group create \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --template-file infra/main.bicep \
+            --parameters infra/main.dev.bicepparam \
+            --parameters postgresAdminPassword="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
+            --parameters discordToken="${{ secrets.DISCORD_TOKEN }}" \
+            --parameters discordBotApiKey="${{ secrets.BOT_API_KEY }}" \
+            --parameters botApiKey="${{ secrets.BOT_API_KEY }}" \
+            --parameters discordGuildId="${{ vars.DISCORD_GUILD_ID }}"
+
+# ── Deploy (prod) ────────────────────────────────────────────────────────────
+#
+# Deploys infra to the prod environment. The `environment: prod` block is the
+# GitHub Environment approval gate — configure Required Reviewers in Settings
+# → Environments → prod to enforce manual sign-off before deployment begins.
+
+  deploy-prod:
+    name: Deploy Infra (prod)
+    needs: infra-gates
+    if: inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    environment: prod
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy infra (prod)
+        run: |
+          az deployment group create \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --template-file infra/main.bicep \
+            --parameters infra/main.prod.bicepparam \
+            --parameters postgresAdminPassword="${{ secrets.POSTGRES_ADMIN_PASSWORD }}" \
+            --parameters discordToken="${{ secrets.DISCORD_TOKEN }}" \
+            --parameters discordBotApiKey="${{ secrets.BOT_API_KEY }}" \
+            --parameters botApiKey="${{ secrets.BOT_API_KEY }}" \
+            --parameters discordGuildId="${{ vars.DISCORD_GUILD_ID }}"
