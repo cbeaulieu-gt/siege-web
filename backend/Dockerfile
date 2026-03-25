@@ -17,6 +17,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Install Playwright browser binaries.
+# pip install only brings in the Python package; the actual Chromium binary and
+# its system-level dependencies (fonts, shared libs) must be fetched separately.
+# --with-deps handles apt packages required on Debian slim images.
+RUN playwright install --with-deps chromium
+
 # Copy application code
 COPY . .
 

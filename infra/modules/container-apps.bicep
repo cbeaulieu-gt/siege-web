@@ -96,6 +96,7 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
         external: false
         targetPort: 8000
         transport: 'http'
+        allowInsecure: true // Nginx proxies plain HTTP internally; without this Azure redirects to HTTPS (301), causing browsers to downgrade POST → GET → 405
       }
       registries: [
         {
@@ -247,6 +248,7 @@ resource botApp 'Microsoft.App/containerApps@2024-03-01' = {
         external: false
         targetPort: 8001
         transport: 'http'
+        allowInsecure: true // Same as API: internal HTTP calls from siege-api must not be redirected to HTTPS
       }
       registries: [
         {
