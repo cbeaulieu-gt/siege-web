@@ -20,7 +20,10 @@ services:
     build: ./backend
     env_file: .env
     environment:
+      # Override .env values with Docker-network hostnames.
+      # These must always point to sibling service names, not localhost.
       DATABASE_URL: postgresql+asyncpg://postgres:password@postgres:5432/siege
+      DISCORD_BOT_API_URL: http://bot:8001
     ports:
       - "8000:8000"
     depends_on:
