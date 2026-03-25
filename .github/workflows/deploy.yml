@@ -83,6 +83,21 @@ jobs:
             context: ./bot
 
     steps:
+      - name: Validate required variables
+        run: |
+          missing=()
+          [[ -z "${{ vars.ACR_NAME }}" ]]          && missing+=("ACR_NAME")
+          [[ -z "${{ vars.ACR_LOGIN_SERVER }}" ]]  && missing+=("ACR_LOGIN_SERVER")
+          [[ -z "${{ vars.RESOURCE_GROUP }}" ]]    && missing+=("RESOURCE_GROUP")
+          if [[ ${#missing[@]} -gt 0 ]]; then
+            echo "❌ Missing required GitHub Actions environment variables:"
+            printf '   - %s\n' "${missing[@]}"
+            echo ""
+            echo "Set these under: GitHub → Settings → Environments → dev → Variables"
+            exit 1
+          fi
+          echo "✅ All required variables present"
+
       - name: Checkout code
         uses: actions/checkout@v4
 
