@@ -120,9 +120,8 @@ jobs:
 
 # ── Deploy API (dev) ───────────────────────────────────────────────────────────
 #
-# The API must be deployed and healthy before migrations run and before the
-# frontend/bot are updated — they depend on the API's HTTP contract being
-# available.
+# Migrations run automatically inside the container via entrypoint.sh
+# (alembic upgrade head → uvicorn). No separate migration job needed.
 #
 # vars.RESOURCE_GROUP is an environment-scoped variable (not a secret). GitHub
 # resolves the correct value for each environment automatically:
@@ -149,41 +148,14 @@ jobs:
           containerAppName: siege-web-api-dev
           imageToDeploy: ${{ vars.ACR_LOGIN_SERVER }}/siege-api:${{ github.sha }}
 
-# ── Database migration (dev) ───────────────────────────────────────────────────
-#
-# Run `alembic upgrade head` inside the already-deployed dev API container.
-# `az containerapp exec` uses the DATABASE_URL already configured in the
-# container app — no extra secrets needed in GitHub.
-
-  migrate-dev:
-    name: Run DB Migrations (dev)
-    needs: deploy-api-dev
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
-    environment: dev
-
-    steps:
-      - name: Log in to Azure
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Run alembic upgrade head (dev)
-        run: |
-          az containerapp exec \
-            --name siege-web-api-dev \
-            --resource-group ${{ vars.RESOURCE_GROUP }} \
-            --command "alembic upgrade head"
-
 # ── Deploy frontend & bot (dev) ────────────────────────────────────────────────
 #
-# Frontend and bot deploy in parallel after dev migrations succeed. Both depend
-# on `migrate-dev` (which transitively gates on `deploy-api-dev`) so migrations
-# are guaranteed applied before any traffic hits the new API version.
+# Frontend and bot deploy in parallel after the API is deployed. Migrations
+# run inside the API container on startup — no separate migration step needed.
 
   deploy-frontend-dev:
     name: Deploy Frontend (dev)
-    needs: migrate-dev
+    needs: deploy-api-dev
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
     environment: dev
@@ -203,7 +175,7 @@ jobs:
 
   deploy-bot-dev:
     name: Deploy Bot (dev)
-    needs: migrate-dev
+    needs: deploy-api-dev
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
     environment: dev
@@ -268,39 +240,14 @@ jobs:
                 || github.sha
             }}
 
-# ── Database migration (prod) ──────────────────────────────────────────────────
-#
-# Same pattern as dev: exec into the running prod API container and run
-# Alembic. The DATABASE_URL configured in the prod container app points to the
-# prod PostgreSQL instance — no extra credentials needed here.
-
-  migrate-prod:
-    name: Run DB Migrations (prod)
-    needs: deploy-api-prod
-    runs-on: ubuntu-latest
-    environment: prod
-
-    steps:
-      - name: Log in to Azure
-        uses: azure/login@v2
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Run alembic upgrade head (prod)
-        run: |
-          az containerapp exec \
-            --name siege-web-api-prod \
-            --resource-group ${{ vars.RESOURCE_GROUP }} \
-            --command "alembic upgrade head"
-
 # ── Deploy frontend & bot (prod) ───────────────────────────────────────────────
 #
-# Final step: promote frontend and bot to prod in parallel, after prod
-# migrations succeed. Same image-tag resolution as deploy-api-prod.
+# Frontend and bot deploy in parallel after the prod API is deployed.
+# Migrations run inside the API container on startup via entrypoint.sh.
 
   deploy-frontend-prod:
     name: Deploy Frontend (prod)
-    needs: migrate-prod
+    needs: deploy-api-prod
     runs-on: ubuntu-latest
     environment: prod
 
@@ -324,7 +271,7 @@ jobs:
 
   deploy-bot-prod:
     name: Deploy Bot (prod)
-    needs: migrate-prod
+    needs: deploy-api-prod
     runs-on: ubuntu-latest
     environment: prod
 

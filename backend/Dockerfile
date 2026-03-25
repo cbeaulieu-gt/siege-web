@@ -17,4 +17,10 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Copy and set up entrypoint — runs alembic upgrade head before uvicorn starts.
+# This replaces the separate migration CI job and eliminates the need for
+# `az containerapp exec` (which requires a TTY unavailable in GitHub Actions).
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
+ENTRYPOINT ["./entrypoint.sh"]
