@@ -115,7 +115,7 @@ jobs:
       - name: Build and push ${{ matrix.service }}
         run: |
           IMAGE=${{ vars.ACR_LOGIN_SERVER }}/${{ matrix.service }}
-          docker build -t "${IMAGE}:${{ github.sha }}" ${{ matrix.context }}
+          docker build --build-arg GIT_SHA=${{ github.sha }} -t "${IMAGE}:${{ github.sha }}" ${{ matrix.context }}
           docker push "${IMAGE}:${{ github.sha }}"
 
 # ── Deploy API (dev) ───────────────────────────────────────────────────────────
