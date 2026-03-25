@@ -2,43 +2,54 @@ name: Deploy
 
 # ── Triggers ───────────────────────────────────────────────────────────────────
 #
-# push to main                    → full dev → prod promotion pipeline:
-#                                    build images → deploy dev → (approval gate) → deploy prod
+# push to main          → CI tests + build images + deploy to dev only.
 #
-# workflow_dispatch (image_tag blank) → same full pipeline, triggered manually.
-#                                    Useful for re-running the pipeline on the
-#                                    current HEAD without a new push.
+# push a v* tag         → deploy to prod only (no rebuild). The images were
+#                         already built and pushed when the tagged commit was
+#                         merged to main. github.sha on a tag-triggered run
+#                         equals the commit the tag points at, so
+#                         `siege-api:<sha>` resolves to the exact image that
+#                         was validated in dev. Tag creation IS the human
+#                         approval step — no GitHub environment gate needed.
 #
-# workflow_dispatch with image_tag → emergency prod promotion only:
-#                                    skip build and dev deploy entirely; promote
-#                                    an already-validated SHA tag directly to
-#                                    prod. Use this when a hotfix image has been
-#                                    validated outside the normal pipeline and
-#                                    needs to reach prod without re-running dev.
+# workflow_dispatch     → manual escape hatch. Choose dev or prod and,
+#                         optionally, supply an explicit SHA tag to deploy.
+#                         Leave image_tag blank to deploy the current HEAD SHA.
 # ─────────────────────────────────────────────────────────────────────────────
 
 on:
   push:
     branches:
       - main
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
       image_tag:
-        description: >
-          SHA tag of an already-built image to promote directly to prod.
-          Leave blank to run the full pipeline (build → dev → prod).
+        description: 'SHA tag to deploy (leave blank to use HEAD sha)'
         required: false
         default: ''
         type: string
 
 # ── Concurrency ────────────────────────────────────────────────────────────────
 #
-# Only one deploy pipeline runs at a time per ref. If a second push lands while
-# a deploy is in-progress (e.g. still in dev), the old run is cancelled and the
-# new one takes over. Once a run reaches the prod approval gate it will also be
-# cancelled if a newer push arrives — the approver should approve the new run.
-# Emergency workflow_dispatch promotions each get a unique group (run_id) so
-# they are never cancelled by each other.
+# Main-push runs share the group `deploy-main-pipeline`; a fast second commit
+# cancels the in-progress run so the newer code takes over immediately.
+#
+# Tag-triggered runs get a unique group per tag (`deploy-tag-refs/tags/v1.2.3`)
+# so two different tags never cancel each other — each prod deploy completes
+# independently.
+#
+# workflow_dispatch runs each get a unique group (run_id) so manual re-runs
+# are never cancelled by each other.
 
 # ── Permissions ────────────────────────────────────────────────────────────────
 #
@@ -54,34 +65,47 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: deploy-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.image_tag != '' && github.run_id || 'pipeline' }}
-  cancel-in-progress: true
+  group: >-
+    ${{
+      github.ref_type == 'tag' && format('deploy-tag-{0}', github.ref) ||
+      github.event_name == 'workflow_dispatch' && github.run_id ||
+      'deploy-main-pipeline'
+    }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+
+jobs:
+
+# ── CI ─────────────────────────────────────────────────────────────────────────
+#
+# Run tests only on pushes to main (not on tag pushes or manual dispatches).
+# The commit was already tested when it landed on main; tags just promote
+# the pre-validated image.
+
+  run-ci:
+    name: Run Tests
+    if: github.ref_type == 'branch' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/ci.yml
 
 # ── Build ──────────────────────────────────────────────────────────────────────
 #
-# Three image builds run in parallel via matrix. Each leg logs into Azure using
-# the dev environment's AZURE_CREDENTIALS (AcrPush is needed; dev SP works fine
-# since ACR is shared). `az acr login` authenticates Docker — no separate
-# ACR_USERNAME/ACR_PASSWORD secrets required.
+# Three image builds run in parallel via matrix. Each leg logs into Azure
+# using the dev environment's AZURE_CREDENTIALS (AcrPush is needed; the dev
+# service principal works because ACR is shared across environments).
+# `az acr login` authenticates Docker — no separate ACR_USERNAME/PASSWORD
+# secrets are required.
 #
 # Images are tagged with the commit SHA only (no :latest). Immutable SHA tags
-# are the foundation of reliable promotion: the exact bytes built here are what
-# gets deployed to dev and, if approved, promoted unchanged to prod.
+# are the foundation of the promotion model: the exact bytes built here are
+# what gets deployed to dev and later promoted unchanged to prod via a v* tag.
 #
-# This job is skipped when workflow_dispatch is used with a non-empty image_tag
-# (image already exists in ACR; nothing to build). It runs on push or when
-# workflow_dispatch is triggered with image_tag left blank.
-
-jobs:
-  run-ci:
-    name: Run Tests
-    if: github.event_name == 'push'
-    uses: ./.github/workflows/ci.yml
+# This job runs only on main-branch pushes (after CI passes). Tag-triggered
+# and workflow_dispatch runs skip it because the image already exists in ACR.
 
   build-and-push:
     name: Build & Push (${{ matrix.service }})
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
+    if: github.ref_type == 'branch' && github.ref == 'refs/heads/main'
+    needs: run-ci
     environment: dev
 
     strategy:
@@ -119,9 +143,9 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Authenticate Docker to ACR via the Azure CLI — the service principal in
-      # AZURE_CREDENTIALS needs AcrPush on the registry (or Contributor on the
-      # resource group).
+      # Authenticate Docker to ACR via the Azure CLI — the service principal
+      # in AZURE_CREDENTIALS needs AcrPush on the registry (or Contributor
+      # on the resource group).
       - name: Log in to ACR
         run: az acr login --name ${{ vars.ACR_NAME }}
 
@@ -136,8 +160,8 @@ jobs:
 # Migrations run automatically inside the container via entrypoint.sh
 # (alembic upgrade head → uvicorn). No separate migration job needed.
 #
-# vars.RESOURCE_GROUP is an environment-scoped variable (not a secret). GitHub
-# resolves the correct value for each environment automatically:
+# vars.RESOURCE_GROUP is an environment-scoped variable (not a secret).
+# GitHub resolves the correct value per environment automatically:
 #   dev  → siege-rg-dev
 #   prod → siege-rg-prod
 
@@ -145,7 +169,7 @@ jobs:
     name: Deploy API (dev)
     needs: build-and-push
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
+    if: github.ref_type == 'branch' && github.ref == 'refs/heads/main'
     environment: dev
 
     steps:
@@ -163,14 +187,14 @@ jobs:
 
 # ── Deploy frontend & bot (dev) ────────────────────────────────────────────────
 #
-# Frontend and bot deploy in parallel after the API is deployed. Migrations
-# run inside the API container on startup — no separate migration step needed.
+# Frontend and bot deploy in parallel after the API is up. Migrations run
+# inside the API container on startup — no separate migration step needed.
 
   deploy-frontend-dev:
     name: Deploy Frontend (dev)
     needs: deploy-api-dev
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
+    if: github.ref_type == 'branch' && github.ref == 'refs/heads/main'
     environment: dev
 
     steps:
@@ -190,7 +214,7 @@ jobs:
     name: Deploy Bot (dev)
     needs: deploy-api-dev
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')
+    if: github.ref_type == 'branch' && github.ref == 'refs/heads/main'
     environment: dev
 
     steps:
@@ -206,32 +230,27 @@ jobs:
           containerAppName: siege-web-bot-dev
           imageToDeploy: ${{ vars.ACR_LOGIN_SERVER }}/siege-bot:${{ github.sha }}
 
-# ── Deploy API (prod) — APPROVAL GATE ─────────────────────────────────────────
+# ── Deploy API (prod) ──────────────────────────────────────────────────────────
 #
-# This is the promotion gate. GitHub pauses here and waits for a required
-# reviewer to approve before any prod job runs. Configure required reviewers
-# in: repo Settings → Environments → prod → Required reviewers.
+# Triggered by a v* tag push or a manual workflow_dispatch targeting prod.
+# There is no dependency on any dev job — prod deploys run directly from the
+# trigger without waiting for (or requiring) a preceding dev run.
 #
-# On push:             needs deploy-bot-dev (all dev jobs must pass first).
-# On workflow_dispatch: no needs — runs immediately after manual trigger,
-#                       straight to the prod approval gate.
+# The image SHA is resolved as:
+#   tag push          → github.sha   (the commit the tag points at; built
+#                                     when that commit was merged to main)
+#   workflow_dispatch → inputs.image_tag if supplied, otherwise github.sha
 #
-# The image tag to deploy resolves as follows:
-#   push              → github.sha   (built in this run)
-#   workflow_dispatch → inputs.image_tag (caller-supplied, already in ACR)
+# Tag creation is the human approval step. The GitHub "prod" environment no
+# longer needs a Required Reviewers gate.
 
   deploy-api-prod:
     name: Deploy API (prod)
     runs-on: ubuntu-latest
-    # On push: gate on dev bot deploy (last dev job in the chain).
-    # On workflow_dispatch: no upstream jobs — drop straight to approval.
-    needs:
-      - deploy-bot-dev
     if: |
-      always() &&
-      (
-        ((github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.image_tag == '')) && needs.deploy-bot-dev.result == 'success') ||
-        (github.event_name == 'workflow_dispatch' && inputs.image_tag != '')
+      always() && (
+        (github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')) ||
+        (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')
       )
     environment: prod
 
@@ -246,22 +265,22 @@ jobs:
         with:
           resourceGroup: ${{ vars.RESOURCE_GROUP }}
           containerAppName: siege-web-api-prod
-          imageToDeploy: >-
-            ${{ vars.ACR_LOGIN_SERVER }}/siege-api:${{
-              github.event_name == 'workflow_dispatch'
-                && inputs.image_tag
-                || github.sha
-            }}
+          imageToDeploy: ${{ vars.ACR_LOGIN_SERVER }}/siege-api:${{ inputs.image_tag || github.sha }}
 
 # ── Deploy frontend & bot (prod) ───────────────────────────────────────────────
 #
-# Frontend and bot deploy in parallel after the prod API is deployed.
+# Frontend and bot deploy in parallel after the prod API is up.
 # Migrations run inside the API container on startup via entrypoint.sh.
 
   deploy-frontend-prod:
     name: Deploy Frontend (prod)
     needs: deploy-api-prod
     runs-on: ubuntu-latest
+    if: |
+      always() && (
+        (github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')) ||
+        (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')
+      )
     environment: prod
 
     steps:
@@ -275,17 +294,17 @@ jobs:
         with:
           resourceGroup: ${{ vars.RESOURCE_GROUP }}
           containerAppName: siege-web-frontend-prod
-          imageToDeploy: >-
-            ${{ vars.ACR_LOGIN_SERVER }}/siege-frontend:${{
-              github.event_name == 'workflow_dispatch'
-                && inputs.image_tag
-                || github.sha
-            }}
+          imageToDeploy: ${{ vars.ACR_LOGIN_SERVER }}/siege-frontend:${{ inputs.image_tag || github.sha }}
 
   deploy-bot-prod:
     name: Deploy Bot (prod)
     needs: deploy-api-prod
     runs-on: ubuntu-latest
+    if: |
+      always() && (
+        (github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')) ||
+        (github.event_name == 'workflow_dispatch' && inputs.environment == 'prod')
+      )
     environment: prod
 
     steps:
@@ -299,9 +318,4 @@ jobs:
         with:
           resourceGroup: ${{ vars.RESOURCE_GROUP }}
           containerAppName: siege-web-bot-prod
-          imageToDeploy: >-
-            ${{ vars.ACR_LOGIN_SERVER }}/siege-bot:${{
-              github.event_name == 'workflow_dispatch'
-                && inputs.image_tag
-                || github.sha
-            }}
+          imageToDeploy: ${{ vars.ACR_LOGIN_SERVER }}/siege-bot:${{ inputs.image_tag || github.sha }}
