@@ -40,6 +40,19 @@ on:
 # Emergency workflow_dispatch promotions each get a unique group (run_id) so
 # they are never cancelled by each other.
 
+# ── Permissions ────────────────────────────────────────────────────────────────
+#
+# pull-requests: write is required because the reusable ci.yml workflow
+# declares that permission (for its on-failure PR comment steps). GitHub
+# constrains a called workflow's permissions to the caller's grant, so
+# deploy.yml must include it even though the deploy pipeline itself never
+# writes to pull requests (the comment steps in ci.yml are gated on
+# github.event_name == 'pull_request' and will never fire here).
+
+permissions:
+  contents: read
+  pull-requests: write
+
 concurrency:
   group: deploy-${{ github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.image_tag != '' && github.run_id || 'pipeline' }}
   cancel-in-progress: true
