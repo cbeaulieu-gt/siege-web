@@ -41,18 +41,22 @@ class BotClient:
         except httpx.HTTPError:
             return False
 
-    async def post_image(self, channel_name: str, image_bytes: bytes, filename: str) -> bool:
-        """Post image to channel. Returns True on success, False on error."""
+    async def post_image(self, channel_name: str, image_bytes: bytes, filename: str) -> str | None:
+        """Post image to channel. Returns the CDN URL on success, None on error."""
         try:
-            async with self._make_client() as client:
+            async with httpx.AsyncClient(
+                base_url=settings.discord_bot_api_url,
+                headers={"Authorization": f"Bearer {settings.discord_bot_api_key}"},
+                timeout=30.0,
+            ) as client:
                 response = await client.post(
                     f"/api/post-image?channel_name={channel_name}",
                     files={"file": (filename, image_bytes, "image/png")},
                 )
                 response.raise_for_status()
-                return True
+                return response.json()["url"]
         except httpx.HTTPError:
-            return False
+            return None
 
     async def get_members(self) -> list[dict]:
         """Get guild member list."""

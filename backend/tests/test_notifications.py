@@ -374,7 +374,7 @@ async def test_post_to_channel_success(client):
                     with patch(
                         "app.api.notifications.bot_client.post_image",
                         new_callable=AsyncMock,
-                        return_value=True,
+                        return_value="https://cdn.discordapp.com/attachments/123/img.png",
                     ):
                         with patch(
                             "app.api.notifications.bot_client.post_message",
@@ -387,3 +387,144 @@ async def test_post_to_channel_success(client):
     app.dependency_overrides.clear()
     assert response.status_code == 200
     assert response.json()["status"] == "posted"
+
+
+# ---------------------------------------------------------------------------
+# 7. POST /api/sieges/{id}/post-to-channel — two-channel split with CDN URLs
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_post_to_channel_posts_images_to_images_channel_and_summary_to_text_channel(client):
+    """Images post to discord_siege_images_channel.
+
+    Summary with CDN links posts to discord_siege_channel.
+    """
+    siege = _make_siege()
+    sm = _make_siege_member()
+
+    mock_session = MagicMock()
+    sm_result = MagicMock()
+    sm_result.scalars.return_value.all.return_value = [sm]
+    mock_session.execute = AsyncMock(return_value=sm_result)
+
+    from app.db.session import get_db
+
+    async def fake_get_db():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = fake_get_db
+
+    board_dict = {"siege_id": 1, "buildings": []}
+    assignments_url = "https://cdn.discordapp.com/attachments/111/assignments.png"
+    reserves_url = "https://cdn.discordapp.com/attachments/222/reserves.png"
+
+    mock_post_image = AsyncMock(side_effect=[assignments_url, reserves_url])
+    mock_post_message = AsyncMock(return_value=True)
+
+    with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
+        with patch(
+            "app.api.notifications.board_service.get_board",
+            new_callable=AsyncMock,
+            return_value=board_dict,
+        ):
+            with patch(
+                "app.api.notifications.image_gen.generate_assignments_image",
+                new_callable=AsyncMock,
+                return_value=b"fake-assignments-png",
+            ):
+                with patch(
+                    "app.api.notifications.image_gen.generate_reserves_image",
+                    new_callable=AsyncMock,
+                    return_value=b"fake-reserves-png",
+                ):
+                    with patch("app.api.notifications.bot_client.post_image", mock_post_image):
+                        with patch(
+                            "app.api.notifications.bot_client.post_message", mock_post_message
+                        ):
+                            with patch("app.api.notifications.settings") as mock_settings:
+                                mock_settings.discord_siege_channel = "clan-siege-assignments"
+                                mock_settings.discord_siege_images_channel = (
+                                    "clan-siege-assignment-images"
+                                )
+                                async with client as c:
+                                    response = await c.post("/api/sieges/1/post-to-channel")
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["status"] == "posted"
+
+    # Both image posts go to the images channel
+    assert mock_post_image.call_count == 2
+    image_channels = [call.args[0] for call in mock_post_image.call_args_list]
+    assert image_channels[0] == "clan-siege-assignment-images"
+    assert image_channels[1] == "clan-siege-assignment-images"
+
+    # Summary goes to the text channel
+    assert mock_post_message.call_count == 1
+    message_channel = mock_post_message.call_args.args[0]
+    assert message_channel == "clan-siege-assignments"
+
+    # Summary message contains both CDN URLs
+    message_text = mock_post_message.call_args.args[1]
+    assert assignments_url in message_text
+    assert reserves_url in message_text
+
+
+# ---------------------------------------------------------------------------
+# 8. POST /api/sieges/{id}/post-to-channel — image failure returns {"status": "failed"}
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_post_to_channel_image_failure_returns_failed(client):
+    """When post_image returns None (failure), the endpoint returns status='failed'."""
+    siege = _make_siege()
+    sm = _make_siege_member()
+
+    mock_session = MagicMock()
+    sm_result = MagicMock()
+    sm_result.scalars.return_value.all.return_value = [sm]
+    mock_session.execute = AsyncMock(return_value=sm_result)
+
+    from app.db.session import get_db
+
+    async def fake_get_db():
+        yield mock_session
+
+    app.dependency_overrides[get_db] = fake_get_db
+
+    board_dict = {"siege_id": 1, "buildings": []}
+
+    with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
+        with patch(
+            "app.api.notifications.board_service.get_board",
+            new_callable=AsyncMock,
+            return_value=board_dict,
+        ):
+            with patch(
+                "app.api.notifications.image_gen.generate_assignments_image",
+                new_callable=AsyncMock,
+                return_value=b"fake-assignments-png",
+            ):
+                with patch(
+                    "app.api.notifications.image_gen.generate_reserves_image",
+                    new_callable=AsyncMock,
+                    return_value=b"fake-reserves-png",
+                ):
+                    with patch(
+                        "app.api.notifications.bot_client.post_image",
+                        new_callable=AsyncMock,
+                        return_value=None,
+                    ):
+                        with patch(
+                            "app.api.notifications.bot_client.post_message",
+                            new_callable=AsyncMock,
+                            return_value=True,
+                        ):
+                            async with client as c:
+                                response = await c.post("/api/sieges/1/post-to-channel")
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert response.json()["status"] == "failed"

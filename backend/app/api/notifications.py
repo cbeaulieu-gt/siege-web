@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.db.session import AsyncSessionLocal, get_db
 from app.models.enums import NotificationBatchStatus, SiegeStatus
 from app.models.notification_batch import NotificationBatch
@@ -263,20 +264,20 @@ async def post_to_channel(
     assignments_bytes = await image_gen.generate_assignments_image(board, siege_date)
     reserves_bytes = await image_gen.generate_reserves_image(members_with_names, siege_date)
 
-    images_channel = "clan-siege-assignment-images"
-    text_channel = "clan-siege-assignments"
+    images_channel = settings.discord_siege_images_channel
+    text_channel = settings.discord_siege_channel
 
-    ok1 = await bot_client.post_image(
+    url1 = await bot_client.post_image(
         images_channel, assignments_bytes, f"assignments-{siege_date}.png"
     )
-    if not ok1:
+    if url1 is None:
         return {"status": "failed", "detail": "Failed to post assignments image"}
 
-    ok2 = await bot_client.post_image(images_channel, reserves_bytes, f"reserves-{siege_date}.png")
-    if not ok2:
+    url2 = await bot_client.post_image(images_channel, reserves_bytes, f"reserves-{siege_date}.png")
+    if url2 is None:
         return {"status": "failed", "detail": "Failed to post reserves image"}
 
-    summary = f"Siege assignments for {siege_date} are now posted. Check the images above."
+    summary = f"Siege assignments for {siege_date}:\nAssignments: {url1}\nReserves: {url2}"
     ok3 = await bot_client.post_message(text_channel, summary)
     if not ok3:
         return {"status": "failed", "detail": "Failed to post summary message"}
