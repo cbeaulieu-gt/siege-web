@@ -1,8 +1,6 @@
-import { readFileSync } from 'fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-
-const packageJson = JSON.parse(readFileSync('./package.json', 'utf-8')) as { version: string };
+import packageJson from './package.json';
 
 export default defineConfig({
   plugins: [react()],
