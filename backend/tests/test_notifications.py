@@ -396,7 +396,10 @@ async def test_post_to_channel_success(client):
 
 @pytest.mark.asyncio
 async def test_post_to_channel_posts_images_to_images_channel_and_summary_to_text_channel(client):
-    """Images post to discord_siege_images_channel; summary with CDN links posts to discord_siege_channel."""
+    """Images post to discord_siege_images_channel.
+
+    Summary with CDN links posts to discord_siege_channel.
+    """
     siege = _make_siege()
     sm = _make_siege_member()
 
