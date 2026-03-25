@@ -207,6 +207,14 @@ export interface GenerateImagesResponse {
   reserves_image: string;    // base64
 }
 
+// Version
+export interface VersionInfo {
+  backend_version: string;
+  bot_version: string | null;
+  frontend_version: string | null;
+  git_sha: string | null;
+}
+
 // Reference
 export interface BuildingTypeInfo {
   value: BuildingType;

@@ -1,9 +1,13 @@
+from pathlib import Path
+
 from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from app.config import settings
 from app.discord_client import SiegeBot
+
+_VERSION_FILE = Path(__file__).parent.parent / "VERSION"
 
 app = FastAPI(title="Siege Bot HTTP API", version="0.1.0")
 
@@ -44,6 +48,16 @@ class NotifyRequest(BaseModel):
 class PostMessageRequest(BaseModel):
     channel_name: str
     message: str
+
+
+@app.get("/version")
+async def version() -> dict[str, str]:
+    """Return the bot version — no authentication required."""
+    try:
+        ver = _VERSION_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        ver = "unknown"
+    return {"version": ver}
 
 
 @app.get("/api/health")
