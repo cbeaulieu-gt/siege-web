@@ -89,6 +89,15 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Get current image tag (dev)
+        run: |
+          IMAGE_TAG=$(az containerapp show \
+            --name siege-web-api-dev \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --query "properties.template.containers[0].image" \
+            --output tsv | awk -F: '{print $NF}')
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+
       - name: Deploy infra (dev)
         run: |
           az deployment group create \
@@ -99,7 +108,8 @@ jobs:
             --parameters discordToken="${{ secrets.DISCORD_TOKEN }}" \
             --parameters discordBotApiKey="${{ secrets.BOT_API_KEY }}" \
             --parameters botApiKey="${{ secrets.BOT_API_KEY }}" \
-            --parameters discordGuildId="${{ vars.DISCORD_GUILD_ID }}"
+            --parameters discordGuildId="${{ vars.DISCORD_GUILD_ID }}" \
+            --parameters imageTag="${{ env.IMAGE_TAG }}"
 
 # ── Deploy (prod) ────────────────────────────────────────────────────────────
 #
@@ -123,6 +133,15 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: Get current image tag (prod)
+        run: |
+          IMAGE_TAG=$(az containerapp show \
+            --name siege-web-api-prod \
+            --resource-group ${{ vars.RESOURCE_GROUP }} \
+            --query "properties.template.containers[0].image" \
+            --output tsv | awk -F: '{print $NF}')
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+
       - name: Deploy infra (prod)
         run: |
           az deployment group create \
@@ -133,4 +152,5 @@ jobs:
             --parameters discordToken="${{ secrets.DISCORD_TOKEN }}" \
             --parameters discordBotApiKey="${{ secrets.BOT_API_KEY }}" \
             --parameters botApiKey="${{ secrets.BOT_API_KEY }}" \
-            --parameters discordGuildId="${{ vars.DISCORD_GUILD_ID }}"
+            --parameters discordGuildId="${{ vars.DISCORD_GUILD_ID }}" \
+            --parameters imageTag="${{ env.IMAGE_TAG }}"
