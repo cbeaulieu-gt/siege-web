@@ -26,10 +26,6 @@ name: Infra CI
 #             Always runs (even on success) so reviewers can see the impact
 #             before merging.
 #
-# This workflow also supports workflow_call so it can be invoked directly from
-# deploy.yml on pushes to main, running the full gate sequence in parallel with
-# the application test suite before any image build or deployment proceeds.
-#
 # ──────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -40,7 +36,6 @@ on:
       - 'infra/**'
       - '.github/workflows/infra-ci.yml'
   workflow_dispatch:
-  workflow_call:
 
 # Cancel any in-progress infra-ci run for the same branch when a new commit is
 # pushed. group uses head_ref (PR source branch) for pull_request events so each
