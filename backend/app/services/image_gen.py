@@ -23,11 +23,11 @@ class SiegeMemberWithName:
 # ---------------------------------------------------------------------------
 
 _BUILDING_COLORS: dict[BuildingType, str] = {
-    BuildingType.stronghold: "#7c3aed",
-    BuildingType.mana_shrine: "#2563eb",
-    BuildingType.magic_tower: "#d97706",
+    BuildingType.stronghold: "#dc2626",
+    BuildingType.mana_shrine: "#d97706",
+    BuildingType.magic_tower: "#2563eb",
     BuildingType.defense_tower: "#16a34a",
-    BuildingType.post: "#dc2626",
+    BuildingType.post: "#64748b",
 }
 
 _BUILDING_LABELS: dict[BuildingType, str] = {

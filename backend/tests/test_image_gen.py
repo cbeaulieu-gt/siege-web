@@ -132,11 +132,11 @@ def test_build_assignments_html_all_building_types_colored():
     board = BoardResponse.model_validate({"siege_id": 1, "buildings": buildings})
     html = _build_assignments_html(board, "2026-03-20")
     # All color codes should appear
-    assert "#7c3aed" in html  # stronghold
-    assert "#2563eb" in html  # mana_shrine
-    assert "#d97706" in html  # magic_tower
+    assert "#dc2626" in html  # stronghold
+    assert "#d97706" in html  # mana_shrine
+    assert "#2563eb" in html  # magic_tower
     assert "#16a34a" in html  # defense_tower
-    assert "#dc2626" in html  # post
+    assert "#64748b" in html  # post
 
 
 # ---------------------------------------------------------------------------

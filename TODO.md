@@ -10,6 +10,10 @@
   - [x] Add a group label row before each group's positions in `_build_assignments_html`
   - [x] Visual distinction for group headers (background color, label text)
   - [x] Update/add tests in `test_image_gen.py`
+- [x] Fix building-type color mapping (#43)
+  - [x] Update `BUILDING_COLORS` in `BoardPage.tsx` to match spec (SH=red, MT=blue, DT=green, MS=gold, Post=white)
+  - [x] Update `_BUILDING_COLORS` in `image_gen.py` to match
+  - [x] Update `test_build_assignments_html_all_building_types_colored` with new hex values
 - [x] Add favicon for browser tab (#38)
   - [x] Create SVG favicon with siege/shield motif
   - [x] Place favicon in `frontend/public/`
