@@ -4,6 +4,11 @@
 - [x] Fix 22 failing Playwright E2E tests (Date.now() uniqueness, strict-mode selector violations, member bucket selector, row-count race)
 - [x] Fix three Azure Container Apps health check failures (KV role assignments, nginx envsubst variable bleed, ACR name mismatch)
 - [x] Write Vitest component tests: BoardPage (position cell states, context menu actions, member bucket) and notification polling (SiegeSettingsPage)
+- [x] Fix issue #37: capture Discord CDN URLs and post image links to clan-siege-assignments (PR #41)
+- [ ] Fix issue #35: remove Member Role column from reserves image
+  - [ ] Remove `<th>Role</th>` header and role `<td>` cell from `_build_reserves_html`
+  - [ ] Remove unused `_ROLE_ABBREV` dict
+  - [ ] Update tests in `test_image_gen.py`
 - [x] Author Bicep IaC for production environment
   - [x] New `infra/modules/app-insights.bicep` (workspace-based Application Insights)
   - [x] Updated `infra/modules/log-analytics.bicep` (retentionInDays param + resourceId output)
