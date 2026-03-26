@@ -7,7 +7,8 @@ All tests are pure-function tests that do not require a database connection.
 import sys
 import os
 from datetime import date
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -785,3 +786,112 @@ def test_parse_posts_sheet_conditions_skips_empty():
     assert len(results) == 2
     assert results[0].post_number == 1
     assert results[1].post_number == 3
+
+
+# ---------------------------------------------------------------------------
+# test_import_file — section 3c is_most_recent guard
+# ---------------------------------------------------------------------------
+
+
+def _make_empty_worksheet() -> MagicMock:
+    """Worksheet that yields no rows."""
+    ws = MagicMock()
+    ws.iter_rows.return_value = iter([])
+    return ws
+
+
+def _make_workbook_mock(*, include_posts_sheet: bool = True) -> MagicMock:
+    """
+    Minimal openpyxl workbook mock.
+
+    Members / Assignments / Reserves are empty so the DB upsert loop is a no-op.
+    Posts sheet optionally included with a single config row so parsed_post_configs
+    is non-empty, which is the scenario that exercises the section-3c guard.
+    """
+    members_ws = _make_empty_worksheet()
+    assignments_ws = _make_empty_worksheet()
+    reserves_ws = _make_empty_worksheet()
+
+    if include_posts_sheet:
+        posts_ws = MagicMock()
+        # parse_posts_sheet_config: returns one ParsedPostConfig
+        posts_ws.iter_rows.return_value = iter([
+            ("High Priority", None, None),
+            (1, "Some post", None),
+        ])
+
+    mapping: dict[str, MagicMock] = {
+        "Members": members_ws,
+        "Assignments": assignments_ws,
+        "Reserves": reserves_ws,
+    }
+    if include_posts_sheet:
+        mapping["Posts"] = posts_ws
+
+    wb = MagicMock()
+    wb.__getitem__ = MagicMock(side_effect=lambda key: mapping[key])
+    wb.sheetnames = list(
+        ["Members", "Assignments", "Reserves"] + (["Posts"] if include_posts_sheet else [])
+    )
+    return wb
+
+
+def _make_session_mock() -> AsyncMock:
+    """
+    AsyncMock session whose execute() returns a result whose scalars().all() is [].
+
+    This covers the PostCondition fetch in section 3 and the PostPriorityConfig
+    fetch in section 3c (when it would be reached).
+    """
+    scalars_mock = MagicMock()
+    scalars_mock.all.return_value = []
+
+    result_mock = MagicMock()
+    result_mock.scalars.return_value = scalars_mock
+    result_mock.scalar_one_or_none.return_value = None
+
+    session = AsyncMock()
+    session.execute.return_value = result_mock
+    # flush sets siege.id — give the Siege object a fake id via side_effect on add
+    session.flush = AsyncMock()
+    return session
+
+
+@pytest.mark.asyncio
+async def test_import_file_section3c_skipped_when_not_most_recent():
+    """
+    When is_most_recent=False, section 3c must not run even if the Posts sheet
+    provides parsed_post_configs — stats.post_configs_updated must stay 0.
+    """
+    wb_mock = _make_workbook_mock(include_posts_sheet=True)
+    session = _make_session_mock()
+
+    with patch("openpyxl.load_workbook", return_value=wb_mock):
+        stats = await ie.import_file(
+            session,
+            Path("clan_siege_03_15_2026.xlsm"),
+            is_most_recent=False,
+        )
+
+    assert stats.post_configs_updated == 0
+
+
+@pytest.mark.asyncio
+async def test_import_file_section3c_runs_when_most_recent_but_finds_nothing():
+    """
+    When is_most_recent=True and the DB has no PostPriorityConfig rows yet,
+    section 3c runs but updates nothing (ppc_map is empty, every lookup is None).
+    post_configs_updated stays 0, but the code path is exercised.
+    """
+    wb_mock = _make_workbook_mock(include_posts_sheet=True)
+    session = _make_session_mock()
+
+    with patch("openpyxl.load_workbook", return_value=wb_mock):
+        stats = await ie.import_file(
+            session,
+            Path("clan_siege_03_15_2026.xlsm"),
+            is_most_recent=True,
+        )
+
+    # ppc_map is empty → no rows updated, but no error either
+    assert stats.post_configs_updated == 0

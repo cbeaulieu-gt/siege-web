@@ -33,6 +33,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.db.base import Base  # noqa: F401 — needed to register all models with metadata
+from app.db.seeds import seed_post_priority_config
 from app.models.building import Building
 from app.models.building_group import BuildingGroup
 from app.models.enums import BuildingType, MemberRole, SiegeStatus
@@ -897,7 +898,7 @@ async def import_file(
             stats.preferences_set += inserted
 
         # 3c. Update PostPriorityConfig priority/description (most recent file only)
-        if parsed_post_configs:
+        if is_most_recent and parsed_post_configs:
             ppc_result = await session.execute(select(PostPriorityConfig))
             ppc_map: dict[int, PostPriorityConfig] = {
                 ppc.post_number: ppc for ppc in ppc_result.scalars().all()
@@ -1076,6 +1077,12 @@ async def import_files(
     total_imported = 0
     total_skipped = 0
     total_errors = 0
+
+    # Ensure PostPriorityConfig rows exist before processing any file.
+    # seed_post_priority_config uses ON CONFLICT DO NOTHING so it is idempotent.
+    async with SessionFactory() as session:
+        async with session.begin():
+            await seed_post_priority_config(session)
 
     for i, filepath in enumerate(filepaths):
         is_last = (i == len(filepaths) - 1)
