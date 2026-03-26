@@ -32,6 +32,7 @@ class NotifyResponse(BaseModel):
     batch_id: int
     status: str
     member_count: int
+    skipped_count: int  # members skipped (no discord_username or not in guild)
 
 
 class NotificationResultItem(BaseModel):
@@ -122,15 +123,34 @@ async def notify_siege_members(
     )
     siege_members = result.scalars().all()
 
+    # Pre-filter: fetch live guild members from bot to exclude non-members.
+    # get_members() returns [] when the bot is unreachable — in that case we
+    # fall back to filtering only on discord_username being set, so a bot
+    # outage never silently cancels all DMs.
+    guild_members = await bot_client.get_members()
+    guild_usernames: set[str] = {m["username"].lower() for m in guild_members}
+    bot_reachable = len(guild_usernames) > 0
+
+    eligible: list[SiegeMember] = []
+    skipped_count = 0
+    for sm in siege_members:
+        uname = sm.member.discord_username if sm.member else None
+        if uname is None:
+            skipped_count += 1
+        elif bot_reachable and uname.lower() not in guild_usernames:
+            skipped_count += 1
+        else:
+            eligible.append(sm)
+
     # Create batch
     batch = NotificationBatch(siege_id=siege_id, status=NotificationBatchStatus.pending)
     db.add(batch)
     await db.flush()
 
-    # Create result rows
+    # Create result rows only for eligible members
     message = "Siege assignments are ready! Check the latest siege board at <URL>."
     members_data: list[dict] = []
-    for sm in siege_members:
+    for sm in eligible:
         result_row = NotificationBatchResult(
             batch_id=batch.id,
             member_id=sm.member_id,
@@ -152,7 +172,8 @@ async def notify_siege_members(
     return NotifyResponse(
         batch_id=batch.id,
         status=batch.status.value,
-        member_count=len(siege_members),
+        member_count=len(eligible),
+        skipped_count=skipped_count,
     )
 
 

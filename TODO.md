@@ -22,6 +22,14 @@
   - [x] `bot/app/http_api.py`: include build number in `/version` response
   - [x] `frontend/Dockerfile`: accept `ARG VITE_APP_VERSION` and pass to build stage
   - [x] Add tests for backend and bot version endpoints
+- [x] Fix #47: import script does not persist post priorities
+  - [x] Seed `PostPriorityConfig` rows inside `import_files` before processing files
+  - [x] Add `if is_most_recent:` guard to section 3c
+  - [x] Add/update test coverage for priority persistence
+- [x] Fix #48: notification batch targets members not in guild
+  - [x] Pre-filter siege members using `bot_client.get_members()` before creating batch rows
+  - [x] Add `skipped_count` to `NotifyResponse`
+  - [x] Update `test_notifications.py` to cover filtering and `skipped_count`
 - [x] Add favicon for browser tab (#38)
   - [x] Create SVG favicon with siege/shield motif
   - [x] Place favicon in `frontend/public/`
