@@ -178,23 +178,30 @@ async def test_notify_returns_batch_id(client):
 
     app.dependency_overrides[get_db] = fake_get_db
 
+    from app.schemas.validation import ValidationResult
+
     with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
         with patch(
-            "app.api.notifications.bot_client.get_members",
+            "app.api.notifications.validate_siege",
             new_callable=AsyncMock,
-            return_value=[{"username": "alice#0001"}],
+            return_value=ValidationResult(errors=[], warnings=[]),
         ):
-            with patch("app.api.notifications.NotificationBatch") as MockBatch:
-                instance = SimpleNamespace(
-                    id=10, siege_id=1, status=NotificationBatchStatus.pending
-                )
-                instance.status = NotificationBatchStatus.pending
-                instance.id = 10
-                MockBatch.return_value = instance
-                with patch("app.api.notifications.NotificationBatchResult"):
-                    with patch("app.api.notifications._send_dms"):
-                        async with client as c:
-                            response = await c.post("/api/sieges/1/notify")
+            with patch(
+                "app.api.notifications.bot_client.get_members",
+                new_callable=AsyncMock,
+                return_value=[{"username": "alice#0001"}],
+            ):
+                with patch("app.api.notifications.NotificationBatch") as MockBatch:
+                    instance = SimpleNamespace(
+                        id=10, siege_id=1, status=NotificationBatchStatus.pending
+                    )
+                    instance.status = NotificationBatchStatus.pending
+                    instance.id = 10
+                    MockBatch.return_value = instance
+                    with patch("app.api.notifications.NotificationBatchResult"):
+                        with patch("app.api.notifications._send_dms"):
+                            async with client as c:
+                                response = await c.post("/api/sieges/1/notify")
 
     app.dependency_overrides.clear()
     assert response.status_code == 200
@@ -573,20 +580,27 @@ async def test_notify_skips_member_with_no_discord_username(client):
 
     app.dependency_overrides[get_db] = fake_get_db
 
+    from app.schemas.validation import ValidationResult
+
     with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
         with patch(
-            "app.api.notifications.bot_client.get_members",
+            "app.api.notifications.validate_siege",
             new_callable=AsyncMock,
-            return_value=[{"username": "someoneelse"}],
+            return_value=ValidationResult(errors=[], warnings=[]),
         ):
-            with patch("app.api.notifications.NotificationBatch") as MockBatch:
-                MockBatch.return_value = SimpleNamespace(
-                    id=10, siege_id=1, status=NotificationBatchStatus.pending
-                )
-                with patch("app.api.notifications.NotificationBatchResult") as MockResult:
-                    with patch("app.api.notifications._send_dms"):
-                        async with client as c:
-                            response = await c.post("/api/sieges/1/notify")
+            with patch(
+                "app.api.notifications.bot_client.get_members",
+                new_callable=AsyncMock,
+                return_value=[{"username": "someoneelse"}],
+            ):
+                with patch("app.api.notifications.NotificationBatch") as MockBatch:
+                    MockBatch.return_value = SimpleNamespace(
+                        id=10, siege_id=1, status=NotificationBatchStatus.pending
+                    )
+                    with patch("app.api.notifications.NotificationBatchResult") as MockResult:
+                        with patch("app.api.notifications._send_dms"):
+                            async with client as c:
+                                response = await c.post("/api/sieges/1/notify")
 
     app.dependency_overrides.clear()
     assert response.status_code == 200
@@ -625,21 +639,28 @@ async def test_notify_skips_member_not_in_guild(client):
 
     app.dependency_overrides[get_db] = fake_get_db
 
+    from app.schemas.validation import ValidationResult
+
     with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
         with patch(
-            "app.api.notifications.bot_client.get_members",
+            "app.api.notifications.validate_siege",
             new_callable=AsyncMock,
-            # Guild has alice but NOT bob
-            return_value=[{"username": "alice#0001"}],
+            return_value=ValidationResult(errors=[], warnings=[]),
         ):
-            with patch("app.api.notifications.NotificationBatch") as MockBatch:
-                MockBatch.return_value = SimpleNamespace(
-                    id=10, siege_id=1, status=NotificationBatchStatus.pending
-                )
-                with patch("app.api.notifications.NotificationBatchResult") as MockResult:
-                    with patch("app.api.notifications._send_dms"):
-                        async with client as c:
-                            response = await c.post("/api/sieges/1/notify")
+            with patch(
+                "app.api.notifications.bot_client.get_members",
+                new_callable=AsyncMock,
+                # Guild has alice but NOT bob
+                return_value=[{"username": "alice#0001"}],
+            ):
+                with patch("app.api.notifications.NotificationBatch") as MockBatch:
+                    MockBatch.return_value = SimpleNamespace(
+                        id=10, siege_id=1, status=NotificationBatchStatus.pending
+                    )
+                    with patch("app.api.notifications.NotificationBatchResult") as MockResult:
+                        with patch("app.api.notifications._send_dms"):
+                            async with client as c:
+                                response = await c.post("/api/sieges/1/notify")
 
     app.dependency_overrides.clear()
     assert response.status_code == 200
@@ -682,20 +703,27 @@ async def test_notify_eligible_member_gets_result_row_and_dm(client):
     async def fake_send_dms(batch_id, members_data):
         captured_members_data.extend(members_data)
 
+    from app.schemas.validation import ValidationResult
+
     with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
         with patch(
-            "app.api.notifications.bot_client.get_members",
+            "app.api.notifications.validate_siege",
             new_callable=AsyncMock,
-            return_value=[{"username": "alice#0001"}],
+            return_value=ValidationResult(errors=[], warnings=[]),
         ):
-            with patch("app.api.notifications.NotificationBatch") as MockBatch:
-                MockBatch.return_value = SimpleNamespace(
-                    id=10, siege_id=1, status=NotificationBatchStatus.pending
-                )
-                with patch("app.api.notifications.NotificationBatchResult") as MockResult:
-                    with patch("app.api.notifications._send_dms", side_effect=fake_send_dms):
-                        async with client as c:
-                            response = await c.post("/api/sieges/1/notify")
+            with patch(
+                "app.api.notifications.bot_client.get_members",
+                new_callable=AsyncMock,
+                return_value=[{"username": "alice#0001"}],
+            ):
+                with patch("app.api.notifications.NotificationBatch") as MockBatch:
+                    MockBatch.return_value = SimpleNamespace(
+                        id=10, siege_id=1, status=NotificationBatchStatus.pending
+                    )
+                    with patch("app.api.notifications.NotificationBatchResult") as MockResult:
+                        with patch("app.api.notifications._send_dms", side_effect=fake_send_dms):
+                            async with client as c:
+                                response = await c.post("/api/sieges/1/notify")
 
     app.dependency_overrides.clear()
     assert response.status_code == 200
@@ -742,21 +770,28 @@ async def test_notify_skipped_count_reflects_all_skipped_members(client):
 
     app.dependency_overrides[get_db] = fake_get_db
 
+    from app.schemas.validation import ValidationResult
+
     with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
         with patch(
-            "app.api.notifications.bot_client.get_members",
+            "app.api.notifications.validate_siege",
             new_callable=AsyncMock,
-            # Only alice is in the guild
-            return_value=[{"username": "alice#0001"}],
+            return_value=ValidationResult(errors=[], warnings=[]),
         ):
-            with patch("app.api.notifications.NotificationBatch") as MockBatch:
-                MockBatch.return_value = SimpleNamespace(
-                    id=10, siege_id=1, status=NotificationBatchStatus.pending
-                )
-                with patch("app.api.notifications.NotificationBatchResult"):
-                    with patch("app.api.notifications._send_dms"):
-                        async with client as c:
-                            response = await c.post("/api/sieges/1/notify")
+            with patch(
+                "app.api.notifications.bot_client.get_members",
+                new_callable=AsyncMock,
+                # Only alice is in the guild
+                return_value=[{"username": "alice#0001"}],
+            ):
+                with patch("app.api.notifications.NotificationBatch") as MockBatch:
+                    MockBatch.return_value = SimpleNamespace(
+                        id=10, siege_id=1, status=NotificationBatchStatus.pending
+                    )
+                    with patch("app.api.notifications.NotificationBatchResult"):
+                        with patch("app.api.notifications._send_dms"):
+                            async with client as c:
+                                response = await c.post("/api/sieges/1/notify")
 
     app.dependency_overrides.clear()
     assert response.status_code == 200
@@ -766,7 +801,109 @@ async def test_notify_skipped_count_reflects_all_skipped_members(client):
 
 
 # ---------------------------------------------------------------------------
-# 13. notify — bot unreachable (get_members returns []) falls back to
+# 13. notify — 400 when siege has validation errors
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_notify_blocked_when_siege_has_validation_errors(client):
+    """POST /notify must return 400 when validate_siege returns errors."""
+    from app.schemas.validation import ValidationIssue, ValidationResult
+
+    siege = _make_siege()
+
+    from app.db.session import get_db
+
+    async def fake_get_db():
+        yield MagicMock()
+
+    app.dependency_overrides[get_db] = fake_get_db
+
+    validation_with_errors = ValidationResult(
+        errors=[
+            ValidationIssue(
+                rule=13,
+                message="Member 'Alice' has no attack day assigned",
+                context={"member_id": 1},
+            )
+        ],
+        warnings=[],
+    )
+
+    with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
+        with patch(
+            "app.api.notifications.validate_siege",
+            new_callable=AsyncMock,
+            return_value=validation_with_errors,
+        ):
+            async with client as c:
+                response = await c.post("/api/sieges/1/notify")
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "validation error" in detail.lower()
+    assert "1" in detail
+
+
+# ---------------------------------------------------------------------------
+# 14. notify — passes validation guard when siege has no errors
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_notify_passes_validation_guard_when_no_errors(client):
+    """POST /notify must not be blocked when validate_siege returns no errors."""
+    from app.schemas.validation import ValidationResult
+
+    siege = _make_siege()
+    sm = _make_siege_member()
+
+    mock_session = MagicMock()
+    sm_result = MagicMock()
+    sm_result.scalars.return_value.all.return_value = [sm]
+    mock_session.execute = AsyncMock(return_value=sm_result)
+    mock_session.add = MagicMock()
+    mock_session.flush = AsyncMock()
+    mock_session.commit = AsyncMock()
+
+    async def fake_get_db():
+        yield mock_session
+
+    from app.db.session import get_db
+
+    app.dependency_overrides[get_db] = fake_get_db
+
+    clean_validation = ValidationResult(errors=[], warnings=[])
+
+    with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
+        with patch(
+            "app.api.notifications.validate_siege",
+            new_callable=AsyncMock,
+            return_value=clean_validation,
+        ):
+            with patch(
+                "app.api.notifications.bot_client.get_members",
+                new_callable=AsyncMock,
+                return_value=[{"username": "alice#0001"}],
+            ):
+                with patch("app.api.notifications.NotificationBatch") as MockBatch:
+                    MockBatch.return_value = SimpleNamespace(
+                        id=10, siege_id=1, status=NotificationBatchStatus.pending
+                    )
+                    with patch("app.api.notifications.NotificationBatchResult"):
+                        with patch("app.api.notifications._send_dms"):
+                            async with client as c:
+                                response = await c.post("/api/sieges/1/notify")
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 200
+    data = response.json()
+    assert "batch_id" in data
+
+
+# ---------------------------------------------------------------------------
+# 15. notify — bot unreachable (get_members returns []) falls back to
 #     discord_username filter only
 # ---------------------------------------------------------------------------
 
@@ -801,20 +938,27 @@ async def test_notify_bot_unreachable_falls_back_to_username_filter(client):
 
     app.dependency_overrides[get_db] = fake_get_db
 
+    from app.schemas.validation import ValidationResult
+
     with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
         with patch(
-            "app.api.notifications.bot_client.get_members",
+            "app.api.notifications.validate_siege",
             new_callable=AsyncMock,
-            return_value=[],  # bot unreachable
+            return_value=ValidationResult(errors=[], warnings=[]),
         ):
-            with patch("app.api.notifications.NotificationBatch") as MockBatch:
-                MockBatch.return_value = SimpleNamespace(
-                    id=10, siege_id=1, status=NotificationBatchStatus.pending
-                )
-                with patch("app.api.notifications.NotificationBatchResult") as MockResult:
-                    with patch("app.api.notifications._send_dms"):
-                        async with client as c:
-                            response = await c.post("/api/sieges/1/notify")
+            with patch(
+                "app.api.notifications.bot_client.get_members",
+                new_callable=AsyncMock,
+                return_value=[],  # bot unreachable
+            ):
+                with patch("app.api.notifications.NotificationBatch") as MockBatch:
+                    MockBatch.return_value = SimpleNamespace(
+                        id=10, siege_id=1, status=NotificationBatchStatus.pending
+                    )
+                    with patch("app.api.notifications.NotificationBatchResult") as MockResult:
+                        with patch("app.api.notifications._send_dms"):
+                            async with client as c:
+                                response = await c.post("/api/sieges/1/notify")
 
     app.dependency_overrides.clear()
     assert response.status_code == 200
@@ -824,3 +968,65 @@ async def test_notify_bot_unreachable_falls_back_to_username_filter(client):
     assert data["member_count"] == 1
     # member with no username is still skipped
     assert data["skipped_count"] == 1
+
+
+# ---------------------------------------------------------------------------
+# 16. _send_dms — batch status is set to completed even when bot raises mid-loop
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_send_dms_sets_completed_status_even_when_bot_raises():
+    """_send_dms must guarantee batch.status = completed in its finally block.
+
+    Scenario: two members; bot raises on the first notify call. The batch
+    must still be committed as completed so the frontend polling terminates.
+    """
+    from app.api.notifications import _send_dms
+
+    batch = _make_batch(id=42, siege_id=1, status=NotificationBatchStatus.pending)
+    result_row = _make_batch_result(batch_id=42, member_id=1)
+
+    # Build a session that tracks mutations on the batch object.
+    call_count = 0
+    mock_session = MagicMock()
+
+    async def tracked_execute(stmt):
+        nonlocal call_count
+        call_count += 1
+        result = MagicMock()
+        stmt_str = str(stmt)
+        if "notification_batch_result" in stmt_str.lower():
+            result.scalar_one_or_none.return_value = result_row
+        else:
+            # notification_batch lookup (both in try and in except finally)
+            result.scalar_one_or_none.return_value = batch
+        return result
+
+    mock_session.execute = tracked_execute
+    mock_session.commit = AsyncMock()
+
+    # AsyncSessionLocal is used as an async context manager; patch it so it
+    # yields our controlled session instead of opening a real DB connection.
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def fake_session_local():
+        yield mock_session
+
+    members_data = [
+        {"member_id": 1, "discord_username": "alice#0001", "message": "test"},
+    ]
+
+    with patch("app.api.notifications.AsyncSessionLocal", fake_session_local):
+        with patch(
+            "app.api.notifications.bot_client.notify",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("bot exploded"),
+        ):
+            with pytest.raises(RuntimeError, match="bot exploded"):
+                await _send_dms(42, members_data)
+
+    # The except block must have committed the session with completed status.
+    assert mock_session.commit.called
+    assert batch.status == NotificationBatchStatus.completed
