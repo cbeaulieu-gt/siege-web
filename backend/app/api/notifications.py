@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.db.session import AsyncSessionLocal, get_db
-from app.models.enums import NotificationBatchStatus, SiegeStatus
+from app.models.enums import MemberRole, NotificationBatchStatus, SiegeStatus
 from app.models.notification_batch import NotificationBatch
 from app.models.notification_batch_result import NotificationBatchResult
 from app.models.siege_member import SiegeMember
@@ -19,6 +19,7 @@ from app.services import image_gen
 from app.services.bot_client import bot_client
 from app.services.image_gen import SiegeMemberWithName
 from app.services.sieges import get_siege
+from app.services.validation import validate_siege
 
 router = APIRouter(tags=["notifications"])
 
@@ -58,45 +59,58 @@ class NotificationBatchResponse(BaseModel):
 async def _send_dms(batch_id: int, members_data: list[dict]) -> None:
     """Send DMs for each member and record results in a fresh DB session."""
     async with AsyncSessionLocal() as session:
-        for item in members_data:
-            member_id = item["member_id"]
-            discord_username = item["discord_username"]
-            message = item["message"]
+        try:
+            for item in members_data:
+                member_id = item["member_id"]
+                discord_username = item["discord_username"]
+                message = item["message"]
 
-            success = False
-            error_text: str | None = None
-            sent_at: datetime | None = None
+                success = False
+                error_text: str | None = None
+                sent_at: datetime | None = None
 
-            if discord_username:
-                ok = await bot_client.notify(discord_username, message)
-                success = ok
-                if not ok:
-                    error_text = "Bot failed to deliver message"
+                if discord_username:
+                    ok = await bot_client.notify(discord_username, message)
+                    success = ok
+                    if not ok:
+                        error_text = "Bot failed to deliver message"
+                    else:
+                        sent_at = datetime.now(UTC)
                 else:
-                    sent_at = datetime.now(UTC)
-            else:
-                error_text = "No discord_username set for member"
+                    error_text = "No discord_username set for member"
 
-            result_row = await session.execute(
-                select(NotificationBatchResult).where(
-                    NotificationBatchResult.batch_id == batch_id,
-                    NotificationBatchResult.member_id == member_id,
+                result_row = await session.execute(
+                    select(NotificationBatchResult).where(
+                        NotificationBatchResult.batch_id == batch_id,
+                        NotificationBatchResult.member_id == member_id,
+                    )
                 )
+                result = result_row.scalar_one_or_none()
+                if result is not None:
+                    result.success = success
+                    result.error = error_text
+                    result.sent_at = sent_at
+
+            batch_row = await session.execute(
+                select(NotificationBatch).where(NotificationBatch.id == batch_id)
             )
-            result = result_row.scalar_one_or_none()
-            if result is not None:
-                result.success = success
-                result.error = error_text
-                result.sent_at = sent_at
+            batch = batch_row.scalar_one_or_none()
+            if batch is not None:
+                batch.status = NotificationBatchStatus.completed
 
-        batch_row = await session.execute(
-            select(NotificationBatch).where(NotificationBatch.id == batch_id)
-        )
-        batch = batch_row.scalar_one_or_none()
-        if batch is not None:
-            batch.status = NotificationBatchStatus.completed
-
-        await session.commit()
+            await session.commit()
+        except Exception:
+            # Guarantee the batch is marked completed even if a mid-loop exception
+            # occurs. BackgroundTasks swallow exceptions silently, so without this
+            # the batch would remain "pending" forever.
+            batch_row = await session.execute(
+                select(NotificationBatch).where(NotificationBatch.id == batch_id)
+            )
+            batch = batch_row.scalar_one_or_none()
+            if batch is not None and batch.status == NotificationBatchStatus.pending:
+                batch.status = NotificationBatchStatus.completed
+            await session.commit()
+            raise
 
 
 # ---------------------------------------------------------------------------
@@ -114,6 +128,16 @@ async def notify_siege_members(
     siege = await get_siege(db, siege_id)
     if siege.status == SiegeStatus.complete:
         raise HTTPException(status_code=400, detail="Cannot notify for a completed siege")
+
+    validation = await validate_siege(db, siege_id)
+    if validation.errors:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Cannot notify: siege has {len(validation.errors)} validation error(s). "
+                "Resolve all errors before sending notifications."
+            ),
+        )
 
     # Load siege members with member data
     result = await db.execute(
@@ -270,6 +294,10 @@ async def post_to_channel(
     )
     siege_members = sm_result.scalars().all()
 
+    member_id_to_role: dict[int, MemberRole] = {
+        sm.member_id: sm.member.role for sm in siege_members if sm.member is not None
+    }
+
     members_with_names = [
         SiegeMemberWithName(
             name=sm.member.name,
@@ -282,7 +310,9 @@ async def post_to_channel(
     ]
 
     # Generate images
-    assignments_bytes = await image_gen.generate_assignments_image(board, siege_date)
+    assignments_bytes = await image_gen.generate_assignments_image(
+        board, siege_date, member_id_to_role=member_id_to_role
+    )
     reserves_bytes = await image_gen.generate_reserves_image(members_with_names, siege_date)
 
     images_channel = settings.discord_siege_images_channel

@@ -38,14 +38,36 @@ _BUILDING_LABELS: dict[BuildingType, str] = {
     BuildingType.post: "Post",
 }
 
+_MEMBER_ROLE_COLORS: dict[MemberRole, str] = {
+    MemberRole.heavy_hitter: "#f59e0b",
+    MemberRole.advanced: "#a855f7",
+    MemberRole.medium: "#3b82f6",
+    MemberRole.novice: "#94a3b8",
+}
+
 
 # ---------------------------------------------------------------------------
 # HTML builders (separated from Playwright for testability)
 # ---------------------------------------------------------------------------
 
 
-def _build_assignments_html(board: BoardResponse, siege_date: str) -> str:
-    """Build the full assignments board HTML string."""
+def _build_assignments_html(
+    board: BoardResponse,
+    siege_date: str,
+    member_id_to_role: dict[int, MemberRole] | None = None,
+) -> str:
+    """Build the full assignments board HTML string.
+
+    Args:
+        board: Validated board response with buildings, groups, and positions.
+        siege_date: ISO date string shown in the image heading.
+        member_id_to_role: Optional mapping of ``member_id → MemberRole`` used
+            to look up each player's role color from ``_MEMBER_ROLE_COLORS``.
+            Falls back to ``#f9fafb`` (white) when a member_id is absent or the
+            dict is ``None``.
+    """
+    _member_id_to_role = member_id_to_role or {}
+
     # Group buildings by type
     buildings_by_type: dict[BuildingType, list] = {}
     for building in board.buildings:
@@ -81,8 +103,11 @@ def _build_assignments_html(board: BoardResponse, siege_date: str) -> str:
                         cell_style = "background:#92400e;color:#fef3c7;"
                         cell_text = "RESERVE"
                     elif pos.member_name:
-                        cell_style = "background:#1f2937;color:#f9fafb;"
-                        cell_text = pos.member_name
+                        name_color = _MEMBER_ROLE_COLORS.get(
+                            _member_id_to_role.get(pos.member_id), "#f9fafb"
+                        )
+                        cell_style = "background:#1f2937;"
+                        cell_text = f'<span style="color:{name_color}">{pos.member_name}</span>'
                     else:
                         cell_style = "background:#111827;color:#6b7280;"
                         cell_text = "—"
@@ -138,8 +163,18 @@ def _build_assignments_html(board: BoardResponse, siege_date: str) -> str:
 </html>"""
 
 
-def _build_reserves_html(members: list[SiegeMemberWithName], siege_date: str) -> str:
-    """Build the reserves/members list HTML string."""
+def _build_reserves_html(
+    members: list[SiegeMemberWithName],
+    siege_date: str,
+) -> str:
+    """Build the reserves/members list HTML string.
+
+    Args:
+        members: Siege members to render.  Each member's ``role`` field is used
+            to look up their name color from ``_MEMBER_ROLE_COLORS``.
+        siege_date: ISO date string shown in the image heading.
+    """
+
     rows_html = ""
     for m in members:
         day_label = str(m.attack_day) if m.attack_day is not None else "—"
@@ -154,9 +189,12 @@ def _build_reserves_html(members: list[SiegeMemberWithName], siege_date: str) ->
             "Yes" if m.has_reserve_set else ("No" if m.has_reserve_set is False else "—")
         )
 
+        name_color = _MEMBER_ROLE_COLORS.get(m.role, "#f9fafb")
+        name_cell = f'<span style="color:{name_color}">{m.name}</span>'
+
         rows_html += f"""
         <tr>
-            <td style="padding:4px 8px;border:1px solid #374151;">{m.name}</td>
+            <td style="padding:4px 8px;border:1px solid #374151;">{name_cell}</td>
             <td style="padding:4px 8px;border:1px solid #374151;{day_style}">{day_label}</td>
             <td style="padding:4px 8px;border:1px solid #374151;color:#9ca3af;">{reserve_label}</td>
         </tr>"""
@@ -242,13 +280,20 @@ async def _render_html_to_png(html: str) -> bytes:
 # ---------------------------------------------------------------------------
 
 
-async def generate_assignments_image(board: BoardResponse, siege_date: str) -> bytes:
+async def generate_assignments_image(
+    board: BoardResponse,
+    siege_date: str,
+    member_id_to_role: dict[int, MemberRole] | None = None,
+) -> bytes:
     """Render the assignments board as a PNG. Returns raw PNG bytes."""
-    html = _build_assignments_html(board, siege_date)
+    html = _build_assignments_html(board, siege_date, member_id_to_role=member_id_to_role)
     return await _render_html_to_png(html)
 
 
-async def generate_reserves_image(members: list[SiegeMemberWithName], siege_date: str) -> bytes:
+async def generate_reserves_image(
+    members: list[SiegeMemberWithName],
+    siege_date: str,
+) -> bytes:
     """Render the members/reserves list as a PNG. Returns raw PNG bytes."""
     html = _build_reserves_html(members, siege_date)
     return await _render_html_to_png(html)

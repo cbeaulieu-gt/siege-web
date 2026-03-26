@@ -16,7 +16,11 @@ def _make_bot(guild=None) -> SiegeBot:
     return bot
 
 
-def _make_member(name: str, display_name: str = None, user_id: int = 1) -> MagicMock:
+def _make_member(
+    name: str,
+    display_name: str = None,
+    user_id: int = 1,
+) -> MagicMock:
     member = MagicMock()
     member.id = user_id
     member.name = name
@@ -153,3 +157,5 @@ async def test_get_members_returns_correct_dict_format():
     bob = next(m for m in result if m["username"] == "bob")
     assert bob["id"] == "200"
     assert bob["display_name"] == "Bobby"
+
+

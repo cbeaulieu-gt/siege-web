@@ -6,14 +6,28 @@
 - [x] Write Vitest component tests: BoardPage (position cell states, context menu actions, member bucket) and notification polling (SiegeSettingsPage)
 - [x] Fix issue #37: capture Discord CDN URLs and post image links to clan-siege-assignments (PR #41)
 - [x] Fix issue #35: remove Member Role column from reserves image (PR #42)
-- [x] Fix issue #36: show assignments grouped by Group in the image
+- [ ] Fix issue #36: show assignments grouped by Group in the image
   - [x] Add a group label row before each group's positions in `_build_assignments_html`
   - [x] Visual distinction for group headers (background color, label text)
   - [x] Update/add tests in `test_image_gen.py`
-- [x] Fix #55: redesign assignments image layout — single-row groups, buildings side by side
-  - [x] Collapse group header + slot rows into single row with group label cell
-  - [x] Render buildings of the same type side by side with gap
-  - [x] Update/add tests in test_image_gen.py
+- [x] Fix #65: notify button UX — eager validation gate and 400 error display
+  - [x] Auto-run validation on page load so button is gated correctly
+  - [x] Display 400 error detail from notifyMutation in the UI
+- [x] Fix #63: member name color uses Member Role, not Discord role color
+  - [x] Add _MEMBER_ROLE_COLORS constant to image_gen.py
+  - [x] Replace role_colors dict param with member_id_to_role in assignments image
+  - [x] Use m.role directly in reserves image
+  - [x] Remove bot.get_members() color fetch from images.py and notifications.py
+  - [x] Remove top_role_color from bot get_members()
+  - [x] Update tests
+- [x] Fix #59: block notifications when siege has validation errors
+  - [x] Add validate_siege guard in notify_siege_members endpoint
+  - [x] Disable notify button on frontend when errors present
+  - [x] Add/update tests in test_notifications.py
+- [x] Fix #60: notification batch status stuck at pending
+  - [x] Wrap _send_dms in try/finally to guarantee status update
+  - [x] Fix batchDone vacuous-truth bug for empty results arrays
+  - [x] Add/update tests in test_notifications.py
 - [x] Fix building-type color mapping (#43)
   - [x] Update `BUILDING_COLORS` in `BoardPage.tsx` to match spec (SH=red, MT=blue, DT=green, MS=gold, Post=white)
   - [x] Update `_BUILDING_COLORS` in `image_gen.py` to match
@@ -44,6 +58,12 @@
   - [x] Create SVG favicon with siege/shield motif
   - [x] Place favicon in `frontend/public/`
   - [x] Add `<link>` tags in `frontend/index.html` (svg + png fallback sizes)
+- [x] Implement #44: color player names by Discord role in generated image
+  - [x] Extend bot `get_members()` to include `top_role_color`
+  - [x] Build member_id→color map in `images.py` and `notifications.py` from bot data
+  - [x] Apply role color to name text in `_build_assignments_html`
+  - [x] Apply role color to name text in `_build_reserves_html`
+  - [x] Update/add tests in `test_image_gen.py` and `test_discord_client.py`
 - [x] Fix #53: missing attack day is a validation error for all siege members
   - [x] Promote Rule 13 from warning → error in `validation.py`
   - [x] Expand scope from assigned members → all siege members

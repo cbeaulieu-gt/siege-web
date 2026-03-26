@@ -59,7 +59,7 @@ class SiegeBot(discord.Client):
         return msg.attachments[0].url
 
     async def get_members(self) -> list[dict]:
-        """Return list of guild members as dicts with id, username, display_name."""
+        """Return list of guild members as dicts with id, username, and display_name."""
         guild = self._require_guild()
         return [
             {

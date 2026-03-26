@@ -73,7 +73,10 @@ def _make_member(
     has_reserve_set: bool | None = True,
 ) -> SiegeMemberWithName:
     return SiegeMemberWithName(
-        name=name, role=role, attack_day=attack_day, has_reserve_set=has_reserve_set
+        name=name,
+        role=role,
+        attack_day=attack_day,
+        has_reserve_set=has_reserve_set,
     )
 
 
@@ -301,3 +304,84 @@ def test_build_assignments_html_buildings_side_by_side():
     assert "display:flex" in html
     assert "flex-wrap:wrap" in html
     assert "gap:16px" in html
+
+
+# ---------------------------------------------------------------------------
+# Role color tests — _build_assignments_html
+# ---------------------------------------------------------------------------
+
+
+def test_build_assignments_html_heavy_hitter_color():
+    """A member mapped to heavy_hitter role gets the amber color #f59e0b."""
+    position = _make_position_dict(member_name="Alice")  # member_id=1 by default
+    group = _make_group_dict(positions=[position])
+    building = _make_building_dict(building_type="stronghold", groups=[group])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(
+        board, "2026-03-20", member_id_to_role={1: MemberRole.heavy_hitter}
+    )
+    assert "#f59e0b" in html
+    assert "Alice" in html
+
+
+def test_build_assignments_html_no_role_map_fallback():
+    """When member_id_to_role is empty the fallback white color is used."""
+    position = _make_position_dict(member_name="Alice")
+    group = _make_group_dict(positions=[position])
+    building = _make_building_dict(building_type="stronghold", groups=[group])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20", member_id_to_role={})
+    assert "Alice" in html
+    assert "#f9fafb" in html
+
+
+def test_build_assignments_html_role_color_on_span_not_background():
+    """The role color appears on the name <span>, not the cell background."""
+    position = _make_position_dict(member_name="Alice")
+    group = _make_group_dict(positions=[position])
+    building = _make_building_dict(building_type="stronghold", groups=[group])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20", member_id_to_role={1: MemberRole.advanced})
+    assert '<span style="color:#a855f7">' in html
+    assert "background:#1f2937" in html
+
+
+# ---------------------------------------------------------------------------
+# Role color tests — _build_reserves_html
+# ---------------------------------------------------------------------------
+
+
+def test_build_reserves_html_advanced_color():
+    """A member with advanced role gets the purple color #a855f7."""
+    members = [_make_member(name="Bob", role=MemberRole.advanced)]
+    html = _build_reserves_html(members, "2026-03-20")
+    assert "#a855f7" in html
+    assert "Bob" in html
+
+
+def test_build_reserves_html_novice_color():
+    """A member with novice role gets the slate color #94a3b8."""
+    members = [_make_member(name="Carol", role=MemberRole.novice)]
+    html = _build_reserves_html(members, "2026-03-20")
+    assert "#94a3b8" in html
+    assert "Carol" in html
+
+
+def test_build_reserves_html_fallback_color():
+    """A member whose role is not in _MEMBER_ROLE_COLORS falls back to #f9fafb."""
+    # Pass a raw SiegeMemberWithName with a role value that won't be in the map.
+    # We patch the member's role attribute to a sentinel not present in the dict.
+    member = _make_member(name="Ghost", role=MemberRole.medium)
+    # Temporarily override role to an unknown value by constructing directly
+    from app.services.image_gen import _MEMBER_ROLE_COLORS
+
+    # Use a role that IS in the map to verify fallback only happens for missing keys.
+    # To test true fallback we remove it temporarily.
+    original = _MEMBER_ROLE_COLORS.pop(MemberRole.medium, None)
+    try:
+        html = _build_reserves_html([member], "2026-03-20")
+        assert "Ghost" in html
+        assert "#f9fafb" in html
+    finally:
+        if original is not None:
+            _MEMBER_ROLE_COLORS[MemberRole.medium] = original

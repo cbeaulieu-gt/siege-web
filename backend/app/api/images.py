@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.session import get_db
+from app.models.enums import MemberRole
 from app.models.siege_member import SiegeMember
 from app.services import board as board_service
 from app.services import image_gen
@@ -49,6 +50,10 @@ async def generate_images(
     )
     siege_members = result.scalars().all()
 
+    member_id_to_role: dict[int, MemberRole] = {
+        sm.member_id: sm.member.role for sm in siege_members if sm.member is not None
+    }
+
     members_with_names = [
         SiegeMemberWithName(
             name=sm.member.name,
@@ -60,7 +65,9 @@ async def generate_images(
         if sm.member is not None
     ]
 
-    assignments_bytes = await image_gen.generate_assignments_image(board, siege_date)
+    assignments_bytes = await image_gen.generate_assignments_image(
+        board, siege_date, member_id_to_role=member_id_to_role
+    )
     reserves_bytes = await image_gen.generate_reserves_image(members_with_names, siege_date)
 
     return GenerateImagesResponse(
