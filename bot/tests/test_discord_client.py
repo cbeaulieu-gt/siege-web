@@ -16,7 +16,12 @@ def _make_bot(guild=None) -> SiegeBot:
     return bot
 
 
-def _make_member(name: str, display_name: str = None, user_id: int = 1) -> MagicMock:
+def _make_member(
+    name: str,
+    display_name: str = None,
+    user_id: int = 1,
+    role_color_value: int = 0,
+) -> MagicMock:
     member = MagicMock()
     member.id = user_id
     member.name = name
@@ -25,6 +30,10 @@ def _make_member(name: str, display_name: str = None, user_id: int = 1) -> Magic
     dm_channel = MagicMock()
     dm_channel.send = AsyncMock()
     member.create_dm.return_value = dm_channel
+    # Simulate discord.py top_role with a color
+    top_role = MagicMock()
+    top_role.color.value = role_color_value
+    member.top_role = top_role
     return member
 
 
@@ -153,3 +162,40 @@ async def test_get_members_returns_correct_dict_format():
     bob = next(m for m in result if m["username"] == "bob")
     assert bob["id"] == "200"
     assert bob["display_name"] == "Bobby"
+
+
+@pytest.mark.asyncio
+async def test_get_members_includes_top_role_color_when_set():
+    """top_role_color is a CSS hex string when the role color value is non-zero."""
+    member = _make_member("alice", user_id=100, role_color_value=0x7C3AED)
+    guild = _make_guild(members=[member])
+    bot = _make_bot(guild=guild)
+
+    result = await bot.get_members()
+
+    assert result[0]["top_role_color"] == "#7c3aed"
+
+
+@pytest.mark.asyncio
+async def test_get_members_top_role_color_none_when_default_color():
+    """top_role_color is None when the role color value is 0 (default/no color)."""
+    member = _make_member("alice", user_id=100, role_color_value=0)
+    guild = _make_guild(members=[member])
+    bot = _make_bot(guild=guild)
+
+    result = await bot.get_members()
+
+    assert result[0]["top_role_color"] is None
+
+
+@pytest.mark.asyncio
+async def test_get_members_top_role_color_none_when_no_top_role():
+    """top_role_color is None when the member has no top_role at all."""
+    member = _make_member("alice", user_id=100)
+    member.top_role = None
+    guild = _make_guild(members=[member])
+    bot = _make_bot(guild=guild)
+
+    result = await bot.get_members()
+
+    assert result[0]["top_role_color"] is None

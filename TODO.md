@@ -40,6 +40,12 @@
   - [x] Create SVG favicon with siege/shield motif
   - [x] Place favicon in `frontend/public/`
   - [x] Add `<link>` tags in `frontend/index.html` (svg + png fallback sizes)
+- [x] Implement #44: color player names by Discord role in generated image
+  - [x] Extend bot `get_members()` to include `top_role_color`
+  - [x] Build member_id→color map in `images.py` and `notifications.py` from bot data
+  - [x] Apply role color to name text in `_build_assignments_html`
+  - [x] Apply role color to name text in `_build_reserves_html`
+  - [x] Update/add tests in `test_image_gen.py` and `test_discord_client.py`
 - [x] Fix #53: missing attack day is a validation error for all siege members
   - [x] Promote Rule 13 from warning → error in `validation.py`
   - [x] Expand scope from assigned members → all siege members

@@ -35,12 +35,14 @@ def _make_member(
     id: int = 1,
     name: str = "Alice",
     discord_username: str | None = "alice#0001",
+    discord_id: str | None = None,
     role: MemberRole = MemberRole.advanced,
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=id,
         name=name,
         discord_username=discord_username,
+        discord_id=discord_id,
         role=role,
         power=None,
         is_active=True,
