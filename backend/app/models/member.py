@@ -19,6 +19,7 @@ class Member(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     discord_username: Mapped[str | None] = mapped_column(String, nullable=True)
+    discord_id: Mapped[str | None] = mapped_column(String, nullable=True, unique=True)
     role: Mapped[MemberRole] = mapped_column(nullable=False)
     power_level: Mapped[str | None] = mapped_column(String(20), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)

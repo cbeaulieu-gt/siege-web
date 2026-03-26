@@ -30,6 +30,12 @@
   - [x] Pre-filter siege members using `bot_client.get_members()` before creating batch rows
   - [x] Add `skipped_count` to `NotifyResponse`
   - [x] Update `test_notifications.py` to cover filtering and `skipped_count`
+- [x] Discord username sync (#49)
+  - [x] Alembic migration: add `discord_id` column to `member` table
+  - [x] Backend: `POST /api/members/discord-sync/preview` — proposed matches, no DB writes
+  - [x] Backend: `POST /api/members/discord-sync/apply` — write accepted matches
+  - [x] Backend tests for both endpoints
+  - [x] Frontend: Discord sync modal/section on MembersPage
 - [x] Add favicon for browser tab (#38)
   - [x] Create SVG favicon with siege/shield motif
   - [x] Place favicon in `frontend/public/`

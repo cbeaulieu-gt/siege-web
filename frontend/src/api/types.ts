@@ -13,9 +13,32 @@ export interface Member {
   id: number;
   name: string;
   discord_username: string | null;
+  discord_id?: string | null;
   role: MemberRole;
   power_level: string | null;
   is_active: boolean;
+}
+
+// Discord sync
+export interface SyncMatch {
+  member_id: number;
+  member_name: string;
+  current_discord_username: string | null;
+  proposed_discord_username: string;
+  proposed_discord_id: string;
+  confidence: 'exact' | 'suggested' | 'ambiguous';
+}
+
+export interface SyncPreviewResponse {
+  matches: SyncMatch[];
+  unmatched_guild_members: string[];
+  unmatched_clan_members: string[];
+}
+
+export interface SyncApplyItem {
+  member_id: number;
+  discord_username: string;
+  discord_id: string;
 }
 
 export interface PostCondition {

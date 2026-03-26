@@ -27,9 +27,40 @@ class MemberUpdate(BaseModel):
 class MemberResponse(MemberBase):
     model_config = {"from_attributes": True}
     id: int
+    discord_id: str | None = None
     is_active: bool
     created_at: datetime
 
 
 class MemberPreferencesUpdate(BaseModel):
     post_condition_ids: list[int]
+
+
+# ---------------------------------------------------------------------------
+# Discord sync schemas
+# ---------------------------------------------------------------------------
+
+
+class SyncMatch(BaseModel):
+    member_id: int
+    member_name: str
+    current_discord_username: str | None
+    proposed_discord_username: str
+    proposed_discord_id: str
+    confidence: str  # "exact" | "suggested" | "ambiguous"
+
+
+class SyncPreviewResponse(BaseModel):
+    matches: list[SyncMatch]
+    unmatched_guild_members: list[str]  # guild usernames with no clan match
+    unmatched_clan_members: list[str]  # clan member names with no guild match
+
+
+class SyncApply(BaseModel):
+    member_id: int
+    discord_username: str
+    discord_id: str
+
+
+class SyncApplyResponse(BaseModel):
+    updated: int

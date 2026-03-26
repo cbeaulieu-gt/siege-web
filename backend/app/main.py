@@ -8,6 +8,7 @@ from app.api.autofill import router as autofill_router
 from app.api.board import router as board_router
 from app.api.buildings import router as buildings_router
 from app.api.comparison import router as comparison_router
+from app.api.discord_sync import router as discord_sync_router
 from app.api.health import router as health_router
 from app.api.images import router as images_router
 from app.api.lifecycle import router as lifecycle_router
@@ -46,6 +47,7 @@ app.add_middleware(
 
 app.include_router(health_router, prefix="/api")
 app.include_router(reference_router, prefix="/api")
+app.include_router(discord_sync_router, prefix="/api")
 app.include_router(members_router, prefix="/api")
 app.include_router(sieges_router, prefix="/api")
 app.include_router(buildings_router, prefix="/api")

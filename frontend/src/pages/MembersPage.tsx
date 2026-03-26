@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, Link } from 'react-router-dom';
 import { getMembers } from '../api/members';
 import type { MemberRole } from '../api/types';
@@ -22,7 +22,8 @@ import {
 } from '../components/ui/select';
 import { Checkbox } from '../components/ui/checkbox';
 import { Label } from '../components/ui/label';
-import { UserPlus, ChevronRight } from 'lucide-react';
+import { UserPlus, ChevronRight, RefreshCw } from 'lucide-react';
+import DiscordSyncModal from '../components/DiscordSyncModal';
 
 const POWER_LABELS: Record<string, string> = {
   lt_10m: '< 10M',
@@ -50,8 +51,10 @@ const ROLE_VARIANTS: Record<MemberRole, RoleBadgeVariant> = {
 
 export default function MembersPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [activeOnly, setActiveOnly] = useState(true);
+  const [syncOpen, setSyncOpen] = useState(false);
 
   const { data: members, isLoading, error } = useQuery({
     queryKey: ['members', activeOnly],
@@ -66,11 +69,26 @@ export default function MembersPage() {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-slate-900">Members</h1>
-        <Button onClick={() => navigate('/members/new')}>
-          <UserPlus className="h-4 w-4" />
-          Add Member
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setSyncOpen(true)}>
+            <RefreshCw className="h-4 w-4" />
+            Sync Discord
+          </Button>
+          <Button onClick={() => navigate('/members/new')}>
+            <UserPlus className="h-4 w-4" />
+            Add Member
+          </Button>
+        </div>
       </div>
+
+      <DiscordSyncModal
+        open={syncOpen}
+        onClose={() => setSyncOpen(false)}
+        onApplied={() => {
+          setSyncOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['members'] });
+        }}
+      />
 
       <div className="mb-4 flex items-center gap-4">
         <div className="w-48">

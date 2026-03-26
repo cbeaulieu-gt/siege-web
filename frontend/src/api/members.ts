@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { Member, PostCondition, MemberRoleInfo } from './types';
+import type { Member, PostCondition, MemberRoleInfo, SyncPreviewResponse, SyncApplyItem } from './types';
 
 export async function getMembers(params?: { is_active?: boolean }): Promise<Member[]> {
   const res = await apiClient.get<Member[]>('/api/members', { params });
@@ -61,5 +61,15 @@ export async function getPostConditions(): Promise<PostCondition[]> {
 
 export async function getMemberRoles(): Promise<MemberRoleInfo[]> {
   const res = await apiClient.get<MemberRoleInfo[]>('/api/members/roles');
+  return res.data;
+}
+
+export async function previewDiscordSync(): Promise<SyncPreviewResponse> {
+  const res = await apiClient.post<SyncPreviewResponse>('/api/members/discord-sync/preview');
+  return res.data;
+}
+
+export async function applyDiscordSync(matches: SyncApplyItem[]): Promise<{ updated: number }> {
+  const res = await apiClient.post<{ updated: number }>('/api/members/discord-sync/apply', matches);
   return res.data;
 }
