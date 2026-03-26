@@ -274,9 +274,7 @@ async def post_to_channel(
     # unreachable so image generation always succeeds (names appear white).
     discord_members = await bot_client.get_members()
     discord_id_to_color: dict[str, str] = {
-        m["id"]: m["top_role_color"]
-        for m in discord_members
-        if m.get("top_role_color") is not None
+        m["id"]: m["top_role_color"] for m in discord_members if m.get("top_role_color") is not None
     }
     member_id_to_color: dict[int, str] = {}
     for sm in siege_members:

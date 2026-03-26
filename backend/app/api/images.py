@@ -54,9 +54,7 @@ async def generate_images(
     # unreachable so image generation always succeeds (names appear white).
     discord_members = await bot_client.get_members()
     discord_id_to_color: dict[str, str] = {
-        m["id"]: m["top_role_color"]
-        for m in discord_members
-        if m.get("top_role_color") is not None
+        m["id"]: m["top_role_color"] for m in discord_members if m.get("top_role_color") is not None
     }
     # Map internal member_id → role color via the member's discord_id field.
     member_id_to_color: dict[int, str] = {}

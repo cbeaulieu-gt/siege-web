@@ -89,7 +89,11 @@ def _build_assignments_html(
                         cell_style = "background:#92400e;color:#fef3c7;"
                         cell_text = "RESERVE"
                     elif pos.member_name:
-                        name_color = _role_colors.get(pos.member_id, "#f9fafb") if pos.member_id is not None else "#f9fafb"
+                        name_color = (
+                            _role_colors.get(pos.member_id, "#f9fafb")
+                            if pos.member_id is not None
+                            else "#f9fafb"
+                        )
                         cell_style = "background:#1f2937;"
                         cell_text = f'<span style="color:{name_color}">{pos.member_name}</span>'
                     else:
@@ -184,7 +188,9 @@ def _build_reserves_html(
             "Yes" if m.has_reserve_set else ("No" if m.has_reserve_set is False else "—")
         )
 
-        name_color = _role_colors.get(m.member_id, "#f9fafb") if m.member_id is not None else "#f9fafb"
+        name_color = (
+            _role_colors.get(m.member_id, "#f9fafb") if m.member_id is not None else "#f9fafb"
+        )
         name_cell = f'<span style="color:{name_color}">{m.name}</span>'
 
         rows_html += f"""
