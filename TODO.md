@@ -10,6 +10,14 @@
   - [x] Add a group label row before each group's positions in `_build_assignments_html`
   - [x] Visual distinction for group headers (background color, label text)
   - [x] Update/add tests in `test_image_gen.py`
+- [x] Fix #59: block notifications when siege has validation errors
+  - [x] Add validate_siege guard in notify_siege_members endpoint
+  - [x] Disable notify button on frontend when errors present
+  - [x] Add/update tests in test_notifications.py
+- [x] Fix #60: notification batch status stuck at pending
+  - [x] Wrap _send_dms in try/finally to guarantee status update
+  - [x] Fix batchDone vacuous-truth bug for empty results arrays
+  - [x] Add/update tests in test_notifications.py
 - [x] Fix building-type color mapping (#43)
   - [x] Update `BUILDING_COLORS` in `BoardPage.tsx` to match spec (SH=red, MT=blue, DT=green, MS=gold, Post=white)
   - [x] Update `_BUILDING_COLORS` in `image_gen.py` to match
