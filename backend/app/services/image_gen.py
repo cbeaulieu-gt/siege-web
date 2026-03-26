@@ -87,7 +87,14 @@ def _build_assignments_html(
         for bldg in sorted(buildings, key=lambda b: b.building_number):
             rows_html = ""
             for group in sorted(bldg.groups, key=lambda g: g.group_number):
-                cells_html = ""
+                # Group label cell — left-aligned, muted color, dark background
+                label_td_style = (
+                    "padding:2px 4px;font-size:10px;color:#94a3b8;"
+                    "background:#1e293b;border:1px solid #374151;"
+                    "white-space:nowrap;"
+                )
+                row_cells = f'<td style="{label_td_style}">Group {group.group_number}</td>'
+
                 for pos in sorted(group.positions, key=lambda p: p.position_number):
                     if pos.is_disabled:
                         cell_style = "background:#374151;color:#9ca3af;"
@@ -108,17 +115,10 @@ def _build_assignments_html(
                     td_style = (
                         "padding:2px 4px;border:1px solid #374151;" f"font-size:11px;{cell_style}"
                     )
-                    cells_html += f'<td style="{td_style}">{cell_text}</td>'
+                    row_cells += f'<td style="{td_style}">{cell_text}</td>'
 
-                header_td_style = (
-                    "padding:2px 4px;font-size:10px;color:#94a3b8;"
-                    "background:#1e293b;border:1px solid #374151;"
-                )
-                rows_html += (
-                    f'<tr><td colspan="20" style="{header_td_style}">'
-                    f"Group {group.group_number}</td></tr>"
-                    f"<tr>{cells_html}</tr>"
-                )
+                # Single row: label cell followed by slot cells
+                rows_html += f"<tr>{row_cells}</tr>"
 
             buildings_html += f"""
             <div style="margin-right:12px;margin-bottom:8px;">
@@ -133,7 +133,7 @@ def _build_assignments_html(
             <div style="background:{color};color:#fff;font-size:12px;font-weight:bold;
                         padding:4px 8px;border-radius:4px 4px 0 0;">{label}</div>
             <div style="background:#0f172a;padding:8px;border-radius:0 0 4px 4px;
-                        display:flex;flex-wrap:wrap;">{buildings_html}</div>
+                        display:flex;flex-wrap:wrap;gap:16px;">{buildings_html}</div>
         </div>"""
 
     return f"""<!DOCTYPE html>
