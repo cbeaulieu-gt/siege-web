@@ -270,20 +270,40 @@ async def post_to_channel(
     )
     siege_members = sm_result.scalars().all()
 
+    # Fetch Discord role colors from bot. Falls back to empty dict if bot is
+    # unreachable so image generation always succeeds (names appear white).
+    discord_members = await bot_client.get_members()
+    discord_id_to_color: dict[str, str] = {
+        m["id"]: m["top_role_color"]
+        for m in discord_members
+        if m.get("top_role_color") is not None
+    }
+    member_id_to_color: dict[int, str] = {}
+    for sm in siege_members:
+        if sm.member is not None and sm.member.discord_id is not None:
+            color = discord_id_to_color.get(sm.member.discord_id)
+            if color is not None:
+                member_id_to_color[sm.member_id] = color
+
     members_with_names = [
         SiegeMemberWithName(
             name=sm.member.name,
             role=sm.member.role,
             attack_day=sm.attack_day,
             has_reserve_set=sm.has_reserve_set,
+            member_id=sm.member_id,
         )
         for sm in siege_members
         if sm.member is not None
     ]
 
     # Generate images
-    assignments_bytes = await image_gen.generate_assignments_image(board, siege_date)
-    reserves_bytes = await image_gen.generate_reserves_image(members_with_names, siege_date)
+    assignments_bytes = await image_gen.generate_assignments_image(
+        board, siege_date, role_colors=member_id_to_color
+    )
+    reserves_bytes = await image_gen.generate_reserves_image(
+        members_with_names, siege_date, role_colors=member_id_to_color
+    )
 
     images_channel = settings.discord_siege_images_channel
     text_channel = settings.discord_siege_channel

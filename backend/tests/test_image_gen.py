@@ -71,9 +71,14 @@ def _make_member(
     role: MemberRole = MemberRole.advanced,
     attack_day: int | None = 1,
     has_reserve_set: bool | None = True,
+    member_id: int | None = None,
 ) -> SiegeMemberWithName:
     return SiegeMemberWithName(
-        name=name, role=role, attack_day=attack_day, has_reserve_set=has_reserve_set
+        name=name,
+        role=role,
+        attack_day=attack_day,
+        has_reserve_set=has_reserve_set,
+        member_id=member_id,
     )
 
 
@@ -246,3 +251,92 @@ def test_build_assignments_html_group_header_before_members():
     assert html.index("Group 1") < html.index("Alice")
     assert html.index("Group 1") < html.index("Group 2")
     assert html.index("Group 2") < html.index("Bob")
+
+
+# ---------------------------------------------------------------------------
+# Role color tests — _build_assignments_html
+# ---------------------------------------------------------------------------
+
+
+def test_build_assignments_html_role_color_applied():
+    """When role_colors maps a member_id to a color, that color appears in the name span."""
+    position = _make_position_dict(member_name="Alice")  # member_id=1 by default
+    group = _make_group_dict(positions=[position])
+    building = _make_building_dict(building_type="stronghold", groups=[group])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20", role_colors={1: "#7c3aed"})
+    assert "#7c3aed" in html
+    assert "Alice" in html
+
+
+def test_build_assignments_html_no_color_fallback():
+    """When role_colors is empty the name is still rendered with the fallback white color."""
+    position = _make_position_dict(member_name="Alice")
+    group = _make_group_dict(positions=[position])
+    building = _make_building_dict(building_type="stronghold", groups=[group])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20", role_colors={})
+    assert "Alice" in html
+    assert "#f9fafb" in html  # fallback color applied
+
+
+def test_build_assignments_html_no_role_colors_param():
+    """Omitting role_colors entirely still renders names with the fallback color."""
+    position = _make_position_dict(member_name="Alice")
+    group = _make_group_dict(positions=[position])
+    building = _make_building_dict(building_type="stronghold", groups=[group])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20")
+    assert "Alice" in html
+    assert "#f9fafb" in html
+
+
+def test_build_assignments_html_role_color_not_applied_to_background():
+    """The role color goes on the name span, not the cell background."""
+    position = _make_position_dict(member_name="Alice")
+    group = _make_group_dict(positions=[position])
+    building = _make_building_dict(building_type="stronghold", groups=[group])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20", role_colors={1: "#7c3aed"})
+    # The role color must appear inside a <span>, not as a background
+    assert '<span style="color:#7c3aed">' in html
+    # The cell background for an assigned member must remain dark gray
+    assert "background:#1f2937" in html
+
+
+# ---------------------------------------------------------------------------
+# Role color tests — _build_reserves_html
+# ---------------------------------------------------------------------------
+
+
+def test_build_reserves_html_role_color_applied():
+    """When role_colors maps a member_id, that color appears in the name span."""
+    members = [_make_member(name="Bob", member_id=42)]
+    html = _build_reserves_html(members, "2026-03-20", role_colors={42: "#7c3aed"})
+    assert "#7c3aed" in html
+    assert "Bob" in html
+
+
+def test_build_reserves_html_no_color_fallback():
+    """When role_colors is empty the fallback white color is applied."""
+    members = [_make_member(name="Bob", member_id=42)]
+    html = _build_reserves_html(members, "2026-03-20", role_colors={})
+    assert "Bob" in html
+    assert "#f9fafb" in html
+
+
+def test_build_reserves_html_no_role_colors_param():
+    """Omitting role_colors entirely still renders names with the fallback color."""
+    members = [_make_member(name="Bob", member_id=42)]
+    html = _build_reserves_html(members, "2026-03-20")
+    assert "Bob" in html
+    assert "#f9fafb" in html
+
+
+def test_build_reserves_html_member_without_id_uses_fallback():
+    """A member with no member_id set renders with the fallback white color."""
+    members = [_make_member(name="Ghost", member_id=None)]
+    html = _build_reserves_html(members, "2026-03-20", role_colors={1: "#7c3aed"})
+    assert "Ghost" in html
+    assert "#f9fafb" in html  # fallback, not #7c3aed
+    assert "#7c3aed" not in html
