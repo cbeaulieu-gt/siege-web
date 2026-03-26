@@ -58,25 +58,25 @@ type BuildingColorClass = {
 
 const BUILDING_COLORS: Record<BuildingType, BuildingColorClass> = {
   stronghold: {
-    header: 'bg-violet-600',
-    headerText: 'text-violet-700',
-    border: 'border-violet-200',
-    bg: 'bg-violet-50',
-    sectionHeader: 'bg-violet-50 border-violet-200 text-violet-800',
+    header: 'bg-red-600',
+    headerText: 'text-red-700',
+    border: 'border-red-200',
+    bg: 'bg-red-50',
+    sectionHeader: 'bg-red-50 border-red-200 text-red-800',
   },
   mana_shrine: {
+    header: 'bg-amber-500',
+    headerText: 'text-amber-700',
+    border: 'border-amber-200',
+    bg: 'bg-amber-50',
+    sectionHeader: 'bg-amber-50 border-amber-200 text-amber-800',
+  },
+  magic_tower: {
     header: 'bg-blue-600',
     headerText: 'text-blue-700',
     border: 'border-blue-200',
     bg: 'bg-blue-50',
     sectionHeader: 'bg-blue-50 border-blue-200 text-blue-800',
-  },
-  magic_tower: {
-    header: 'bg-orange-600',
-    headerText: 'text-orange-700',
-    border: 'border-orange-200',
-    bg: 'bg-orange-50',
-    sectionHeader: 'bg-orange-50 border-orange-200 text-orange-800',
   },
   defense_tower: {
     header: 'bg-green-600',
@@ -86,11 +86,11 @@ const BUILDING_COLORS: Record<BuildingType, BuildingColorClass> = {
     sectionHeader: 'bg-green-50 border-green-200 text-green-800',
   },
   post: {
-    header: 'bg-red-600',
-    headerText: 'text-red-700',
-    border: 'border-red-200',
-    bg: 'bg-red-50',
-    sectionHeader: 'bg-red-50 border-red-200 text-red-800',
+    header: 'bg-slate-500',
+    headerText: 'text-slate-700',
+    border: 'border-slate-200',
+    bg: 'bg-slate-50',
+    sectionHeader: 'bg-slate-50 border-slate-200 text-slate-800',
   },
 };
 
