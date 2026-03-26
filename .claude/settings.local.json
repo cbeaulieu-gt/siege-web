@@ -22,6 +22,7 @@
       "Bash(grep:*)",
       "Bash(wc:*)",
       "Bash(dir:*)",
+      "Bash(pytest:*)",
       "Skill(update-config)",
       "Write",
       "Skill(commit-commands:commit)",
@@ -41,7 +42,19 @@
       "Bash(curl:*)",
       "mcp__azure__acr",
       "mcp__azure__containerapps",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "mcp__plugin_github_github__issue_write",
+      "mcp__plugin_github_github__create_pull_request",
+      "mcp__plugin_github_github__pull_request_read",
+      "mcp__plugin_github_github__list_pull_requests",
+      "Skill(commit-commands:commit-push-pr)",
+      "Bash(gh pr:*)",
+      "Bash(az group:*)",
+      "mcp__plugin_github_github__list_issues",
+      "Bash(gh api:*)",
+      "Bash(.venv/Scripts/pip install:*)",
+      "Bash(.venv/Scripts/python.exe -m pytest tests/ -v)",
+      "Bash(gh issue:*)"
     ]
   },
   "hooks": {

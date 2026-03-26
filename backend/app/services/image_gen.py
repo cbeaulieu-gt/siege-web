@@ -85,7 +85,15 @@ def _build_assignments_html(board: BoardResponse, siege_date: str) -> str:
                     )
                     cells_html += f'<td style="{td_style}">{cell_text}</td>'
 
-                rows_html += f"<tr>{cells_html}</tr>"
+                header_td_style = (
+                    "padding:2px 4px;font-size:10px;color:#94a3b8;"
+                    "background:#1e293b;border:1px solid #374151;"
+                )
+                rows_html += (
+                    f'<tr><td colspan="20" style="{header_td_style}">'
+                    f"Group {group.group_number}</td></tr>"
+                    f"<tr>{cells_html}</tr>"
+                )
 
             buildings_html += f"""
             <div style="margin-right:12px;margin-bottom:8px;">
