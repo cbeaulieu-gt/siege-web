@@ -10,6 +10,13 @@
   - [x] Add a group label row before each group's positions in `_build_assignments_html`
   - [x] Visual distinction for group headers (background color, label text)
   - [x] Update/add tests in `test_image_gen.py`
+- [x] Fix #63: member name color uses Member Role, not Discord role color
+  - [x] Add _MEMBER_ROLE_COLORS constant to image_gen.py
+  - [x] Replace role_colors dict param with member_id_to_role in assignments image
+  - [x] Use m.role directly in reserves image (no dict needed)
+  - [x] Remove bot.get_members() color fetch from images.py and notifications.py
+  - [x] Remove top_role_color from bot get_members()
+  - [x] Update tests in test_image_gen.py and test_discord_client.py
 - [x] Fix #59: block notifications when siege has validation errors
   - [x] Add validate_siege guard in notify_siege_members endpoint
   - [x] Disable notify button on frontend when errors present
