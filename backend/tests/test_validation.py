@@ -632,8 +632,8 @@ async def test_rule11_no_warning_when_no_preferences():
 
 
 @pytest.mark.asyncio
-async def test_rule13_missing_attack_day():
-    """Rule 13: assigned member with no attack_day → warning."""
+async def test_rule13_missing_attack_day_assigned_member():
+    """Rule 13: assigned member with no attack_day → error."""
     member = _make_member(id=1, is_active=True)
     pos = _make_position(id=1, member_id=1, member=member)
     group = _make_group(id=1)
@@ -647,13 +647,29 @@ async def test_rule13_missing_attack_day():
 
     session = _session_with_siege_and_configs(siege)
     result = await svc_validate(session, 1)
-    rule13_warnings = [w for w in result.warnings if w.rule == 13]
-    assert len(rule13_warnings) >= 1
+    rule13_errors = [e for e in result.errors if e.rule == 13]
+    assert len(rule13_errors) >= 1
+
+
+@pytest.mark.asyncio
+async def test_rule13_missing_attack_day_unassigned_member():
+    """Rule 13: siege member not assigned to any position but has no attack_day → error."""
+    member = _make_member(id=1, is_active=True)
+    # No positions reference this member — they are on the roster but unassigned
+    siege = _make_siege(defense_scroll_count=5)
+    siege.buildings = []
+    sm = _make_siege_member(member_id=1, attack_day=None, has_reserve_set=True, member=member)
+    siege.siege_members = [sm]
+
+    session = _session_with_siege_and_configs(siege)
+    result = await svc_validate(session, 1)
+    rule13_errors = [e for e in result.errors if e.rule == 13]
+    assert len(rule13_errors) >= 1
 
 
 @pytest.mark.asyncio
 async def test_rule13_attack_day_set():
-    """Rule 13 pass: assigned member has attack_day set."""
+    """Rule 13 pass: all siege members have attack_day set → no rule 13 error."""
     member = _make_member(id=1, is_active=True)
     pos = _make_position(id=1, member_id=1, member=member)
     group = _make_group(id=1)
@@ -667,8 +683,8 @@ async def test_rule13_attack_day_set():
 
     session = _session_with_siege_and_configs(siege)
     result = await svc_validate(session, 1)
-    rule13_warnings = [w for w in result.warnings if w.rule == 13]
-    assert len(rule13_warnings) == 0
+    rule13_errors = [e for e in result.errors if e.rule == 13]
+    assert len(rule13_errors) == 0
 
 
 @pytest.mark.asyncio

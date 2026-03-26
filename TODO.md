@@ -40,6 +40,10 @@
   - [x] Create SVG favicon with siege/shield motif
   - [x] Place favicon in `frontend/public/`
   - [x] Add `<link>` tags in `frontend/index.html` (svg + png fallback sizes)
+- [x] Fix #53: missing attack day is a validation error for all siege members
+  - [x] Promote Rule 13 from warning → error in `validation.py`
+  - [x] Expand scope from assigned members → all siege members
+  - [x] Update/add tests in `test_validation.py`
 - [x] Author Bicep IaC for production environment
   - [x] New `infra/modules/app-insights.bicep` (workspace-based Application Insights)
   - [x] Updated `infra/modules/log-analytics.bicep` (retentionInDays param + resourceId output)
