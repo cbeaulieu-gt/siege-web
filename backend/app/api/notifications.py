@@ -295,9 +295,7 @@ async def post_to_channel(
     siege_members = sm_result.scalars().all()
 
     member_id_to_role: dict[int, MemberRole] = {
-        sm.member_id: sm.member.role
-        for sm in siege_members
-        if sm.member is not None
+        sm.member_id: sm.member.role for sm in siege_members if sm.member is not None
     }
 
     members_with_names = [
@@ -315,9 +313,7 @@ async def post_to_channel(
     assignments_bytes = await image_gen.generate_assignments_image(
         board, siege_date, member_id_to_role=member_id_to_role
     )
-    reserves_bytes = await image_gen.generate_reserves_image(
-        members_with_names, siege_date
-    )
+    reserves_bytes = await image_gen.generate_reserves_image(members_with_names, siege_date)
 
     images_channel = settings.discord_siege_images_channel
     text_channel = settings.discord_siege_channel

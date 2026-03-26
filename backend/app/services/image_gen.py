@@ -40,9 +40,9 @@ _BUILDING_LABELS: dict[BuildingType, str] = {
 
 _MEMBER_ROLE_COLORS: dict[MemberRole, str] = {
     MemberRole.heavy_hitter: "#f59e0b",
-    MemberRole.advanced:     "#a855f7",
-    MemberRole.medium:       "#3b82f6",
-    MemberRole.novice:       "#94a3b8",
+    MemberRole.advanced: "#a855f7",
+    MemberRole.medium: "#3b82f6",
+    MemberRole.novice: "#94a3b8",
 }
 
 

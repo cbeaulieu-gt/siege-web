@@ -286,9 +286,7 @@ def test_build_assignments_html_role_color_on_span_not_background():
     group = _make_group_dict(positions=[position])
     building = _make_building_dict(building_type="stronghold", groups=[group])
     board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
-    html = _build_assignments_html(
-        board, "2026-03-20", member_id_to_role={1: MemberRole.advanced}
-    )
+    html = _build_assignments_html(board, "2026-03-20", member_id_to_role={1: MemberRole.advanced})
     assert '<span style="color:#a855f7">' in html
     assert "background:#1f2937" in html
 
