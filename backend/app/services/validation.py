@@ -277,17 +277,15 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
                     )
                 )
 
-    # Rule 13: Assigned members with no attack day set
-    assigned_member_ids = set(assignments_by_member.keys())
-    for member_id in assigned_member_ids:
-        sm = sm_by_member.get(member_id)
-        name = sm.member.name if sm and sm.member else "Unknown"
-        if sm is None or sm.attack_day is None:
-            warnings.append(
+    # Rule 13: Any siege member with no attack day set
+    for sm in siege.siege_members:
+        if sm.attack_day is None:
+            name = sm.member.name if sm.member else "Unknown"
+            errors.append(
                 ValidationIssue(
                     rule=13,
-                    message=f"Member '{name}' is assigned to positions but has no attack_day set",
-                    context={"member_id": member_id},
+                    message=f"Member '{name}' has no attack day assigned",
+                    context={"member_id": sm.member_id},
                 )
             )
 
@@ -303,6 +301,7 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
         )
 
     # Rule 15: Assigned members with has_reserve_set = NULL
+    assigned_member_ids = set(assignments_by_member.keys())
     for member_id in assigned_member_ids:
         sm = sm_by_member.get(member_id)
         name = sm.member.name if sm and sm.member else "Unknown"
