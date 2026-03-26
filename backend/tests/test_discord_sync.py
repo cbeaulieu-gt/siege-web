@@ -14,7 +14,6 @@ from httpx import ASGITransport, AsyncClient
 from app.main import app
 from app.schemas.member import SyncApplyResponse, SyncMatch, SyncPreviewResponse
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

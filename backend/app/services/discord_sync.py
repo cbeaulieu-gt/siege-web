@@ -112,8 +112,7 @@ async def preview_discord_sync(session: AsyncSession) -> SyncPreviewResponse:
         # Ambiguous if this clan member has multiple best candidates, OR if
         # any of its best candidates also match another clan member.
         is_ambiguous = len(candidates) > 1 or any(
-            len(guild_id_to_clan_ids.get(gm["id"], [])) > 1
-            for gm, _ in candidates
+            len(guild_id_to_clan_ids.get(gm["id"], [])) > 1 for gm, _ in candidates
         )
 
         confidence = "ambiguous" if is_ambiguous else base_confidence
@@ -143,9 +142,7 @@ async def preview_discord_sync(session: AsyncSession) -> SyncPreviewResponse:
     ]
 
     # Collect unmatched clan members.
-    unmatched_clan_members = [
-        cm.name for cm in clan_members if cm.id not in matched_clan_ids
-    ]
+    unmatched_clan_members = [cm.name for cm in clan_members if cm.id not in matched_clan_ids]
 
     return SyncPreviewResponse(
         matches=matches,
@@ -154,9 +151,7 @@ async def preview_discord_sync(session: AsyncSession) -> SyncPreviewResponse:
     )
 
 
-async def apply_discord_sync(
-    session: AsyncSession, items: list[SyncApply]
-) -> SyncApplyResponse:
+async def apply_discord_sync(session: AsyncSession, items: list[SyncApply]) -> SyncApplyResponse:
     """Apply accepted sync matches, writing discord_username and discord_id.
 
     Unknown member_ids are silently skipped.
