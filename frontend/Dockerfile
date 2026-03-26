@@ -1,6 +1,13 @@
 # Build stage
 FROM node:20-alpine AS build
 
+# Bake the full version string (e.g. 1.0.1+42.abc1234) into the bundle at
+# build time. Vite exposes any VITE_* env var to the app via import.meta.env,
+# so SystemPage.tsx can read it as import.meta.env.VITE_APP_VERSION.
+# Defaults to "unknown" for local builds that don't pass --build-arg.
+ARG VITE_APP_VERSION=unknown
+ENV VITE_APP_VERSION=$VITE_APP_VERSION
+
 WORKDIR /app
 
 COPY package.json package-lock.json* ./

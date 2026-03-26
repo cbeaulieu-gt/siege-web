@@ -54,7 +54,9 @@
       "Bash(gh api:*)",
       "Bash(.venv/Scripts/pip install:*)",
       "Bash(.venv/Scripts/python.exe -m pytest tests/ -v)",
-      "Bash(gh issue:*)"
+      "Bash(gh issue:*)",
+      "WebFetch(domain:discord.com)",
+      "WebFetch(domain:docs.discord.com)"
     ]
   },
   "hooks": {

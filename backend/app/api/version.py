@@ -17,12 +17,26 @@ _VERSION_FILE = Path(__file__).parent.parent.parent / "VERSION"
 
 
 def _read_backend_version() -> str:
-    """Read the version string from the backend VERSION file."""
+    """Return a version string for the backend.
+
+    When both BUILD_NUMBER and GIT_SHA are injected at image build time the
+    string has the form ``1.0.1+42.abc1234`` (semver + build metadata per
+    PEP 440 / SemVer 2 convention).  In local development, where those env
+    vars are absent or set to their ``unknown`` defaults, only the bare semver
+    is returned so the output stays clean.
+    """
     try:
-        return _VERSION_FILE.read_text(encoding="utf-8").strip()
+        semver = _VERSION_FILE.read_text(encoding="utf-8").strip()
     except OSError:
         logger.warning("backend/VERSION not found; defaulting to 'unknown'")
-        return "unknown"
+        semver = "unknown"
+
+    build_number = os.environ.get("BUILD_NUMBER", "unknown")
+    git_sha = os.environ.get("GIT_SHA", "unknown")
+
+    if build_number != "unknown" and git_sha != "unknown":
+        return f"{semver}+{build_number}.{git_sha[:7]}"
+    return semver
 
 
 async def _fetch_bot_version() -> str | None:

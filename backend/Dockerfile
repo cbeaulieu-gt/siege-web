@@ -4,6 +4,8 @@ FROM python:3.12-slim
 # Default to "unknown" when building locally without passing --build-arg.
 ARG GIT_SHA=unknown
 ENV GIT_SHA=$GIT_SHA
+ARG BUILD_NUMBER=unknown
+ENV BUILD_NUMBER=$BUILD_NUMBER
 
 WORKDIR /app
 

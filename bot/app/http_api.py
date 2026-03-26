@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
@@ -52,11 +53,21 @@ class PostMessageRequest(BaseModel):
 
 @app.get("/version")
 async def version() -> dict[str, str]:
-    """Return the bot version — no authentication required."""
+    """Return the bot version — no authentication required.
+
+    Returns ``1.0.1+42.abc1234`` when BUILD_NUMBER and GIT_SHA are present
+    (i.e. in a CI-built image), or just the bare semver in local development.
+    """
     try:
-        ver = _VERSION_FILE.read_text(encoding="utf-8").strip()
+        semver = _VERSION_FILE.read_text(encoding="utf-8").strip()
     except OSError:
-        ver = "unknown"
+        semver = "unknown"
+    build_number = os.environ.get("BUILD_NUMBER", "unknown")
+    git_sha = os.environ.get("GIT_SHA", "unknown")
+    if build_number != "unknown" and git_sha != "unknown":
+        ver = f"{semver}+{build_number}.{git_sha[:7]}"
+    else:
+        ver = semver
     return {"version": ver}
 
 
