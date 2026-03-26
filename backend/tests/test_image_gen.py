@@ -218,3 +218,31 @@ async def test_generate_reserves_image_calls_render():
     mock_render.assert_awaited_once()
     called_html = mock_render.call_args[0][0]
     assert "Siege Members" in called_html
+
+
+# ---------------------------------------------------------------------------
+# Group header rows
+# ---------------------------------------------------------------------------
+
+
+def test_build_assignments_html_group_header_present():
+    """Each group must have a 'Group N' label in the HTML."""
+    group1 = _make_group_dict(group_number=1, positions=[_make_position_dict(member_name="Alice")])
+    group2 = _make_group_dict(group_number=2, positions=[_make_position_dict(member_name="Bob")])
+    building = _make_building_dict(building_type="stronghold", groups=[group1, group2])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20")
+    assert "Group 1" in html
+    assert "Group 2" in html
+
+
+def test_build_assignments_html_group_header_before_members():
+    """Group 1 header must appear before Group 2 header in document order."""
+    group1 = _make_group_dict(group_number=1, positions=[_make_position_dict(member_name="Alice")])
+    group2 = _make_group_dict(group_number=2, positions=[_make_position_dict(member_name="Bob")])
+    building = _make_building_dict(building_type="stronghold", groups=[group1, group2])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20")
+    assert html.index("Group 1") < html.index("Alice")
+    assert html.index("Group 1") < html.index("Group 2")
+    assert html.index("Group 2") < html.index("Bob")

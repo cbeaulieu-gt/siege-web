@@ -16,15 +16,6 @@ Monorepo with three independently containerized services:
 
 Data flow: Azure AD → Easy Auth → frontend (Nginx) → `/api/*` proxy → backend → PostgreSQL. Backend calls bot HTTP API for Discord notifications. Bot uses Playwright for image generation (headless HTML/CSS → PNG).
 
-## Agent Instructions
-
- - Never chain commands with `&&` or `;` when each individual command is already allowed by `Bash(git:*)` or similar rules. Use separate parallel Bash tool calls instead — they run concurrently and don't trigger permission prompts.
-
- - Use software-engineer for all coding related tasks
- - Use code-explorer for summarization, documentation, and explanation of codebase
- - Use project-architect for planning
-
- - Ensure frequent git commits after major milestones or significant changes
  - Keep an STATUS.md file with a high level summary of the state of the project and the anticipated next steps. Frequently update it W
 
 ## Common Commands
@@ -138,3 +129,4 @@ Key domain docs (read before implementing business logic):
 - **Image generation**: Playwright headless HTML/CSS → PNG — `project_image_generation.md`
 - **Notifications**: async DM batches tracked via `NotificationBatch` + `NotificationBatchResult` DB tables — `project_notifications.md`
 - **Excel import**: one-time backend CLI script only, no UI or API endpoint — `project_excel_import.md`
+
