@@ -183,7 +183,9 @@ async def test_notify_returns_batch_id(client):
             return_value=[{"username": "alice#0001"}],
         ):
             with patch("app.api.notifications.NotificationBatch") as MockBatch:
-                instance = SimpleNamespace(id=10, siege_id=1, status=NotificationBatchStatus.pending)
+                instance = SimpleNamespace(
+                    id=10, siege_id=1, status=NotificationBatchStatus.pending
+                )
                 instance.status = NotificationBatchStatus.pending
                 instance.id = 10
                 MockBatch.return_value = instance
@@ -579,9 +581,7 @@ async def test_notify_skips_member_with_no_discord_username(client):
                 MockBatch.return_value = SimpleNamespace(
                     id=10, siege_id=1, status=NotificationBatchStatus.pending
                 )
-                with patch(
-                    "app.api.notifications.NotificationBatchResult"
-                ) as MockResult:
+                with patch("app.api.notifications.NotificationBatchResult") as MockResult:
                     with patch("app.api.notifications._send_dms"):
                         async with client as c:
                             response = await c.post("/api/sieges/1/notify")
@@ -634,9 +634,7 @@ async def test_notify_skips_member_not_in_guild(client):
                 MockBatch.return_value = SimpleNamespace(
                     id=10, siege_id=1, status=NotificationBatchStatus.pending
                 )
-                with patch(
-                    "app.api.notifications.NotificationBatchResult"
-                ) as MockResult:
+                with patch("app.api.notifications.NotificationBatchResult") as MockResult:
                     with patch("app.api.notifications._send_dms"):
                         async with client as c:
                             response = await c.post("/api/sieges/1/notify")
@@ -692,12 +690,8 @@ async def test_notify_eligible_member_gets_result_row_and_dm(client):
                 MockBatch.return_value = SimpleNamespace(
                     id=10, siege_id=1, status=NotificationBatchStatus.pending
                 )
-                with patch(
-                    "app.api.notifications.NotificationBatchResult"
-                ) as MockResult:
-                    with patch(
-                        "app.api.notifications._send_dms", side_effect=fake_send_dms
-                    ):
+                with patch("app.api.notifications.NotificationBatchResult") as MockResult:
+                    with patch("app.api.notifications._send_dms", side_effect=fake_send_dms):
                         async with client as c:
                             response = await c.post("/api/sieges/1/notify")
 
@@ -733,9 +727,7 @@ async def test_notify_skipped_count_reflects_all_skipped_members(client):
 
     mock_session = MagicMock()
     sm_result = MagicMock()
-    sm_result.scalars.return_value.all.return_value = [
-        sm_eligible, sm_no_username, sm_not_in_guild
-    ]
+    sm_result.scalars.return_value.all.return_value = [sm_eligible, sm_no_username, sm_not_in_guild]
     mock_session.execute = AsyncMock(return_value=sm_result)
     mock_session.add = MagicMock()
     mock_session.flush = AsyncMock()
@@ -767,7 +759,7 @@ async def test_notify_skipped_count_reflects_all_skipped_members(client):
     app.dependency_overrides.clear()
     assert response.status_code == 200
     data = response.json()
-    assert data["member_count"] == 1   # only alice
+    assert data["member_count"] == 1  # only alice
     assert data["skipped_count"] == 2  # no-username + not-in-guild
 
 
@@ -817,9 +809,7 @@ async def test_notify_bot_unreachable_falls_back_to_username_filter(client):
                 MockBatch.return_value = SimpleNamespace(
                     id=10, siege_id=1, status=NotificationBatchStatus.pending
                 )
-                with patch(
-                    "app.api.notifications.NotificationBatchResult"
-                ) as MockResult:
+                with patch("app.api.notifications.NotificationBatchResult") as MockResult:
                     with patch("app.api.notifications._send_dms"):
                         async with client as c:
                             response = await c.post("/api/sieges/1/notify")
