@@ -154,7 +154,6 @@ def test_build_reserves_html_contains_member():
     members = [_make_member(name="Bob", attack_day=1)]
     html = _build_reserves_html(members, "2026-03-20")
     assert "Bob" in html
-    assert "ADV" in html
 
 
 def test_build_reserves_html_day1_color():
@@ -169,20 +168,18 @@ def test_build_reserves_html_day2_color():
     assert "#fb923c" in html  # orange for day 2
 
 
-def test_build_reserves_html_role_abbreviations():
-    from app.models.enums import MemberRole
-
+def test_build_reserves_html_no_role_column():
+    """Role column must not appear in the rendered HTML."""
     members = [
-        _make_member(name="HH", role=MemberRole.heavy_hitter),
-        _make_member(name="ADV", role=MemberRole.advanced),
-        _make_member(name="MED", role=MemberRole.medium),
-        _make_member(name="NOV", role=MemberRole.novice),
+        _make_member(name="Alice", role=MemberRole.heavy_hitter),
+        _make_member(name="Bob", role=MemberRole.advanced),
     ]
     html = _build_reserves_html(members, "2026-03-20")
-    assert "HH" in html
-    assert "ADV" in html
-    assert "MED" in html
-    assert "NOV" in html
+    assert "Role" not in html
+    assert "HH" not in html
+    assert "ADV" not in html
+    assert "MED" not in html
+    assert "NOV" not in html
 
 
 # ---------------------------------------------------------------------------

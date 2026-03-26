@@ -30,13 +30,6 @@ _BUILDING_COLORS: dict[BuildingType, str] = {
     BuildingType.post: "#dc2626",
 }
 
-_ROLE_ABBREV: dict[MemberRole, str] = {
-    MemberRole.heavy_hitter: "HH",
-    MemberRole.advanced: "ADV",
-    MemberRole.medium: "MED",
-    MemberRole.novice: "NOV",
-}
-
 _BUILDING_LABELS: dict[BuildingType, str] = {
     BuildingType.stronghold: "Stronghold",
     BuildingType.mana_shrine: "Mana Shrine",
@@ -152,12 +145,10 @@ def _build_reserves_html(members: list[SiegeMemberWithName], siege_date: str) ->
         reserve_label = (
             "Yes" if m.has_reserve_set else ("No" if m.has_reserve_set is False else "—")
         )
-        role_abbrev = _ROLE_ABBREV.get(m.role, str(m.role))
 
         rows_html += f"""
         <tr>
             <td style="padding:4px 8px;border:1px solid #374151;">{m.name}</td>
-            <td style="padding:4px 8px;border:1px solid #374151;color:#9ca3af;">{role_abbrev}</td>
             <td style="padding:4px 8px;border:1px solid #374151;{day_style}">{day_label}</td>
             <td style="padding:4px 8px;border:1px solid #374151;color:#9ca3af;">{reserve_label}</td>
         </tr>"""
@@ -207,7 +198,6 @@ def _build_reserves_html(members: list[SiegeMemberWithName], siege_date: str) ->
     <thead>
       <tr>
         <th>Name</th>
-        <th>Role</th>
         <th>Attack Day</th>
         <th>Has Reserve Set</th>
       </tr>
