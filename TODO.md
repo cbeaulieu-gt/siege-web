@@ -6,10 +6,14 @@
 - [x] Write Vitest component tests: BoardPage (position cell states, context menu actions, member bucket) and notification polling (SiegeSettingsPage)
 - [x] Fix issue #37: capture Discord CDN URLs and post image links to clan-siege-assignments (PR #41)
 - [x] Fix issue #35: remove Member Role column from reserves image (PR #42)
-- [ ] Fix issue #36: show assignments grouped by Group in the image
+- [x] Fix issue #36: show assignments grouped by Group in the image
   - [x] Add a group label row before each group's positions in `_build_assignments_html`
   - [x] Visual distinction for group headers (background color, label text)
   - [x] Update/add tests in `test_image_gen.py`
+- [x] Fix #55: redesign assignments image layout — single-row groups, buildings side by side
+  - [x] Collapse group header + slot rows into single row with group label cell
+  - [x] Render buildings of the same type side by side with gap
+  - [x] Update/add tests in test_image_gen.py
 - [x] Fix building-type color mapping (#43)
   - [x] Update `BUILDING_COLORS` in `BoardPage.tsx` to match spec (SH=red, MT=blue, DT=green, MS=gold, Post=white)
   - [x] Update `_BUILDING_COLORS` in `image_gen.py` to match

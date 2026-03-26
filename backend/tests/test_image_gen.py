@@ -246,3 +246,58 @@ def test_build_assignments_html_group_header_before_members():
     assert html.index("Group 1") < html.index("Alice")
     assert html.index("Group 1") < html.index("Group 2")
     assert html.index("Group 2") < html.index("Bob")
+
+
+def test_build_assignments_html_single_row_per_group():
+    """Group label and slot cells must appear in the same <tr>, not separate rows.
+
+    The old layout emitted two <tr> elements per group: one colspan header row
+    followed by one slot row.  The new layout collapses them into a single <tr>
+    whose first <td> is the group label.
+    """
+    position = _make_position_dict(member_name="Alice")
+    group = _make_group_dict(group_number=1, positions=[position])
+    building = _make_building_dict(building_type="stronghold", groups=[group])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20")
+
+    # "Group 1" label and "Alice" must sit inside the same <tr>...</tr> block.
+    # Find the <tr> that contains "Group 1" and assert "Alice" is also in it.
+    import re
+
+    rows = re.findall(r"<tr>(.*?)</tr>", html, re.DOTALL)
+    group1_rows = [r for r in rows if "Group 1" in r]
+    assert len(group1_rows) == 1, "Expected exactly one <tr> containing 'Group 1'"
+    assert "Alice" in group1_rows[0], "Slot cell must be in the same <tr> as the group label"
+
+    # Ensure there is no colspan spanning header row separate from slot cells.
+    # The old pattern was colspan="20" on a standalone header row.
+    assert 'colspan="20"' not in html, "No standalone colspan header row should exist"
+
+
+def test_build_assignments_html_buildings_side_by_side():
+    """Two buildings of the same type must both render and the section must use flex layout.
+
+    Buildings of the same type are placed side by side via display:flex on the
+    section wrapper, so both building headers should appear and the wrapper must
+    carry the flex + gap styles.
+    """
+    group_a = _make_group_dict(group_number=1, positions=[_make_position_dict(member_name="Alice")])
+    group_b = _make_group_dict(group_number=1, positions=[_make_position_dict(member_name="Bob")])
+    building1 = _make_building_dict(
+        building_type="stronghold", building_number=1, level=3, groups=[group_a]
+    )
+    building2 = _make_building_dict(
+        building_type="stronghold", building_number=2, level=2, groups=[group_b]
+    )
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building1, building2]})
+    html = _build_assignments_html(board, "2026-03-20")
+
+    # Both building headers must be present
+    assert "#1 (Lv 3)" in html
+    assert "#2 (Lv 2)" in html
+
+    # The section wrapper must carry flex + gap layout so buildings sit side by side
+    assert "display:flex" in html
+    assert "flex-wrap:wrap" in html
+    assert "gap:16px" in html
