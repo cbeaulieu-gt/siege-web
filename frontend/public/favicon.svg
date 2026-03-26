@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Shield body -->
+  <path d="M16 2 L30 7 L30 18 Q30 26 16 31 Q2 26 2 18 L2 7 Z"
+        fill="#7c3aed" stroke="#5b21b6" stroke-width="1.5"/>
+  <!-- Vertical blade -->
+  <rect x="14.5" y="7" width="3" height="16" rx="1" fill="#f9fafb"/>
+  <!-- Horizontal crossguard -->
+  <rect x="9" y="13" width="14" height="3" rx="1" fill="#f9fafb"/>
+  <!-- Pommel -->
+  <circle cx="16" cy="25" r="1.5" fill="#f9fafb"/>
+</svg>
