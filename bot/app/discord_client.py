@@ -59,24 +59,13 @@ class SiegeBot(discord.Client):
         return msg.attachments[0].url
 
     async def get_members(self) -> list[dict]:
-        """Return list of guild members as dicts with id, username, display_name, top_role_color.
-
-        ``top_role_color`` is a CSS hex string (e.g. ``"#7c3aed"``) when the
-        member's top role has a non-default color, otherwise ``None``.
-        discord.py represents "no color" as color value ``0`` — that is treated
-        as absent so callers can fall back to a default.
-        """
+        """Return list of guild members as dicts with id, username, and display_name."""
         guild = self._require_guild()
         return [
             {
                 "id": str(m.id),
                 "username": m.name,
                 "display_name": m.display_name,
-                "top_role_color": (
-                    f"#{m.top_role.color.value:06x}"
-                    if m.top_role and m.top_role.color.value != 0
-                    else None
-                ),
             }
             for m in guild.members
         ]
