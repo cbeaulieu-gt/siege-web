@@ -10,6 +10,10 @@
   - [x] Add a group label row before each group's positions in `_build_assignments_html`
   - [x] Visual distinction for group headers (background color, label text)
   - [x] Update/add tests in `test_image_gen.py`
+- [x] Add favicon for browser tab (#38)
+  - [x] Create SVG favicon with siege/shield motif
+  - [x] Place favicon in `frontend/public/`
+  - [x] Add `<link>` tags in `frontend/index.html` (svg + png fallback sizes)
 - [x] Author Bicep IaC for production environment
   - [x] New `infra/modules/app-insights.bicep` (workspace-based Application Insights)
   - [x] Updated `infra/modules/log-analytics.bicep` (retentionInDays param + resourceId output)
