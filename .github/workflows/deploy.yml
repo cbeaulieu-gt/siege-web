@@ -153,7 +153,26 @@ jobs:
       - name: Build and push ${{ matrix.service }}
         run: |
           IMAGE=${{ vars.ACR_LOGIN_SERVER }}/${{ matrix.service }}
-          docker build --build-arg GIT_SHA=${{ github.sha }} -t "${IMAGE}:${{ github.sha }}" ${{ matrix.context }}
+          BUILD_NUM=${{ github.run_number }}
+          SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+
+          # The frontend bakes VITE_APP_VERSION into the JS bundle at build time
+          # (Vite replaces import.meta.env.VITE_APP_VERSION statically).
+          # Other services receive it as an unused build-arg so the same docker
+          # build command works across all matrix legs without branching.
+          if [ "${{ matrix.service }}" = "siege-frontend" ]; then
+            BASE_VER=$(node -p "require('./frontend/package.json').version")
+            VITE_APP_VERSION="${BASE_VER}+${BUILD_NUM}.${SHORT_SHA}"
+          else
+            VITE_APP_VERSION="unused"
+          fi
+
+          docker build \
+            --build-arg GIT_SHA=${{ github.sha }} \
+            --build-arg BUILD_NUMBER=${BUILD_NUM} \
+            --build-arg VITE_APP_VERSION=${VITE_APP_VERSION} \
+            -t "${IMAGE}:${{ github.sha }}" \
+            ${{ matrix.context }}
           docker push "${IMAGE}:${{ github.sha }}"
 
 # ── Deploy API (dev) ───────────────────────────────────────────────────────────

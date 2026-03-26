@@ -1,7 +1,8 @@
 """Tests for the bot HTTP API endpoints."""
 
+from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -32,6 +33,99 @@ def _make_mock_bot(ready: bool = True) -> MagicMock:
     bot.post_image = AsyncMock()
     bot.get_members = AsyncMock(return_value=[])
     return bot
+
+
+# ---------------------------------------------------------------------------
+# GET /version
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_version_returns_200(client):
+    """GET /version responds 200 with a 'version' key."""
+    async with client as c:
+        response = await c.get("/version")
+    assert response.status_code == 200
+    data = response.json()
+    assert "version" in data
+
+
+@pytest.mark.asyncio
+async def test_version_bare_semver_in_local_dev(client, monkeypatch, tmp_path):
+    """When BUILD_NUMBER / GIT_SHA are absent the version is the bare semver."""
+    version_file = tmp_path / "VERSION"
+    version_file.write_text("2.3.4")
+    monkeypatch.delenv("BUILD_NUMBER", raising=False)
+    monkeypatch.delenv("GIT_SHA", raising=False)
+
+    original = http_api_module._VERSION_FILE
+    http_api_module._VERSION_FILE = version_file
+    try:
+        async with client as c:
+            response = await c.get("/version")
+    finally:
+        http_api_module._VERSION_FILE = original
+
+    assert response.status_code == 200
+    assert response.json()["version"] == "2.3.4"
+
+
+@pytest.mark.asyncio
+async def test_version_includes_build_suffix_when_env_vars_set(client, monkeypatch, tmp_path):
+    """When BUILD_NUMBER and GIT_SHA are set, version is 'semver+build.sha7'."""
+    version_file = tmp_path / "VERSION"
+    version_file.write_text("1.0.1")
+    monkeypatch.setenv("BUILD_NUMBER", "42")
+    monkeypatch.setenv("GIT_SHA", "abc1234567890")
+
+    original = http_api_module._VERSION_FILE
+    http_api_module._VERSION_FILE = version_file
+    try:
+        async with client as c:
+            response = await c.get("/version")
+    finally:
+        http_api_module._VERSION_FILE = original
+
+    assert response.status_code == 200
+    assert response.json()["version"] == "1.0.1+42.abc1234"
+
+
+@pytest.mark.asyncio
+async def test_version_unknown_when_version_file_missing(client, monkeypatch, tmp_path):
+    """When the VERSION file is absent, semver falls back to 'unknown'."""
+    monkeypatch.delenv("BUILD_NUMBER", raising=False)
+    monkeypatch.delenv("GIT_SHA", raising=False)
+
+    original = http_api_module._VERSION_FILE
+    http_api_module._VERSION_FILE = tmp_path / "NONEXISTENT"
+    try:
+        async with client as c:
+            response = await c.get("/version")
+    finally:
+        http_api_module._VERSION_FILE = original
+
+    assert response.status_code == 200
+    assert response.json()["version"] == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_version_bare_semver_when_env_vars_are_unknown_literal(client, monkeypatch, tmp_path):
+    """Env vars explicitly set to 'unknown' should yield bare semver (no suffix)."""
+    version_file = tmp_path / "VERSION"
+    version_file.write_text("1.2.3")
+    monkeypatch.setenv("BUILD_NUMBER", "unknown")
+    monkeypatch.setenv("GIT_SHA", "unknown")
+
+    original = http_api_module._VERSION_FILE
+    http_api_module._VERSION_FILE = version_file
+    try:
+        async with client as c:
+            response = await c.get("/version")
+    finally:
+        http_api_module._VERSION_FILE = original
+
+    assert response.status_code == 200
+    assert response.json()["version"] == "1.2.3"
 
 
 # ---------------------------------------------------------------------------

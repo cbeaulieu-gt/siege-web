@@ -14,6 +14,14 @@
   - [x] Update `BUILDING_COLORS` in `BoardPage.tsx` to match spec (SH=red, MT=blue, DT=green, MS=gold, Post=white)
   - [x] Update `_BUILDING_COLORS` in `image_gen.py` to match
   - [x] Update `test_build_assignments_html_all_building_types_colored` with new hex values
+- [x] Add build numbers to versioning (#32)
+  - [x] `deploy.yml`: pass `BUILD_NUMBER` and `VITE_APP_VERSION` build args to all services
+  - [x] `backend/Dockerfile`: accept `ARG BUILD_NUMBER`
+  - [x] `backend/app/api/version.py`: assemble `{semver}+{BUILD_NUMBER}.{sha[:7]}` version string
+  - [x] `bot/Dockerfile`: accept `ARG GIT_SHA` and `ARG BUILD_NUMBER`
+  - [x] `bot/app/http_api.py`: include build number in `/version` response
+  - [x] `frontend/Dockerfile`: accept `ARG VITE_APP_VERSION` and pass to build stage
+  - [x] Add tests for backend and bot version endpoints
 - [x] Add favicon for browser tab (#38)
   - [x] Create SVG favicon with siege/shield motif
   - [x] Place favicon in `frontend/public/`
