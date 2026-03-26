@@ -91,26 +91,19 @@ async def _send_dms(batch_id: int, members_data: list[dict]) -> None:
                     result.error = error_text
                     result.sent_at = sent_at
 
+        finally:
+            # Always mark the batch completed, even if an exception occurs mid-loop.
+            # BackgroundTasks swallow exceptions silently, so try/except alone cannot
+            # guarantee completion — the except block itself may throw and leave the
+            # batch stuck in "pending". try/finally is unconditional and runs whether
+            # the try block succeeded or raised.
             batch_row = await session.execute(
                 select(NotificationBatch).where(NotificationBatch.id == batch_id)
             )
             batch = batch_row.scalar_one_or_none()
             if batch is not None:
                 batch.status = NotificationBatchStatus.completed
-
             await session.commit()
-        except Exception:
-            # Guarantee the batch is marked completed even if a mid-loop exception
-            # occurs. BackgroundTasks swallow exceptions silently, so without this
-            # the batch would remain "pending" forever.
-            batch_row = await session.execute(
-                select(NotificationBatch).where(NotificationBatch.id == batch_id)
-            )
-            batch = batch_row.scalar_one_or_none()
-            if batch is not None and batch.status == NotificationBatchStatus.pending:
-                batch.status = NotificationBatchStatus.completed
-            await session.commit()
-            raise
 
 
 # ---------------------------------------------------------------------------
