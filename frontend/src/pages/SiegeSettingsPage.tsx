@@ -72,6 +72,7 @@ export default function SiegeSettingsPage() {
   const [notifyBatch, setNotifyBatch] = useState<NotifyResponse | null>(null);
   const [postChannelResult, setPostChannelResult] = useState<string | null>(null);
   const [postChannelError, setPostChannelError] = useState<string | null>(null);
+  const [notifyError, setNotifyError] = useState<string | null>(null);
   const [generatedImages, setGeneratedImages] = useState<{
     assignments_image: string;
     reserves_image: string;
@@ -112,6 +113,11 @@ export default function SiegeSettingsPage() {
       setDate(siege.date ?? '');
     }
   }, [siege]);
+
+  // Eagerly run validation on mount so the Notify button is correctly gated
+  // even if the user hasn't manually clicked "Validate" in this session.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { validateMutation.mutate(); }, [siegeId]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -204,6 +210,13 @@ export default function SiegeSettingsPage() {
     mutationFn: () => notifySiegeMembers(siegeId),
     onSuccess: (data) => {
       setNotifyBatch(data);
+      setNotifyConfirmOpen(false);
+      setNotifyError(null);
+    },
+    onError: (err) => {
+      setNotifyError(
+        isAxiosError(err) ? (err.response?.data?.detail ?? 'Failed to send notifications.') : 'Failed to send notifications.',
+      );
       setNotifyConfirmOpen(false);
     },
   });
@@ -391,6 +404,13 @@ export default function SiegeSettingsPage() {
 
         {/* Results / status areas */}
         <div className="space-y-4">
+          {/* Notify error (e.g. 400 from validation guard) */}
+          {notifyError && (
+            <p className="flex items-center gap-1 text-sm text-red-600">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {notifyError}
+            </p>
+          )}
           {/* Notify Members batch results */}
           {notifyBatch && (
             <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
