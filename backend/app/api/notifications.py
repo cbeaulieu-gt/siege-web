@@ -91,6 +91,8 @@ async def _send_dms(batch_id: int, members_data: list[dict]) -> None:
                     result.error = error_text
                     result.sent_at = sent_at
 
+            await session.commit()
+
         finally:
             # Always mark the batch completed via a FRESH, INDEPENDENT session.
             # If the try block raised a SQLAlchemy-level error (e.g. a DB connection
