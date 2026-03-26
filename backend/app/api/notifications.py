@@ -92,18 +92,21 @@ async def _send_dms(batch_id: int, members_data: list[dict]) -> None:
                     result.sent_at = sent_at
 
         finally:
-            # Always mark the batch completed, even if an exception occurs mid-loop.
-            # BackgroundTasks swallow exceptions silently, so try/except alone cannot
-            # guarantee completion — the except block itself may throw and leave the
-            # batch stuck in "pending". try/finally is unconditional and runs whether
-            # the try block succeeded or raised.
-            batch_row = await session.execute(
-                select(NotificationBatch).where(NotificationBatch.id == batch_id)
-            )
-            batch = batch_row.scalar_one_or_none()
-            if batch is not None:
-                batch.status = NotificationBatchStatus.completed
-            await session.commit()
+            # Always mark the batch completed via a FRESH, INDEPENDENT session.
+            # If the try block raised a SQLAlchemy-level error (e.g. a DB connection
+            # blip during session.execute), the original `session` enters a "needs
+            # rollback" state. Any subsequent operation on that same session raises
+            # PendingRollbackError, which BackgroundTasks swallows silently — leaving
+            # the batch stuck at "pending" forever. Opening a new AsyncSessionLocal()
+            # here is fully isolated from that error state and always succeeds.
+            async with AsyncSessionLocal() as status_session:
+                batch_row = await status_session.execute(
+                    select(NotificationBatch).where(NotificationBatch.id == batch_id)
+                )
+                batch = batch_row.scalar_one_or_none()
+                if batch is not None:
+                    batch.status = NotificationBatchStatus.completed
+                await status_session.commit()
 
 
 # ---------------------------------------------------------------------------
