@@ -99,8 +99,6 @@ async def preview_discord_sync(session: AsyncSession) -> SyncPreviewResponse:
     matched_guild_ids: set[str] = set()
     matches: list[SyncMatch] = []
 
-    clan_member_by_id = {cm.id: cm for cm in clan_members}
-
     for cm in clan_members:
         candidates = clan_to_candidates.get(cm.id)
         if not candidates:

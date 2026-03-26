@@ -4,7 +4,6 @@ All tests mock the service layer (discord_sync_service) and/or bot_client.get_me
 so that no real DB or bot connection is required.
 """
 
-import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
