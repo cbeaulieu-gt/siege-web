@@ -4,20 +4,25 @@ from datetime import UTC, datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.db.session import AsyncSessionLocal, get_db
+from app.models.building import Building
+from app.models.building_group import BuildingGroup
 from app.models.enums import MemberRole, NotificationBatchStatus, SiegeStatus
 from app.models.notification_batch import NotificationBatch
 from app.models.notification_batch_result import NotificationBatchResult
+from app.models.position import Position
+from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 from app.services import board as board_service
 from app.services import image_gen
 from app.services.bot_client import bot_client
 from app.services.image_gen import SiegeMemberWithName
+from app.services.notification_message import PositionInfo, build_member_notification_message
 from app.services.sieges import get_siege
 from app.services.validation import validate_siege
 
@@ -91,6 +96,8 @@ async def _send_dms(batch_id: int, members_data: list[dict]) -> None:
                     result.error = error_text
                     result.sent_at = sent_at
 
+            await session.commit()
+
         finally:
             # Always mark the batch completed via a FRESH, INDEPENDENT session.
             # If the try block raised a SQLAlchemy-level error (e.g. a DB connection
@@ -162,15 +169,87 @@ async def notify_siege_members(
         else:
             eligible.append(sm)
 
+    # Query the most recent completed siege before this one for diff comparison.
+    prev_result = await db.execute(
+        select(Siege)
+        .where(Siege.date < siege.date, Siege.status == SiegeStatus.complete)
+        .order_by(Siege.date.desc())
+        .limit(1)
+    )
+    previous_siege = prev_result.scalar_one_or_none()
+
+    # Bulk-query current positions for all eligible members.
+    eligible_member_ids = [sm.member_id for sm in eligible]
+    current_pos_result = await db.execute(
+        select(Position, BuildingGroup, Building)
+        .join(BuildingGroup, Position.building_group_id == BuildingGroup.id)
+        .join(Building, BuildingGroup.building_id == Building.id)
+        .where(
+            Building.siege_id == siege_id,
+            Position.member_id.in_(eligible_member_ids),
+            Position.is_reserve == False,  # noqa: E712
+            Position.is_disabled == False,  # noqa: E712
+            Position.member_id.isnot(None),
+        )
+    )
+    current_positions_by_member: dict[int, list[PositionInfo]] = {}
+    for pos, grp, bldg in current_pos_result.all():
+        info = PositionInfo(
+            building_type=bldg.building_type,
+            building_number=bldg.building_number,
+            group_number=grp.group_number,
+            position_number=pos.position_number,
+        )
+        current_positions_by_member.setdefault(pos.member_id, []).append(info)
+
+    # Bulk-query previous positions for all eligible members (if a previous siege exists).
+    previous_positions_by_member: dict[int, list[PositionInfo]] = {}
+    if previous_siege is not None:
+        prev_pos_result = await db.execute(
+            select(Position, BuildingGroup, Building)
+            .join(BuildingGroup, Position.building_group_id == BuildingGroup.id)
+            .join(Building, BuildingGroup.building_id == Building.id)
+            .where(
+                Building.siege_id == previous_siege.id,
+                Position.member_id.in_(eligible_member_ids),
+                Position.is_reserve == False,  # noqa: E712
+                Position.is_disabled == False,  # noqa: E712
+                Position.member_id.isnot(None),
+            )
+        )
+        for pos, grp, bldg in prev_pos_result.all():
+            info = PositionInfo(
+                building_type=bldg.building_type,
+                building_number=bldg.building_number,
+                group_number=grp.group_number,
+                position_number=pos.position_number,
+            )
+            previous_positions_by_member.setdefault(pos.member_id, []).append(info)
+
+    # Count how many buildings of each type exist in the current siege.
+    btype_count_result = await db.execute(
+        select(Building.building_type, func.count(Building.id))
+        .where(Building.siege_id == siege_id)
+        .group_by(Building.building_type)
+    )
+    building_type_counts = {row[0]: row[1] for row in btype_count_result.all()}
+
     # Create batch
     batch = NotificationBatch(siege_id=siege_id, status=NotificationBatchStatus.pending)
     db.add(batch)
     await db.flush()
 
-    # Create result rows only for eligible members
-    message = "Siege assignments are ready! Check the latest siege board at <URL>."
+    # Create result rows for eligible members and build per-member messages.
     members_data: list[dict] = []
     for sm in eligible:
+        message = build_member_notification_message(
+            siege_date=siege.date.isoformat(),
+            has_reserve_set=sm.has_reserve_set,
+            attack_day=sm.attack_day,
+            current_positions=current_positions_by_member.get(sm.member_id, []),
+            previous_positions=previous_positions_by_member.get(sm.member_id, []),
+            building_type_counts=building_type_counts,
+        )
         result_row = NotificationBatchResult(
             batch_id=batch.id,
             member_id=sm.member_id,
