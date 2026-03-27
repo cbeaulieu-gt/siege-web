@@ -179,11 +179,16 @@ def _build_assignments_html(
 
                 # Building number as a spanning <thead> row; no standalone header <div>
                 bldg_header = f"#{bldg.building_number}{' [broken]' if bldg.is_broken else ''}"
-                thead_html = f'<thead><tr><th colspan="99" style="{th_style}">{bldg_header}</th></tr></thead>'
+                thead_html = (
+                    f'<thead><tr><th colspan="99" style="{th_style}">'
+                    f"{bldg_header}</th></tr></thead>"
+                )
                 buildings_html += f"""
             <div style="margin-right:12px;margin-bottom:8px;">
-                <table style="border-collapse:collapse;">{thead_html}<tbody>{rows_html}</tbody></table>
-            </div>"""
+                <table style="border-collapse:collapse;">{thead_html}"""
+                buildings_html += (
+                    f"<tbody>{rows_html}</tbody></table>\n            </div>"
+                )
 
         sections_html += f"""
         <div style="margin-bottom:16px;">
