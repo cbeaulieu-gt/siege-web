@@ -108,6 +108,10 @@ export default function SiegeSettingsPage() {
     },
   });
 
+  const batchInProgress =
+    notifyBatch !== null &&
+    !batchDone(batchData?.results ?? [], batchData?.status ?? notifyBatch?.status ?? '');
+
   useEffect(() => {
     if (siege) {
       setDate(siege.date ?? '');
@@ -361,11 +365,12 @@ export default function SiegeSettingsPage() {
             onClick={() => setNotifyConfirmOpen(true)}
             disabled={
               notifyMutation.isPending ||
+              batchInProgress ||
               siege?.status === 'complete' ||
               (validation !== null && validation.errors.length > 0)
             }
           >
-            {notifyMutation.isPending
+            {(notifyMutation.isPending || batchInProgress)
               ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
               : <Send className="mr-1.5 h-4 w-4" />}
             Notify Members
