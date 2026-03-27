@@ -186,9 +186,7 @@ def _build_assignments_html(
                 buildings_html += f"""
             <div style="margin-right:12px;margin-bottom:8px;">
                 <table style="border-collapse:collapse;">{thead_html}"""
-                buildings_html += (
-                    f"<tbody>{rows_html}</tbody></table>\n            </div>"
-                )
+                buildings_html += f"<tbody>{rows_html}</tbody></table>\n            </div>"
 
         sections_html += f"""
         <div style="margin-bottom:16px;">
