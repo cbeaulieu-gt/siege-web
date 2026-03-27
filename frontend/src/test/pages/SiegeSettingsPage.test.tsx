@@ -146,6 +146,99 @@ describe('SiegeSettingsPage — Notify Members button', () => {
     // Check the dialog heading specifically (button and heading both contain "Notify Members")
     expect(within(dialog).getByText(/notify members/i)).toBeInTheDocument();
   });
+
+  it('disables Notify Members button and shows spinner while batch is in-progress', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/sieges/42/notify', () =>
+        HttpResponse.json(makeNotifyResponse()),
+      ),
+      http.get('/api/sieges/42/notify/101', () =>
+        HttpResponse.json(
+          makeBatchResponse('in_progress', [
+            makeResult({
+              member_id: 1,
+              member_name: 'Aethon',
+              discord_username: 'aethon#0001',
+              success: null,
+            }),
+          ]),
+        ),
+      ),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /notify members/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
+
+    // Wait for batch panel to appear (POST returned)
+    await waitFor(() => expect(screen.getByText(/batch #101/i)).toBeInTheDocument());
+
+    // Button should be disabled while batch is in-progress
+    const notifyBtn = screen.getByRole('button', { name: /notify members/i });
+    expect(notifyBtn).toBeDisabled();
+
+    // Button should show a spinner (animate-spin) while batch is in-progress
+    expect(notifyBtn.querySelector('.animate-spin')).not.toBeNull();
+  });
+
+  it('re-enables Notify Members button after batch completes', async () => {
+    const user = userEvent.setup();
+
+    let callCount = 0;
+    server.use(
+      http.post('/api/sieges/42/notify', () =>
+        HttpResponse.json(makeNotifyResponse()),
+      ),
+      http.get('/api/sieges/42/notify/101', () => {
+        callCount += 1;
+        if (callCount === 1) {
+          return HttpResponse.json(
+            makeBatchResponse('in_progress', [
+              makeResult({ member_id: 1, member_name: 'Aethon', success: null }),
+            ]),
+          );
+        }
+        return HttpResponse.json(
+          makeBatchResponse('completed', [
+            makeResult({
+              member_id: 1,
+              member_name: 'Aethon',
+              discord_username: 'aethon#0001',
+              success: true,
+              sent_at: '2026-03-22T10:00:00Z',
+            }),
+          ]),
+        );
+      }),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /notify members/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
+
+    // Wait for batch to complete
+    await waitFor(
+      () => {
+        const statusEl = screen.queryByText('completed');
+        return expect(statusEl).not.toBeNull();
+      },
+      { timeout: 10000 },
+    );
+
+    // After completion, button should no longer be disabled (except for normal conditions)
+    const notifyBtn = screen.getByRole('button', { name: /notify members/i });
+    expect(notifyBtn).not.toBeDisabled();
+
+    // No spinner should be showing on the button
+    expect(notifyBtn.querySelector('.animate-spin')).toBeNull();
+  });
 });
 
 // ─── Notification batch panel ─────────────────────────────────────────────
