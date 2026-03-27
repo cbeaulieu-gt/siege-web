@@ -396,7 +396,9 @@ def test_build_reserves_html_fallback_color():
 def test_build_assignments_html_no_level_in_header():
     """Building header must not contain the level."""
     group = _make_group_dict(positions=[_make_position_dict(member_name="Alice")])
-    building = _make_building_dict(building_type="stronghold", building_number=1, level=5, groups=[group])
+    building = _make_building_dict(
+        building_type="stronghold", building_number=1, level=5, groups=[group]
+    )
     board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
     html = _build_assignments_html(board, "2026-03-20")
     assert "#1" in html
@@ -407,7 +409,9 @@ def test_build_assignments_html_no_level_in_header():
 def test_build_assignments_html_broken_building_no_level():
     """Broken building header shows [broken] but no level."""
     group = _make_group_dict(positions=[_make_position_dict(member_name="Alice")])
-    building = _make_building_dict(building_type="stronghold", building_number=2, level=3, is_broken=True, groups=[group])
+    building = _make_building_dict(
+        building_type="stronghold", building_number=2, level=3, is_broken=True, groups=[group]
+    )
     board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
     html = _build_assignments_html(board, "2026-03-20")
     assert "[broken]" in html
@@ -430,10 +434,26 @@ def test_build_assignments_html_building_number_in_thead():
 
 def test_build_assignments_html_post_flat_table():
     """Post buildings render as a single flat table, not per-building group tables."""
-    post1 = _make_building_dict(building_type="post", building_number=2,
-        groups=[_make_group_dict(group_number=1, positions=[_make_position_dict(position_number=1, member_name="Alice")])])
-    post2 = _make_building_dict(building_type="post", building_number=8,
-        groups=[_make_group_dict(group_number=1, positions=[_make_position_dict(position_number=1, member_name="Bob")])])
+    post1 = _make_building_dict(
+        building_type="post",
+        building_number=2,
+        groups=[
+            _make_group_dict(
+                group_number=1,
+                positions=[_make_position_dict(position_number=1, member_name="Alice")],
+            )
+        ],
+    )
+    post2 = _make_building_dict(
+        building_type="post",
+        building_number=8,
+        groups=[
+            _make_group_dict(
+                group_number=1,
+                positions=[_make_position_dict(position_number=1, member_name="Bob")],
+            )
+        ],
+    )
     board = BoardResponse.model_validate({"siege_id": 1, "buildings": [post1, post2]})
     html = _build_assignments_html(board, "2026-03-20")
     # Both post headers appear as column headers
@@ -448,11 +468,23 @@ def test_build_assignments_html_post_flat_table():
 
 def test_build_assignments_html_post_reserve_and_disabled():
     """Post flat table correctly renders reserve and disabled slots."""
-    post_reserve = _make_building_dict(building_type="post", building_number=11,
-        groups=[_make_group_dict(positions=[_make_position_dict(member_name=None, is_reserve=True)])])
-    post_disabled = _make_building_dict(building_type="post", building_number=14,
-        groups=[_make_group_dict(positions=[_make_position_dict(member_name=None, is_disabled=True)])])
-    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [post_reserve, post_disabled]})
+    post_reserve = _make_building_dict(
+        building_type="post",
+        building_number=11,
+        groups=[
+            _make_group_dict(positions=[_make_position_dict(member_name=None, is_reserve=True)])
+        ],
+    )
+    post_disabled = _make_building_dict(
+        building_type="post",
+        building_number=14,
+        groups=[
+            _make_group_dict(positions=[_make_position_dict(member_name=None, is_disabled=True)])
+        ],
+    )
+    board = BoardResponse.model_validate(
+        {"siege_id": 1, "buildings": [post_reserve, post_disabled]}
+    )
     html = _build_assignments_html(board, "2026-03-20")
     assert "RESERVE" in html
     assert "N/A" in html

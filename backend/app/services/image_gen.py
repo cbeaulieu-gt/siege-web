@@ -93,19 +93,24 @@ def _build_assignments_html(
             # Each post has exactly 1 group with 1 position.
             sorted_posts = sorted(buildings, key=lambda b: b.building_number)
             header_cells = "".join(
-                f'<th style="{th_style}">Post {bldg.building_number}</th>'
-                for bldg in sorted_posts
+                f'<th style="{th_style}">Post {bldg.building_number}</th>' for bldg in sorted_posts
             )
             data_cells = ""
             for bldg in sorted_posts:
                 # Drill down to the single position (1 group, 1 slot).
                 # Guard against empty groups/positions (e.g. in tests with bare buildings).
-                _positions = sorted(bldg.groups[0].positions, key=lambda p: p.position_number) if bldg.groups else []
+                _positions = (
+                    sorted(bldg.groups[0].positions, key=lambda p: p.position_number)
+                    if bldg.groups
+                    else []
+                )
                 pos = _positions[0] if _positions else None
                 if pos is None:
                     cell_style = "background:#111827;color:#6b7280;"
                     cell_text = "—"
-                    td_style = f"padding:2px 4px;border:1px solid #374151;font-size:11px;{cell_style}"
+                    td_style = (
+                        f"padding:2px 4px;border:1px solid #374151;font-size:11px;{cell_style}"
+                    )
                     data_cells += f'<td style="{td_style}">{cell_text}</td>'
                     continue
                 if pos.is_disabled:
