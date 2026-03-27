@@ -83,49 +83,101 @@ def _build_assignments_html(
         color = _BUILDING_COLORS[bt]
         label = _BUILDING_LABELS[bt]
 
-        buildings_html = ""
-        for bldg in sorted(buildings, key=lambda b: b.building_number):
-            rows_html = ""
-            for group in sorted(bldg.groups, key=lambda g: g.group_number):
-                # Group label cell — left-aligned, muted color, dark background
-                label_td_style = (
-                    "padding:2px 4px;font-size:10px;color:#94a3b8;"
-                    "background:#1e293b;border:1px solid #374151;"
-                    "white-space:nowrap;"
-                )
-                row_cells = f'<td style="{label_td_style}">Group {group.group_number}</td>'
+        th_style = (
+            "padding:2px 6px;font-size:10px;color:#9ca3af;"
+            "background:#1e293b;border:1px solid #374151;text-align:left;"
+        )
 
-                for pos in sorted(group.positions, key=lambda p: p.position_number):
-                    if pos.is_disabled:
-                        cell_style = "background:#374151;color:#9ca3af;"
-                        cell_text = "N/A"
-                    elif pos.is_reserve:
-                        cell_style = "background:#92400e;color:#fef3c7;"
-                        cell_text = "RESERVE"
-                    elif pos.member_name:
-                        name_color = _MEMBER_ROLE_COLORS.get(
-                            _member_id_to_role.get(pos.member_id), "#f9fafb"
-                        )
-                        cell_style = "background:#1f2937;"
-                        cell_text = f'<span style="color:{name_color}">{pos.member_name}</span>'
-                    else:
-                        cell_style = "background:#111827;color:#6b7280;"
-                        cell_text = "—"
-
-                    td_style = (
-                        "padding:2px 4px;border:1px solid #374151;" f"font-size:11px;{cell_style}"
+        if bt == BuildingType.post:
+            # Posts render as a single flat table: one column per post building.
+            # Each post has exactly 1 group with 1 position.
+            sorted_posts = sorted(buildings, key=lambda b: b.building_number)
+            header_cells = "".join(
+                f'<th style="{th_style}">Post {bldg.building_number}</th>'
+                for bldg in sorted_posts
+            )
+            data_cells = ""
+            for bldg in sorted_posts:
+                # Drill down to the single position (1 group, 1 slot).
+                # Guard against empty groups/positions (e.g. in tests with bare buildings).
+                _positions = sorted(bldg.groups[0].positions, key=lambda p: p.position_number) if bldg.groups else []
+                pos = _positions[0] if _positions else None
+                if pos is None:
+                    cell_style = "background:#111827;color:#6b7280;"
+                    cell_text = "—"
+                    td_style = f"padding:2px 4px;border:1px solid #374151;font-size:11px;{cell_style}"
+                    data_cells += f'<td style="{td_style}">{cell_text}</td>'
+                    continue
+                if pos.is_disabled:
+                    cell_style = "background:#374151;color:#9ca3af;"
+                    cell_text = "N/A"
+                elif pos.is_reserve:
+                    cell_style = "background:#92400e;color:#fef3c7;"
+                    cell_text = "RESERVE"
+                elif pos.member_name:
+                    name_color = _MEMBER_ROLE_COLORS.get(
+                        _member_id_to_role.get(pos.member_id), "#f9fafb"
                     )
-                    row_cells += f'<td style="{td_style}">{cell_text}</td>'
+                    cell_style = "background:#1f2937;"
+                    cell_text = f'<span style="color:{name_color}">{pos.member_name}</span>'
+                else:
+                    cell_style = "background:#111827;color:#6b7280;"
+                    cell_text = "—"
+                td_style = f"padding:2px 4px;border:1px solid #374151;font-size:11px;{cell_style}"
+                data_cells += f'<td style="{td_style}">{cell_text}</td>'
 
-                # Single row: label cell followed by slot cells
-                rows_html += f"<tr>{row_cells}</tr>"
+            buildings_html = f"""
+            <div style="padding:8px;">
+                <table style="border-collapse:collapse;">
+                    <thead><tr>{header_cells}</tr></thead>
+                    <tbody><tr>{data_cells}</tr></tbody>
+                </table>
+            </div>"""
+        else:
+            buildings_html = ""
+            for bldg in sorted(buildings, key=lambda b: b.building_number):
+                rows_html = ""
+                for group in sorted(bldg.groups, key=lambda g: g.group_number):
+                    # Group label cell — left-aligned, muted color, dark background
+                    label_td_style = (
+                        "padding:2px 4px;font-size:10px;color:#94a3b8;"
+                        "background:#1e293b;border:1px solid #374151;"
+                        "white-space:nowrap;"
+                    )
+                    row_cells = f'<td style="{label_td_style}">Group {group.group_number}</td>'
 
-            buildings_html += f"""
+                    for pos in sorted(group.positions, key=lambda p: p.position_number):
+                        if pos.is_disabled:
+                            cell_style = "background:#374151;color:#9ca3af;"
+                            cell_text = "N/A"
+                        elif pos.is_reserve:
+                            cell_style = "background:#92400e;color:#fef3c7;"
+                            cell_text = "RESERVE"
+                        elif pos.member_name:
+                            name_color = _MEMBER_ROLE_COLORS.get(
+                                _member_id_to_role.get(pos.member_id), "#f9fafb"
+                            )
+                            cell_style = "background:#1f2937;"
+                            cell_text = f'<span style="color:{name_color}">{pos.member_name}</span>'
+                        else:
+                            cell_style = "background:#111827;color:#6b7280;"
+                            cell_text = "—"
+
+                        td_style = (
+                            "padding:2px 4px;border:1px solid #374151;"
+                            f"font-size:11px;{cell_style}"
+                        )
+                        row_cells += f'<td style="{td_style}">{cell_text}</td>'
+
+                    # Single row: label cell followed by slot cells
+                    rows_html += f"<tr>{row_cells}</tr>"
+
+                # Building number as a spanning <thead> row; no standalone header <div>
+                bldg_header = f"#{bldg.building_number}{' [broken]' if bldg.is_broken else ''}"
+                thead_html = f'<thead><tr><th colspan="99" style="{th_style}">{bldg_header}</th></tr></thead>'
+                buildings_html += f"""
             <div style="margin-right:12px;margin-bottom:8px;">
-                <div style="font-size:10px;color:#9ca3af;margin-bottom:2px;">
-                    #{bldg.building_number} (Lv {bldg.level}){' [broken]' if bldg.is_broken else ''}
-                </div>
-                <table style="border-collapse:collapse;">{rows_html}</table>
+                <table style="border-collapse:collapse;">{thead_html}<tbody>{rows_html}</tbody></table>
             </div>"""
 
         sections_html += f"""

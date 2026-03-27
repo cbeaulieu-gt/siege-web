@@ -296,9 +296,10 @@ def test_build_assignments_html_buildings_side_by_side():
     board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building1, building2]})
     html = _build_assignments_html(board, "2026-03-20")
 
-    # Both building headers must be present
-    assert "#1 (Lv 3)" in html
-    assert "#2 (Lv 2)" in html
+    # Both building headers must be present (level is no longer shown)
+    assert "#1" in html
+    assert "#2" in html
+    assert "Lv" not in html
 
     # The section wrapper must carry flex + gap layout so buildings sit side by side
     assert "display:flex" in html
@@ -385,3 +386,73 @@ def test_build_reserves_html_fallback_color():
     finally:
         if original is not None:
             _MEMBER_ROLE_COLORS[MemberRole.medium] = original
+
+
+# ---------------------------------------------------------------------------
+# Image layout improvements — level removal, thead header, flat post table
+# ---------------------------------------------------------------------------
+
+
+def test_build_assignments_html_no_level_in_header():
+    """Building header must not contain the level."""
+    group = _make_group_dict(positions=[_make_position_dict(member_name="Alice")])
+    building = _make_building_dict(building_type="stronghold", building_number=1, level=5, groups=[group])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20")
+    assert "#1" in html
+    assert "Lv" not in html
+    assert "Lv 5" not in html
+
+
+def test_build_assignments_html_broken_building_no_level():
+    """Broken building header shows [broken] but no level."""
+    group = _make_group_dict(positions=[_make_position_dict(member_name="Alice")])
+    building = _make_building_dict(building_type="stronghold", building_number=2, level=3, is_broken=True, groups=[group])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20")
+    assert "[broken]" in html
+    assert "Lv" not in html
+
+
+def test_build_assignments_html_building_number_in_thead():
+    """Building number must appear in a <thead> spanning row, not a standalone <div>."""
+    group = _make_group_dict(positions=[_make_position_dict(member_name="Alice")])
+    building = _make_building_dict(building_type="stronghold", building_number=3, groups=[group])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20")
+    # #3 must appear inside a <thead> block
+    assert "<thead>" in html
+    thead_start = html.index("<thead>")
+    thead_end = html.index("</thead>")
+    thead_content = html[thead_start:thead_end]
+    assert "#3" in thead_content
+
+
+def test_build_assignments_html_post_flat_table():
+    """Post buildings render as a single flat table, not per-building group tables."""
+    post1 = _make_building_dict(building_type="post", building_number=2,
+        groups=[_make_group_dict(group_number=1, positions=[_make_position_dict(position_number=1, member_name="Alice")])])
+    post2 = _make_building_dict(building_type="post", building_number=8,
+        groups=[_make_group_dict(group_number=1, positions=[_make_position_dict(position_number=1, member_name="Bob")])])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [post1, post2]})
+    html = _build_assignments_html(board, "2026-03-20")
+    # Both post headers appear as column headers
+    assert "Post 2" in html
+    assert "Post 8" in html
+    # Member names appear
+    assert "Alice" in html
+    assert "Bob" in html
+    # Posts come in sorted order
+    assert html.index("Post 2") < html.index("Post 8")
+
+
+def test_build_assignments_html_post_reserve_and_disabled():
+    """Post flat table correctly renders reserve and disabled slots."""
+    post_reserve = _make_building_dict(building_type="post", building_number=11,
+        groups=[_make_group_dict(positions=[_make_position_dict(member_name=None, is_reserve=True)])])
+    post_disabled = _make_building_dict(building_type="post", building_number=14,
+        groups=[_make_group_dict(positions=[_make_position_dict(member_name=None, is_disabled=True)])])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [post_reserve, post_disabled]})
+    html = _build_assignments_html(board, "2026-03-20")
+    assert "RESERVE" in html
+    assert "N/A" in html
