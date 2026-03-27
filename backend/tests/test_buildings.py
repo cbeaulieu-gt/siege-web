@@ -9,7 +9,6 @@ from app.models.enums import BuildingType, SiegeStatus
 from app.schemas.building import BuildingUpdate
 from app.services.buildings import update_building, _get_team_count
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -96,8 +95,7 @@ async def test_update_building_unbreak_restores_groups():
     # Base config for stronghold: 4 groups, last group has 2 slots
     # When broken the building has exactly those 4 groups
     base_groups = [
-        _make_group(id=g, group_number=g, slot_count=(2 if g == 4 else 3))
-        for g in range(1, 5)
+        _make_group(id=g, group_number=g, slot_count=(2 if g == 4 else 3)) for g in range(1, 5)
     ]
 
     # After _rebuild_groups_for_level adds groups 5–10, the actual last group
@@ -151,14 +149,14 @@ async def test_update_building_unbreak_restores_groups():
 
     added_groups = [o for o in added_objects if isinstance(o, BuildingGroup)]
     added_group_numbers = sorted(g.group_number for g in added_groups)
-    assert added_group_numbers == list(range(5, 11)), (
-        f"Expected groups 5–10 to be added, got {added_group_numbers}"
-    )
+    assert added_group_numbers == list(
+        range(5, 11)
+    ), f"Expected groups 5–10 to be added, got {added_group_numbers}"
 
     # The previous last group (group 4, slot_count=2) must be expanded to 3
-    assert base_groups[3].slot_count == 3, (
-        "Group 4 (previously last) should have been expanded to 3 slots"
-    )
+    assert (
+        base_groups[3].slot_count == 3
+    ), "Group 4 (previously last) should have been expanded to 3 slots"
 
 
 @pytest.mark.asyncio
@@ -174,14 +172,11 @@ async def test_update_building_unbreak_restores_last_slot_count():
     expected_last_slots = 1
 
     siege = _make_siege()
-    building = _make_building(
-        id=2, building_type=BuildingType.mana_shrine, level=5, is_broken=True
-    )
+    building = _make_building(id=2, building_type=BuildingType.mana_shrine, level=5, is_broken=True)
 
     # Base config for mana_shrine: 2 groups, last=2 slots
     base_groups = [
-        _make_group(id=g, group_number=g, slot_count=(2 if g == 2 else 3))
-        for g in range(1, 3)
+        _make_group(id=g, group_number=g, slot_count=(2 if g == 2 else 3)) for g in range(1, 3)
     ]
 
     # After rebuild adds groups 3, 4, 5 the actual last group is group 5
@@ -217,24 +212,24 @@ async def test_update_building_unbreak_restores_last_slot_count():
 
     session.refresh = fake_refresh
 
-    await update_building(
-        session, siege_id=1, building_id=2, data=BuildingUpdate(is_broken=False)
-    )
+    await update_building(session, siege_id=1, building_id=2, data=BuildingUpdate(is_broken=False))
 
     from app.models.building_group import BuildingGroup
 
     added_groups = [o for o in added_objects if isinstance(o, BuildingGroup)]
     # Expect new groups for numbers 3, 4, 5
     added_group_numbers = sorted(g.group_number for g in added_groups)
-    assert added_group_numbers == [3, 4, 5], (
-        f"Expected groups 3–5 to be added, got {added_group_numbers}"
-    )
+    assert added_group_numbers == [
+        3,
+        4,
+        5,
+    ], f"Expected groups 3–5 to be added, got {added_group_numbers}"
 
     # The last added group must have slot_count=1
     last_added = next(g for g in added_groups if g.group_number == 5)
-    assert last_added.slot_count == expected_last_slots, (
-        f"Last group slot_count should be {expected_last_slots}, got {last_added.slot_count}"
-    )
+    assert (
+        last_added.slot_count == expected_last_slots
+    ), f"Last group slot_count should be {expected_last_slots}, got {last_added.slot_count}"
 
     # Group 2 (previously last at 2 slots) must have been expanded to 3
     assert base_groups[1].slot_count == 3, "Group 2 should have been expanded to 3 slots"
@@ -257,10 +252,7 @@ async def test_update_building_break_then_unbreak_roundtrip():
     )
 
     # Simulate 10 groups existing before break
-    full_groups = [
-        _make_group(id=g, group_number=g, slot_count=3)
-        for g in range(1, 11)
-    ]
+    full_groups = [_make_group(id=g, group_number=g, slot_count=3) for g in range(1, 11)]
 
     # Base config: 4 groups, last=2 slots
     config = _make_config(BuildingType.stronghold, base_group_count=4, base_last_group_slots=2)
@@ -310,14 +302,12 @@ async def test_update_building_break_then_unbreak_roundtrip():
 
     # Groups 5–10 (indices 4–9) should have been deleted
     deleted_group_numbers = sorted(g.group_number for g in deleted_in_break)
-    assert deleted_group_numbers == list(range(5, 11)), (
-        f"Break should delete groups 5–10, got {deleted_group_numbers}"
-    )
+    assert deleted_group_numbers == list(
+        range(5, 11)
+    ), f"Break should delete groups 5–10, got {deleted_group_numbers}"
 
     # Group 4's slot_count should have been trimmed to 2 (base_last_group_slots)
-    assert full_groups[3].slot_count == 2, (
-        "Group 4 slot_count should be trimmed to 2 after break"
-    )
+    assert full_groups[3].slot_count == 2, "Group 4 slot_count should be trimmed to 2 after break"
 
     # --- UNBREAK phase ---
     # Now the building is at base config: 4 groups, group 4 has 2 slots
@@ -325,8 +315,7 @@ async def test_update_building_break_then_unbreak_roundtrip():
         id=1, building_type=BuildingType.stronghold, level=6, is_broken=True
     )
     base_groups = [
-        _make_group(id=g, group_number=g, slot_count=(2 if g == 4 else 3))
-        for g in range(1, 5)
+        _make_group(id=g, group_number=g, slot_count=(2 if g == 4 else 3)) for g in range(1, 5)
     ]
     new_last = _make_group(id=10, group_number=10, slot_count=3)
 
@@ -369,9 +358,9 @@ async def test_update_building_break_then_unbreak_roundtrip():
     added_group_numbers = sorted(g.group_number for g in added_groups)
 
     # Groups 5–10 must be restored
-    assert added_group_numbers == list(range(5, 11)), (
-        f"Unbreak should restore groups 5–10, got {added_group_numbers}"
-    )
+    assert added_group_numbers == list(
+        range(5, 11)
+    ), f"Unbreak should restore groups 5–10, got {added_group_numbers}"
 
     # All restored groups except the last must have 3 slots
     for g in added_groups:
@@ -381,6 +370,6 @@ async def test_update_building_break_then_unbreak_roundtrip():
     assert last_restored.slot_count == 3, "Last restored group (10) should have 3 slots"
 
     # Group 4 should have been expanded back from 2 → 3 slots
-    assert base_groups[3].slot_count == 3, (
-        "Group 4 should be expanded back to 3 slots during unbreak"
-    )
+    assert (
+        base_groups[3].slot_count == 3
+    ), "Group 4 should be expanded back to 3 slots during unbreak"

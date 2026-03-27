@@ -328,9 +328,7 @@ async def update_building(
 
     if data.level is not None and data.level != building.level:
         building.level = data.level
-        await _rebuild_groups_for_level(
-            session, building_id, building.building_type, data.level
-        )
+        await _rebuild_groups_for_level(session, building_id, building.building_type, data.level)
 
     await session.commit()
     await session.refresh(building)
