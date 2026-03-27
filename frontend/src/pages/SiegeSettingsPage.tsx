@@ -112,6 +112,8 @@ export default function SiegeSettingsPage() {
     notifyBatch !== null &&
     !batchDone(batchData?.results ?? [], batchData?.status ?? notifyBatch?.status ?? '');
 
+  const batchComplete = batchData?.status === 'completed';
+
   useEffect(() => {
     if (siege) {
       setDate(siege.date ?? '');
@@ -444,15 +446,19 @@ export default function SiegeSettingsPage() {
                     {item.discord_username === null && item.success === null && (
                       <AlertCircle className="h-4 w-4 shrink-0 text-yellow-500" />
                     )}
-                    {item.discord_username !== null && item.success === null && (
+                    {item.discord_username !== null && item.success === null && !batchComplete && (
                       <Loader2 className="h-4 w-4 shrink-0 animate-spin text-slate-400" />
+                    )}
+                    {item.discord_username !== null && item.success === null && batchComplete && (
+                      <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
                     )}
                     <span
                       className={cn(
                         item.success === true && 'text-slate-700',
                         item.success === false && 'text-red-700',
                         item.discord_username === null && item.success === null && 'text-yellow-700',
-                        item.discord_username !== null && item.success === null && 'text-slate-500',
+                        item.discord_username !== null && item.success === null && !batchComplete && 'text-slate-500',
+                        item.discord_username !== null && item.success === null && batchComplete && 'text-red-700',
                       )}
                     >
                       {item.member_name}
@@ -461,6 +467,9 @@ export default function SiegeSettingsPage() {
                         : null}
                       {item.success === false && item.error
                         ? ` — ${item.error}`
+                        : null}
+                      {item.discord_username !== null && item.success === null && batchComplete
+                        ? ' — Notification failed'
                         : null}
                     </span>
                   </li>

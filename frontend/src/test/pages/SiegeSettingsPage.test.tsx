@@ -416,6 +416,79 @@ describe('SiegeSettingsPage — notification batch panel', () => {
     // Lucide X rendered with text-red-600
     expect(memberRow.querySelector('.text-red-600')).not.toBeNull();
   });
+
+  it('shows error icon (not spinner) for a pending member when batch is completed', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/sieges/42/notify', () =>
+        HttpResponse.json(makeNotifyResponse()),
+      ),
+      // Batch is completed but member still has success=null (DB write failed)
+      http.get('/api/sieges/42/notify/101', () =>
+        HttpResponse.json(
+          makeBatchResponse('completed', [
+            makeResult({
+              member_id: 1,
+              member_name: 'Aethon',
+              discord_username: 'aethon#0001',
+              success: null,
+              error: null,
+            }),
+          ]),
+        ),
+      ),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /notify members/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
+
+    await waitFor(() => expect(screen.getByText(/notification failed/i)).toBeInTheDocument(), {
+      timeout: 5000,
+    });
+
+    const memberRow = screen.getByText(/notification failed/i).closest('li')!;
+
+    // Must NOT show a spinning loader
+    expect(memberRow.querySelector('.animate-spin')).toBeNull();
+  });
+
+  it('shows spinner for a pending member when batch is still in-progress', async () => {
+    const user = userEvent.setup();
+    server.use(
+      http.post('/api/sieges/42/notify', () =>
+        HttpResponse.json(makeNotifyResponse()),
+      ),
+      http.get('/api/sieges/42/notify/101', () =>
+        HttpResponse.json(
+          makeBatchResponse('pending', [
+            makeResult({
+              member_id: 1,
+              member_name: 'Aethon',
+              discord_username: 'aethon#0001',
+              success: null,
+            }),
+          ]),
+        ),
+      ),
+    );
+
+    renderPage();
+    await waitForPageLoad();
+
+    await user.click(screen.getByRole('button', { name: /notify members/i }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
+
+    await waitFor(() => expect(screen.getByText('Aethon')).toBeInTheDocument());
+
+    const memberRow = screen.getByText('Aethon').closest('li')!;
+    // Should show spinner while batch is still running
+    expect(memberRow.querySelector('.animate-spin')).not.toBeNull();
+  });
 });
 
 // ─── Polling state transitions ─────────────────────────────────────────────
