@@ -7,7 +7,7 @@ import pytest
 
 from app.models.enums import BuildingType, SiegeStatus
 from app.schemas.building import BuildingUpdate
-from app.services.buildings import update_building, _get_team_count
+from app.services.buildings import update_building
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -168,7 +168,6 @@ async def test_update_building_unbreak_restores_last_slot_count():
     slot_count=1.
     """
     # mana_shrine level 5 → 13 teams → 5 groups, last has 1 slot
-    expected_target_groups = 5
     expected_last_slots = 1
 
     siege = _make_siege()
