@@ -92,14 +92,18 @@ def _position_label(p: PositionInfo, building_type_counts: dict[BuildingType, in
 
 def _positions_to_key_set(positions: list[PositionInfo]) -> set[tuple]:
     """Convert a list of PositionInfo objects to a set of comparable tuples."""
-    return {(p.building_type, p.building_number, p.group_number, p.position_number) for p in positions}
+    return {
+        (p.building_type, p.building_number, p.group_number, p.position_number) for p in positions
+    }
 
 
-def _positions_from_keys(
-    positions: list[PositionInfo], keys: set[tuple]
-) -> list[PositionInfo]:
+def _positions_from_keys(positions: list[PositionInfo], keys: set[tuple]) -> list[PositionInfo]:
     """Filter ``positions`` to those whose key is in ``keys``, preserving PositionInfo objects."""
-    return [p for p in positions if (p.building_type, p.building_number, p.group_number, p.position_number) in keys]
+    return [
+        p
+        for p in positions
+        if (p.building_type, p.building_number, p.group_number, p.position_number) in keys
+    ]
 
 
 def _build_section(
@@ -146,9 +150,7 @@ def build_member_notification_message(
         A formatted multi-line string ready to send as a Discord DM.
     """
     # --- Header ---
-    reserve_str = (
-        "Unknown" if has_reserve_set is None else ("Yes" if has_reserve_set else "No")
-    )
+    reserve_str = "Unknown" if has_reserve_set is None else ("Yes" if has_reserve_set else "No")
     attack_day_str = "Unknown" if attack_day is None else str(attack_day)
 
     lines: list[str] = [
