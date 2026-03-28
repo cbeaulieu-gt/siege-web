@@ -181,7 +181,10 @@ def build_member_notification_message(
     attack_day_str = "Unknown" if attack_day is None else str(attack_day)
 
     lines: list[str] = [
-        ":warning: **This bot is a work in progress. Please verify assignments manually if needed.** :warning:",
+        (
+            ":warning: **This bot is a work in progress."
+            " Please verify assignments manually if needed.** :warning:"
+        ),
         "",
         f"**[1MOM] Masters of Magicka Siege Assignment ({siege_date})**",
         "",
