@@ -1,25 +1,28 @@
 # Usage:
-#   .\bootstrap-images.ps1 -Env dev
-#   .\bootstrap-images.ps1 -Env prod
+#   .\bootstrap-images.ps1 -Env dev  [-EnvFile .env.deploy.dev]
+#   .\bootstrap-images.ps1 -Env prod [-EnvFile .env.deploy.prod]
 
 param(
     [Parameter(Mandatory = $true)]
-    [string]$Env
+    [string]$Env,
+
+    [Parameter(Mandatory = $false)]
+    [string]$EnvFile = '.env.deploy.prod'
 )
 
 $ErrorActionPreference = 'Stop'
 
 $SecretsLoaded = $false
-$EnvDeployPath = Join-Path $PSScriptRoot '.env.deploy'
+$EnvDeployPath = Join-Path $PSScriptRoot $EnvFile
 if (Test-Path $EnvDeployPath) {
     Get-Content $EnvDeployPath | Where-Object { $_ -notmatch '^\s*#' -and $_ -match '=' } | ForEach-Object {
         $parts = $_ -split '=', 2
         [System.Environment]::SetEnvironmentVariable($parts[0].Trim(), $parts[1].Trim())
     }
     $SecretsLoaded = $true
-    Write-Host '==> Loaded secrets from .env.deploy'
+    Write-Host "==> Loaded secrets from $EnvFile"
 } else {
-    Write-Host '    (no .env.deploy found — secrets must be set in the environment)' -ForegroundColor Yellow
+    Write-Host "    (no $EnvFile found - secrets must be set in the environment)" -ForegroundColor Yellow
 }
 
 $ImageTag = git -C $PSScriptRoot rev-parse --short HEAD
@@ -76,7 +79,7 @@ Write-Host ""
 Write-Host "==> All images pushed successfully."
 Write-Host ""
 if ($SecretsLoaded) {
-    Write-Host '==> Secrets loaded from .env.deploy' -ForegroundColor Green
+    Write-Host "==> Secrets loaded from $EnvFile" -ForegroundColor Green
 } else {
     Write-Host "    WARNING: Before running the deploy command below, set these environment variables" -ForegroundColor Yellow
     Write-Host "    or the deployment will proceed with blank secrets:" -ForegroundColor Yellow

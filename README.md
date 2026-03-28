@@ -114,6 +114,26 @@ cd backend && black . && ruff check .
 cd frontend && npm run lint
 ```
 
+## Deploy Environments
+
+Secrets for Azure deployments are stored in per-environment files (both gitignored):
+
+| File | Purpose |
+|---|---|
+| `.env.deploy.dev` | Secrets for the dev Azure instance (`siege-web-dev` resource group) |
+| `.env.deploy.prod` | Secrets for the prod Azure instance (`siege-rg` resource group) |
+
+Copy `.env.deploy.example` to both files and fill in the values. At minimum, `DISCORD_GUILD_ID` must differ between environments.
+
+```powershell
+# Build and deploy to dev
+.\bootstrap-images.ps1 -Env dev -EnvFile .env.deploy.dev
+
+# Build and deploy to prod (default EnvFile, so -EnvFile is optional)
+.\bootstrap-images.ps1 -Env prod -EnvFile .env.deploy.prod
+.\bootstrap-images.ps1 -Env prod
+```
+
 ## Environment Variables
 
 Copy `.env.example` to `.env`. All variables are required for Docker Compose. For dev mode, the backend reads from `backend/.env`.
