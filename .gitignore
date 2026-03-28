@@ -41,7 +41,7 @@ coverage.xml
 
 # Azure
 .azure/
-.env.deploy
+.env.deploy.*
 
 # Logs
 *.log

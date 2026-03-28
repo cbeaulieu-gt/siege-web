@@ -57,3 +57,13 @@
 - [x] Frontend: change "Notification failed" label to "Status unknown" for `batchComplete && success === null` case (result recording failed, DM status is ambiguous)
 - [x] Frontend test: update existing test to expect "Status unknown" instead of "Notification failed"
 - [x] Backend (root cause): `sent_at = datetime.now(UTC)` stores timezone-aware datetime into a `TIMESTAMP WITHOUT TIME ZONE` column — asyncpg raises DataError on flush, silently aborting the commit. Fix: `.replace(tzinfo=None)` (matches pattern in autofill.py and attack_day.py)
+
+## Issue #88 — Split .env.deploy into per-environment files
+- [x] Rename `.env.deploy` → `.env.deploy.prod`
+- [x] Copy to `.env.deploy.dev` with header comment listing values to change
+- [x] Update `.gitignore`: `.env.deploy` → `.env.deploy.*`
+- [x] Update `.env.deploy.example` to reflect new naming convention
+- [x] Update `bootstrap-images.ps1`: add `-EnvFile` parameter, default `.env.deploy.prod`
+- [x] Update `README.md`: add Deploy environments section
+- [x] Verify both new files are gitignored
+- [x] Commit tracked changes and open PR
