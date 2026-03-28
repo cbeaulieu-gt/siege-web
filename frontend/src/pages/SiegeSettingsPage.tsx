@@ -469,7 +469,7 @@ export default function SiegeSettingsPage() {
                         ? ` — ${item.error}`
                         : null}
                       {item.discord_username !== null && item.success === null && batchComplete
-                        ? ' — Notification failed'
+                        ? ' — Status unknown'
                         : null}
                     </span>
                   </li>
