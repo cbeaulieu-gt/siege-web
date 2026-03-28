@@ -313,7 +313,7 @@ def test_build_assignments_html_buildings_side_by_side():
 
 
 def test_build_assignments_html_heavy_hitter_color():
-    """A member mapped to heavy_hitter role gets the amber color #f59e0b."""
+    """A member mapped to heavy_hitter role gets the red-400 color #f87171 (matches UI hue)."""
     position = _make_position_dict(member_name="Alice")  # member_id=1 by default
     group = _make_group_dict(positions=[position])
     building = _make_building_dict(building_type="stronghold", groups=[group])
@@ -321,7 +321,7 @@ def test_build_assignments_html_heavy_hitter_color():
     html = _build_assignments_html(
         board, "2026-03-20", member_id_to_role={1: MemberRole.heavy_hitter}
     )
-    assert "#f59e0b" in html
+    assert "#f87171" in html
     assert "Alice" in html
 
 
@@ -343,7 +343,7 @@ def test_build_assignments_html_role_color_on_span_not_background():
     building = _make_building_dict(building_type="stronghold", groups=[group])
     board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
     html = _build_assignments_html(board, "2026-03-20", member_id_to_role={1: MemberRole.advanced})
-    assert '<span style="color:#a855f7">' in html
+    assert '<span style="color:#fbbf24">' in html  # amber-400 for advanced
     assert "background:#1f2937" in html
 
 
@@ -353,18 +353,18 @@ def test_build_assignments_html_role_color_on_span_not_background():
 
 
 def test_build_reserves_html_advanced_color():
-    """A member with advanced role gets the purple color #a855f7."""
+    """A member with advanced role gets the amber-400 color #fbbf24 (matches UI hue)."""
     members = [_make_member(name="Bob", role=MemberRole.advanced)]
     html = _build_reserves_html(members, "2026-03-20")
-    assert "#a855f7" in html
+    assert "#fbbf24" in html
     assert "Bob" in html
 
 
 def test_build_reserves_html_novice_color():
-    """A member with novice role gets the slate color #94a3b8."""
+    """A member with novice role gets the blue-400 color #60a5fa (matches UI hue)."""
     members = [_make_member(name="Carol", role=MemberRole.novice)]
     html = _build_reserves_html(members, "2026-03-20")
-    assert "#94a3b8" in html
+    assert "#60a5fa" in html
     assert "Carol" in html
 
 
@@ -386,6 +386,53 @@ def test_build_reserves_html_fallback_color():
     finally:
         if original is not None:
             _MEMBER_ROLE_COLORS[MemberRole.medium] = original
+
+
+# ---------------------------------------------------------------------------
+# Role color consistency — all four roles, both HTML builders
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "role, expected_color",
+    [
+        (MemberRole.heavy_hitter, "#f87171"),  # red-400 — matches UI red hue for HH
+        (MemberRole.advanced, "#fbbf24"),       # amber-400 — matches UI amber hue
+        (MemberRole.medium, "#4ade80"),         # green-400 — matches UI green hue
+        (MemberRole.novice, "#60a5fa"),         # blue-400 — matches UI blue hue
+    ],
+)
+def test_build_assignments_html_role_colors_match_ui(role, expected_color):
+    """Every role maps to the same hue family used in the UI (BoardPage ROLE_CHIP_COLORS).
+
+    The image uses dark cell backgrounds so Tailwind-400 variants are chosen; they
+    preserve the color language (red=HH, amber=advanced, green=medium, blue=novice)
+    while staying legible against #1f2937.
+    """
+    position = _make_position_dict(member_name="Player")  # member_id=1
+    group = _make_group_dict(positions=[position])
+    building = _make_building_dict(building_type="stronghold", groups=[group])
+    board = BoardResponse.model_validate({"siege_id": 1, "buildings": [building]})
+    html = _build_assignments_html(board, "2026-03-20", member_id_to_role={1: role})
+    assert expected_color in html, f"Expected {expected_color} for role {role.value}"
+    assert "Player" in html
+
+
+@pytest.mark.parametrize(
+    "role, expected_color",
+    [
+        (MemberRole.heavy_hitter, "#f87171"),  # red-400
+        (MemberRole.advanced, "#fbbf24"),       # amber-400
+        (MemberRole.medium, "#4ade80"),         # green-400
+        (MemberRole.novice, "#60a5fa"),         # blue-400
+    ],
+)
+def test_build_reserves_html_role_colors_match_ui(role, expected_color):
+    """Every role in the reserves image maps to the same hue family used in the UI."""
+    members = [_make_member(name="Player", role=role)]
+    html = _build_reserves_html(members, "2026-03-20")
+    assert expected_color in html, f"Expected {expected_color} for role {role.value}"
+    assert "Player" in html
 
 
 # ---------------------------------------------------------------------------
