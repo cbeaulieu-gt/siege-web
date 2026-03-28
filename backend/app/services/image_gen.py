@@ -47,9 +47,9 @@ _MEMBER_ROLE_COLORS: dict[MemberRole, str] = {
     #   medium       → green (green-400)
     #   novice       → blue (blue-400)
     MemberRole.heavy_hitter: "#f87171",  # red-400
-    MemberRole.advanced: "#fbbf24",      # amber-400
-    MemberRole.medium: "#4ade80",        # green-400
-    MemberRole.novice: "#60a5fa",        # blue-400
+    MemberRole.advanced: "#fbbf24",  # amber-400
+    MemberRole.medium: "#4ade80",  # green-400
+    MemberRole.novice: "#60a5fa",  # blue-400
 }
 
 

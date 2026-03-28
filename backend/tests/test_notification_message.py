@@ -7,9 +7,9 @@ from app.services.notification_message import PositionInfo, build_member_notific
 # Icon constants (mirrors _CHANGE_TYPE_ICON in notification_message.py)
 # ---------------------------------------------------------------------------
 
-ICON_NO_CHANGE = "\U0001f6e1\ufe0f"   # 🛡️
-ICON_REMOVE_FROM = "\u274c"           # ❌
-ICON_SET_AT = "\u2694\ufe0f"          # ⚔️
+ICON_NO_CHANGE = "\U0001f6e1\ufe0f"  # 🛡️
+ICON_REMOVE_FROM = "\u274c"  # ❌
+ICON_SET_AT = "\u2694\ufe0f"  # ⚔️
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -336,7 +336,9 @@ def test_no_change_lines_prefixed_with_shield_icon():
         previous_positions=pos,
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
-    lines_with_content = [ln for ln in msg.splitlines() if ":red_circle:" in ln or ":white_circle:" in ln]
+    lines_with_content = [
+        ln for ln in msg.splitlines() if ":red_circle:" in ln or ":white_circle:" in ln
+    ]
     assert all(ln.startswith(ICON_NO_CHANGE) for ln in lines_with_content)
 
 

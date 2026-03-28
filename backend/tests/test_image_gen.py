@@ -397,9 +397,9 @@ def test_build_reserves_html_fallback_color():
     "role, expected_color",
     [
         (MemberRole.heavy_hitter, "#f87171"),  # red-400 — matches UI red hue for HH
-        (MemberRole.advanced, "#fbbf24"),       # amber-400 — matches UI amber hue
-        (MemberRole.medium, "#4ade80"),         # green-400 — matches UI green hue
-        (MemberRole.novice, "#60a5fa"),         # blue-400 — matches UI blue hue
+        (MemberRole.advanced, "#fbbf24"),  # amber-400 — matches UI amber hue
+        (MemberRole.medium, "#4ade80"),  # green-400 — matches UI green hue
+        (MemberRole.novice, "#60a5fa"),  # blue-400 — matches UI blue hue
     ],
 )
 def test_build_assignments_html_role_colors_match_ui(role, expected_color):
@@ -422,9 +422,9 @@ def test_build_assignments_html_role_colors_match_ui(role, expected_color):
     "role, expected_color",
     [
         (MemberRole.heavy_hitter, "#f87171"),  # red-400
-        (MemberRole.advanced, "#fbbf24"),       # amber-400
-        (MemberRole.medium, "#4ade80"),         # green-400
-        (MemberRole.novice, "#60a5fa"),         # blue-400
+        (MemberRole.advanced, "#fbbf24"),  # amber-400
+        (MemberRole.medium, "#4ade80"),  # green-400
+        (MemberRole.novice, "#60a5fa"),  # blue-400
     ],
 )
 def test_build_reserves_html_role_colors_match_ui(role, expected_color):

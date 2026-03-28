@@ -26,9 +26,9 @@ _BUILDING_TYPE_LABEL: dict[BuildingType, str] = {
 
 # Per-change-type icon prefixes used in DM message lines.
 _CHANGE_TYPE_ICON: dict[str, str] = {
-    "no_change": "\U0001f6e1\ufe0f",   # 🛡️  Shield
-    "remove_from": "\u274c",           # ❌  X
-    "set_at": "\u2694\ufe0f",          # ⚔️  Crossed Swords
+    "no_change": "\U0001f6e1\ufe0f",  # 🛡️  Shield
+    "remove_from": "\u274c",  # ❌  X
+    "set_at": "\u2694\ufe0f",  # ⚔️  Crossed Swords
 }
 
 # Canonical ordering for BuildingType enum values (used to sort positions).
