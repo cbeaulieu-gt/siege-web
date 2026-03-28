@@ -139,8 +139,7 @@ def _build_section(
     label = _CHANGE_TYPE_LABEL[change_type]
     header = f"{icon}  {label}  {icon}"
     position_lines = [
-        _position_label(p, building_type_counts)
-        for p in sorted(positions, key=_position_sort_key)
+        _position_label(p, building_type_counts) for p in sorted(positions, key=_position_sort_key)
     ]
     return header + "\n" + "\n".join(position_lines)
 

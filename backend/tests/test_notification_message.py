@@ -324,7 +324,13 @@ def test_positions_sorted_within_section():
 # 11. Section headers — change-type icon flanks the label; position lines are plain
 # ---------------------------------------------------------------------------
 
-_BUILDING_CIRCLE_EMOJIS = (":red_circle:", ":green_circle:", ":yellow_circle:", ":blue_circle:", ":white_circle:")
+_BUILDING_CIRCLE_EMOJIS = (
+    ":red_circle:",
+    ":green_circle:",
+    ":yellow_circle:",
+    ":blue_circle:",
+    ":white_circle:",
+)
 
 
 def test_no_change_section_has_header_and_plain_position_lines():
@@ -343,7 +349,9 @@ def test_no_change_section_has_header_and_plain_position_lines():
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
     assert ":shield:  No Change  :shield:" in msg
-    position_lines = [ln for ln in msg.splitlines() if any(ln.startswith(c) for c in _BUILDING_CIRCLE_EMOJIS)]
+    position_lines = [
+        ln for ln in msg.splitlines() if any(ln.startswith(c) for c in _BUILDING_CIRCLE_EMOJIS)
+    ]
     assert len(position_lines) > 0
     assert not any(ln.startswith(ICON_NO_CHANGE) for ln in position_lines)
 
@@ -363,7 +371,9 @@ def test_remove_from_section_has_header_and_plain_position_lines():
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
     assert ":x:  Remove From  :x:" in msg
-    position_lines = [ln for ln in msg.splitlines() if any(ln.startswith(c) for c in _BUILDING_CIRCLE_EMOJIS)]
+    position_lines = [
+        ln for ln in msg.splitlines() if any(ln.startswith(c) for c in _BUILDING_CIRCLE_EMOJIS)
+    ]
     assert len(position_lines) > 0
     assert not any(ln.startswith(ICON_REMOVE_FROM) for ln in position_lines)
 
@@ -383,7 +393,9 @@ def test_set_at_section_has_header_and_plain_position_lines():
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
     assert ":crossed_swords:  Set At  :crossed_swords:" in msg
-    position_lines = [ln for ln in msg.splitlines() if any(ln.startswith(c) for c in _BUILDING_CIRCLE_EMOJIS)]
+    position_lines = [
+        ln for ln in msg.splitlines() if any(ln.startswith(c) for c in _BUILDING_CIRCLE_EMOJIS)
+    ]
     assert len(position_lines) > 0
     assert not any(ln.startswith(ICON_SET_AT) for ln in position_lines)
 
