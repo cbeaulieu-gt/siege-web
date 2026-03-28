@@ -33,8 +33,8 @@ The registry name follows a fixed pattern: `${appPrefix}acr${environment}`.
 
 | Environment | Resource group |
 |---|---|
-| dev | `siege-rg-dev` |
-| prod | `siege-rg-prod` |
+| dev | `siege-web-dev` |
+| prod | `siege-web-prod` |
 
 ## Prerequisites
 
@@ -42,8 +42,8 @@ The registry name follows a fixed pattern: `${appPrefix}acr${environment}`.
 - [Bicep CLI](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/install) (`az bicep install`)
 - A resource group already created:
   ```bash
-  az group create --name siege-rg-dev --location australiaeast   # dev
-  az group create --name siege-rg-prod --location australiaeast  # prod
+  az group create --name siege-web-dev --location australiaeast   # dev
+  az group create --name siege-web-prod --location australiaeast  # prod
   ```
 
 ## Deploy — development
@@ -54,7 +54,7 @@ The registry name follows a fixed pattern: `${appPrefix}acr${environment}`.
 cd infra
 
 az deployment group create \
-  --resource-group siege-rg-dev \
+  --resource-group siege-web-dev \
   --template-file main.bicep \
   --parameters main.bicepparam \
   --parameters postgresAdminPassword="$PG_ADMIN_PASSWORD" \
@@ -96,7 +96,7 @@ Production uses `main.prod.bicepparam`. Key differences from dev:
 cd infra
 
 az deployment group create \
-  --resource-group siege-rg-prod \
+  --resource-group siege-web-prod \
   --template-file main.bicep \
   --parameters main.prod.bicepparam \
   --parameters postgresAdminPassword="$PG_ADMIN_PASSWORD" \
@@ -117,14 +117,14 @@ az deployment group create \
 ```bash
 # Check that all three Container Apps are running
 az containerapp list \
-  --resource-group siege-rg-prod \
+  --resource-group siege-web-prod \
   --query "[].{name:name, status:properties.runningStatus, fqdn:properties.configuration.ingress.fqdn}" \
   --output table
 
 # Confirm health endpoints respond
 curl https://$(az containerapp show \
   --name siege-frontend-prod \
-  --resource-group siege-rg-prod \
+  --resource-group siege-web-prod \
   --query properties.configuration.ingress.fqdn -o tsv)/api/health
 ```
 
@@ -171,7 +171,7 @@ az keyvault secret set \
 # Force Container Apps to pick up the new secret (create a new revision)
 az containerapp update \
   --name siege-bot-prod \
-  --resource-group siege-rg-prod \
+  --resource-group siege-web-prod \
   --revision-suffix "secret-rotate-$(date +%Y%m%d)"
 ```
 
@@ -214,7 +214,7 @@ requests to the bot will be rejected with 401.
 # Stream live logs from the API container
 az containerapp logs show \
   --name siege-api-prod \
-  --resource-group siege-rg-prod \
+  --resource-group siege-web-prod \
   --follow
 
 # Query Log Analytics for errors in the last hour
@@ -229,7 +229,7 @@ az monitor log-analytics query \
 # Set min/max replicas for the API
 az containerapp update \
   --name siege-api-prod \
-  --resource-group siege-rg-prod \
+  --resource-group siege-web-prod \
   --min-replicas 1 \
   --max-replicas 5
 ```
@@ -243,5 +243,5 @@ az containerapp update \
 > immediately if you need to redeploy to the same resource group.
 
 ```bash
-az group delete --name siege-rg-prod --yes --no-wait
+az group delete --name siege-web-prod --yes --no-wait
 ```
