@@ -4,7 +4,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$ResourceGroup = if ($Environment -eq 'dev') { 'siege-web-dev' } else { 'siege-rg' }
+$ResourceGroup = if ($Environment -eq 'dev') { 'siege-web-dev' } else { 'siege-web-prod' }
 $ApiApp        = "siege-web-api-$Environment"
 $FrontendApp   = "siege-web-frontend-$Environment"
 
