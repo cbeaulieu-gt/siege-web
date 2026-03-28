@@ -81,7 +81,7 @@ async def _send_dms(batch_id: int, members_data: list[dict]) -> None:
                     if not ok:
                         error_text = "Bot failed to deliver message"
                     else:
-                        sent_at = datetime.now(UTC)
+                        sent_at = datetime.now(UTC).replace(tzinfo=None)
                 else:
                     error_text = "No discord_username set for member"
 
