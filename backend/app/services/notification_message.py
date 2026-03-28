@@ -24,6 +24,13 @@ _BUILDING_TYPE_LABEL: dict[BuildingType, str] = {
     BuildingType.post: "Post",
 }
 
+# Per-change-type icon prefixes used in DM message lines.
+_CHANGE_TYPE_ICON: dict[str, str] = {
+    "no_change": "\U0001f6e1\ufe0f",   # 🛡️  Shield
+    "remove_from": "\u274c",           # ❌  X
+    "set_at": "\u2694\ufe0f",          # ⚔️  Crossed Swords
+}
+
 # Canonical ordering for BuildingType enum values (used to sort positions).
 # StrEnum inherits from str, so we build an explicit order list.
 _BUILDING_TYPE_ORDER: list[BuildingType] = [
@@ -107,14 +114,20 @@ def _positions_from_keys(positions: list[PositionInfo], keys: set[tuple]) -> lis
 
 
 def _build_section(
-    title: str,
+    change_type: str,
     positions: list[PositionInfo],
     building_type_counts: dict[BuildingType, int],
 ) -> str:
-    """Render one diff section (header + position lines)."""
-    lines = [f":crossed_swords:  {title}  :crossed_swords:"]
+    """Render one diff section as icon-prefixed position lines (no header).
+
+    Each line is prefixed with the icon for ``change_type`` (one of
+    ``"no_change"``, ``"remove_from"``, ``"set_at"``).  Sections are
+    separated by blank lines by the caller.
+    """
+    icon = _CHANGE_TYPE_ICON[change_type]
+    lines = []
     for p in sorted(positions, key=_position_sort_key):
-        lines.append(_position_label(p, building_type_counts))
+        lines.append(f"{icon} {_position_label(p, building_type_counts)}")
     return "\n".join(lines)
 
 
@@ -174,20 +187,22 @@ def build_member_notification_message(
     remove_from_positions = _positions_from_keys(previous_positions, remove_from_keys)
     set_at_positions = _positions_from_keys(current_positions, set_at_keys)
 
-    # --- Sections (omit empty ones) ---
+    # --- Sections (omit empty ones; separate non-empty ones with a blank line) ---
     sections: list[str] = []
 
     if no_change_positions:
-        sections.append(_build_section("No Change", no_change_positions, building_type_counts))
+        sections.append(_build_section("no_change", no_change_positions, building_type_counts))
 
     if remove_from_positions:
-        sections.append(_build_section("Remove From", remove_from_positions, building_type_counts))
+        sections.append(_build_section("remove_from", remove_from_positions, building_type_counts))
 
     if set_at_positions:
-        sections.append(_build_section("Set At", set_at_positions, building_type_counts))
+        sections.append(_build_section("set_at", set_at_positions, building_type_counts))
 
     if sections:
         lines.append("")
-        lines.extend(sections)
+        # Join sections with a blank line so each change-type group is visually
+        # separated in the Discord DM.
+        lines.append("\n\n".join(sections))
 
     return "\n".join(lines)

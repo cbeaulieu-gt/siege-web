@@ -29,10 +29,10 @@
 - [x] Add new tests asserting each role maps to the correct dark-mode-friendly color
 
 ## Issue #78 — Discord DM icons per change type + blank-line section spacing
-- [ ] Replace `_build_section` header with per-type emoji prefix on each line (no section header)
-- [ ] Add blank line between each change-type group in `build_member_notification_message`
-- [ ] Update existing tests in `test_notification_message.py` to match new format
-- [ ] Add new tests: icons appear on correct lines, blank-line separator present
+- [x] Replace `_build_section` header with per-type emoji prefix on each line (no section header)
+- [x] Add blank line between each change-type group in `build_member_notification_message`
+- [x] Update existing tests in `test_notification_message.py` to match new format
+- [x] Add new tests: icons appear on correct lines, blank-line separator present
 
 ## Bug #80 — Batch succeeds but per-member status shows "Notification failed" / "Status unknown"
 - [x] Backend: commit `batch.status = completed` atomically with result rows in the same transaction (try block), not in always-running `finally`
