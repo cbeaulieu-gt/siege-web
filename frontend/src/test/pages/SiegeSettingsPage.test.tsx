@@ -446,11 +446,11 @@ describe('SiegeSettingsPage — notification batch panel', () => {
     const dialog = screen.getByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: /send notifications/i }));
 
-    await waitFor(() => expect(screen.getByText(/notification failed/i)).toBeInTheDocument(), {
+    await waitFor(() => expect(screen.getByText(/status unknown/i)).toBeInTheDocument(), {
       timeout: 5000,
     });
 
-    const memberRow = screen.getByText(/notification failed/i).closest('li')!;
+    const memberRow = screen.getByText(/status unknown/i).closest('li')!;
 
     // Must NOT show a spinning loader
     expect(memberRow.querySelector('.animate-spin')).toBeNull();

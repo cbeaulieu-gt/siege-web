@@ -63,6 +63,7 @@ class NotificationBatchResponse(BaseModel):
 
 async def _send_dms(batch_id: int, members_data: list[dict]) -> None:
     """Send DMs for each member and record results in a fresh DB session."""
+    batch_marked_complete = False
     async with AsyncSessionLocal() as session:
         try:
             for item in members_data:
@@ -96,24 +97,35 @@ async def _send_dms(batch_id: int, members_data: list[dict]) -> None:
                     result.error = error_text
                     result.sent_at = sent_at
 
+            # Mark the batch complete in the same transaction as the result rows.
+            # This ensures "completed" status only appears in the DB when result
+            # rows are also persisted — preventing a false "Status unknown" on the
+            # frontend when the commit itself was the failure point.
+            batch_row = await session.execute(
+                select(NotificationBatch).where(NotificationBatch.id == batch_id)
+            )
+            batch = batch_row.scalar_one_or_none()
+            if batch is not None:
+                batch.status = NotificationBatchStatus.completed
+
             await session.commit()
+            batch_marked_complete = True
 
         finally:
-            # Always mark the batch completed via a FRESH, INDEPENDENT session.
-            # If the try block raised a SQLAlchemy-level error (e.g. a DB connection
-            # blip during session.execute), the original `session` enters a "needs
-            # rollback" state. Any subsequent operation on that same session raises
-            # PendingRollbackError, which BackgroundTasks swallows silently — leaving
-            # the batch stuck at "pending" forever. Opening a new AsyncSessionLocal()
-            # here is fully isolated from that error state and always succeeds.
-            async with AsyncSessionLocal() as status_session:
-                batch_row = await status_session.execute(
-                    select(NotificationBatch).where(NotificationBatch.id == batch_id)
-                )
-                batch = batch_row.scalar_one_or_none()
-                if batch is not None:
-                    batch.status = NotificationBatchStatus.completed
-                await status_session.commit()
+            if not batch_marked_complete:
+                # The try block raised before commit completed — result rows may be
+                # null/partial. Use a fresh isolated session to mark the batch
+                # completed so the frontend doesn't get stuck on "pending" forever.
+                # The frontend will show "Status unknown" for null-success rows in
+                # this case, which is accurate: the DM may or may not have been sent.
+                async with AsyncSessionLocal() as status_session:
+                    batch_row = await status_session.execute(
+                        select(NotificationBatch).where(NotificationBatch.id == batch_id)
+                    )
+                    batch = batch_row.scalar_one_or_none()
+                    if batch is not None:
+                        batch.status = NotificationBatchStatus.completed
+                    await status_session.commit()
 
 
 # ---------------------------------------------------------------------------
