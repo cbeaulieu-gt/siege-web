@@ -125,3 +125,79 @@ async def test_delete_active_siege_returns_400(client):
 
     assert response.status_code == 400
     assert "planning" in response.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# 6. compute_scroll_count — unit tests for the query filter fix (issue #94)
+# ---------------------------------------------------------------------------
+
+
+from app.services.sieges import compute_scroll_count  # noqa: E402
+
+
+@pytest.mark.asyncio
+async def test_compute_scroll_count_returns_db_value():
+    """compute_scroll_count passes the DB scalar result through unchanged."""
+    from unittest.mock import MagicMock
+
+    mock_result = MagicMock()
+    mock_result.scalar.return_value = 42
+
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=mock_result)
+
+    count = await compute_scroll_count(session, siege_id=1)
+
+    assert count == 42
+    session.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_compute_scroll_count_returns_zero_when_none():
+    """compute_scroll_count returns 0 when the DB scalar is None (empty result)."""
+    from unittest.mock import MagicMock
+
+    mock_result = MagicMock()
+    mock_result.scalar.return_value = None
+
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=mock_result)
+
+    count = await compute_scroll_count(session, siege_id=1)
+
+    assert count == 0
+
+
+@pytest.mark.asyncio
+async def test_compute_scroll_count_query_filters_broken_and_disabled():
+    """compute_scroll_count query includes Building.is_broken==False and Position.is_disabled==False.
+
+    Verifies that the compiled SQL string contains both filter predicates, ensuring broken
+    buildings and disabled positions are excluded from the scroll count baseline (issue #94).
+    """
+    import re
+    from unittest.mock import MagicMock
+
+    captured_stmt = {}
+
+    async def capture_execute(stmt):
+        captured_stmt["stmt"] = stmt
+        result = MagicMock()
+        result.scalar.return_value = 0
+        return result
+
+    session = AsyncMock()
+    session.execute = capture_execute
+
+    await compute_scroll_count(session, siege_id=5)
+
+    assert "stmt" in captured_stmt, "execute was never called"
+    sql = str(captured_stmt["stmt"].compile(compile_kwargs={"literal_binds": True}))
+
+    # Both filters must appear in the compiled query
+    assert re.search(r"building\.is_broken\s*=\s*false", sql, re.IGNORECASE), (
+        f"Expected 'building.is_broken = false' filter in query, got:\n{sql}"
+    )
+    assert re.search(r"position\.is_disabled\s*=\s*false", sql, re.IGNORECASE), (
+        f"Expected 'position.is_disabled = false' filter in query, got:\n{sql}"
+    )
