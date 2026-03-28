@@ -4,6 +4,14 @@ from app.models.enums import BuildingType
 from app.services.notification_message import PositionInfo, build_member_notification_message
 
 # ---------------------------------------------------------------------------
+# Icon constants (mirrors _CHANGE_TYPE_ICON in notification_message.py)
+# ---------------------------------------------------------------------------
+
+ICON_NO_CHANGE = "\U0001f6e1\ufe0f"  # 🛡️
+ICON_REMOVE_FROM = "\u274c"  # ❌
+ICON_SET_AT = "\u2694\ufe0f"  # ⚔️
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
@@ -48,12 +56,12 @@ def _post_pos(number: int = 2) -> PositionInfo:
 
 
 # ---------------------------------------------------------------------------
-# 1. No previous siege — all current positions appear in "Set At"
+# 1. No previous siege — all current positions appear with Set At icon (⚔️)
 # ---------------------------------------------------------------------------
 
 
 def test_no_previous_siege_all_current_in_set_at():
-    """When previous_positions is empty every current position goes to Set At."""
+    """When previous_positions is empty every current position gets the ⚔️ icon."""
     current = [_stronghold_pos(), _post_pos(2)]
     msg = build_member_notification_message(
         siege_date="2026-03-17",
@@ -63,18 +71,18 @@ def test_no_previous_siege_all_current_in_set_at():
         previous_positions=[],
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
-    assert ":crossed_swords:  Set At  :crossed_swords:" in msg
-    assert ":crossed_swords:  No Change  :crossed_swords:" not in msg
-    assert ":crossed_swords:  Remove From  :crossed_swords:" not in msg
+    assert ICON_SET_AT in msg
+    assert ICON_NO_CHANGE not in msg
+    assert ICON_REMOVE_FROM not in msg
 
 
 # ---------------------------------------------------------------------------
-# 2. Empty sections are omitted — no diff → only No Change
+# 2. Empty sections are omitted — no diff → only No Change icon (🛡️)
 # ---------------------------------------------------------------------------
 
 
 def test_empty_sections_omitted_all_no_change():
-    """When current and previous are identical only No Change appears."""
+    """When current and previous are identical only the 🛡️ icon appears."""
     pos = [_stronghold_pos(), _post_pos(8)]
     msg = build_member_notification_message(
         siege_date="2026-03-17",
@@ -84,9 +92,9 @@ def test_empty_sections_omitted_all_no_change():
         previous_positions=pos,
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
-    assert ":crossed_swords:  No Change  :crossed_swords:" in msg
-    assert ":crossed_swords:  Remove From  :crossed_swords:" not in msg
-    assert ":crossed_swords:  Set At  :crossed_swords:" not in msg
+    assert ICON_NO_CHANGE in msg
+    assert ICON_REMOVE_FROM not in msg
+    assert ICON_SET_AT not in msg
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +103,7 @@ def test_empty_sections_omitted_all_no_change():
 
 
 def test_full_diff_three_sections():
-    """Positions only in current → Set At, only in previous → Remove From, both → No Change."""
+    """Positions only in current → ⚔️, only in previous → ❌, both → 🛡️."""
     shared = _stronghold_pos(group=6, pos=1)
     only_current = _post_pos(2)
     only_previous = _post_pos(18)
@@ -108,26 +116,26 @@ def test_full_diff_three_sections():
         previous_positions=[shared, only_previous],
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
-    assert ":crossed_swords:  No Change  :crossed_swords:" in msg
-    assert ":crossed_swords:  Remove From  :crossed_swords:" in msg
-    assert ":crossed_swords:  Set At  :crossed_swords:" in msg
+    assert ICON_NO_CHANGE in msg
+    assert ICON_REMOVE_FROM in msg
+    assert ICON_SET_AT in msg
 
-    # Correct positions end up in the right sections
-    no_change_idx = msg.index("No Change")
-    remove_from_idx = msg.index("Remove From")
-    set_at_idx = msg.index("Set At")
+    # Correct positions end up with the right icon prefix
+    no_change_idx = msg.index(ICON_NO_CHANGE)
+    remove_from_idx = msg.index(ICON_REMOVE_FROM)
+    set_at_idx = msg.index(ICON_SET_AT)
 
-    # Stronghold (shared) appears in No Change
+    # Stronghold (shared) has the 🛡️ icon before it
     stronghold_label = ":red_circle: Stronghold / Group 6 / Pos 1"
     assert stronghold_label in msg
     assert msg.index(stronghold_label) > no_change_idx
 
-    # Post 18 (only previous) appears after Remove From header
+    # Post 18 (only previous) has the ❌ icon before it
     post18_label = ":white_circle: Post 18"
     assert post18_label in msg
     assert msg.index(post18_label) > remove_from_idx
 
-    # Post 2 (only current) appears after Set At header
+    # Post 2 (only current) has the ⚔️ icon before it
     post2_label = ":white_circle: Post 2"
     assert post2_label in msg
     assert msg.index(post2_label) > set_at_idx
@@ -261,12 +269,12 @@ def test_post_with_single_count_still_uses_short_format():
 
 
 # ---------------------------------------------------------------------------
-# 9. Section order — No Change → Remove From → Set At
+# 9. Section order — No Change → Remove From → Set At (icon order in message)
 # ---------------------------------------------------------------------------
 
 
 def test_section_order_no_change_then_remove_then_set_at():
-    """Sections must appear in the order: No Change, Remove From, Set At."""
+    """Icons must appear in the order: 🛡️ (No Change), ❌ (Remove From), ⚔️ (Set At)."""
     shared = _stronghold_pos(group=1, pos=1)
     only_prev = _defense_tower_pos(number=1, group=1, pos=1)
     only_curr = _post_pos(5)
@@ -280,9 +288,9 @@ def test_section_order_no_change_then_remove_then_set_at():
         building_type_counts=MULTI_DEFENSE_TOWER_COUNTS,
     )
 
-    no_change_idx = msg.index("No Change")
-    remove_from_idx = msg.index("Remove From")
-    set_at_idx = msg.index("Set At")
+    no_change_idx = msg.index(ICON_NO_CHANGE)
+    remove_from_idx = msg.index(ICON_REMOVE_FROM)
+    set_at_idx = msg.index(ICON_SET_AT)
 
     assert no_change_idx < remove_from_idx < set_at_idx
 
@@ -310,3 +318,127 @@ def test_positions_sorted_within_section():
     stronghold_idx = msg.index(":red_circle: Stronghold")
     post_idx = msg.index(":white_circle: Post")
     assert stronghold_idx < post_idx
+
+
+# ---------------------------------------------------------------------------
+# 11. Icon per line — each position line is prefixed with its section's icon
+# ---------------------------------------------------------------------------
+
+
+def test_no_change_lines_prefixed_with_shield_icon():
+    """Every No Change position line must start with the 🛡️ shield icon."""
+    pos = [_stronghold_pos(group=3, pos=2), _post_pos(5)]
+    msg = build_member_notification_message(
+        siege_date="2026-03-17",
+        has_reserve_set=True,
+        attack_day=1,
+        current_positions=pos,
+        previous_positions=pos,
+        building_type_counts=SINGLE_STRONGHOLD_COUNTS,
+    )
+    lines_with_content = [
+        ln for ln in msg.splitlines() if ":red_circle:" in ln or ":white_circle:" in ln
+    ]
+    assert all(ln.startswith(ICON_NO_CHANGE) for ln in lines_with_content)
+
+
+def test_remove_from_lines_prefixed_with_x_icon():
+    """Every Remove From position line must start with the ❌ icon."""
+    msg = build_member_notification_message(
+        siege_date="2026-03-17",
+        has_reserve_set=True,
+        attack_day=1,
+        current_positions=[],
+        previous_positions=[_post_pos(7)],
+        building_type_counts=SINGLE_STRONGHOLD_COUNTS,
+    )
+    lines_with_content = [ln for ln in msg.splitlines() if ":white_circle:" in ln]
+    assert all(ln.startswith(ICON_REMOVE_FROM) for ln in lines_with_content)
+
+
+def test_set_at_lines_prefixed_with_crossed_swords_icon():
+    """Every Set At position line must start with the ⚔️ crossed swords icon."""
+    msg = build_member_notification_message(
+        siege_date="2026-03-17",
+        has_reserve_set=True,
+        attack_day=1,
+        current_positions=[_post_pos(3)],
+        previous_positions=[],
+        building_type_counts=SINGLE_STRONGHOLD_COUNTS,
+    )
+    lines_with_content = [ln for ln in msg.splitlines() if ":white_circle:" in ln]
+    assert all(ln.startswith(ICON_SET_AT) for ln in lines_with_content)
+
+
+# ---------------------------------------------------------------------------
+# 12. Blank line between sections when multiple sections are present
+# ---------------------------------------------------------------------------
+
+
+def test_blank_line_between_no_change_and_remove_from():
+    """A blank line must appear between the No Change and Remove From sections."""
+    shared = _stronghold_pos(group=1, pos=1)
+    only_prev = _post_pos(18)
+
+    msg = build_member_notification_message(
+        siege_date="2026-03-17",
+        has_reserve_set=True,
+        attack_day=1,
+        current_positions=[shared],
+        previous_positions=[shared, only_prev],
+        building_type_counts=SINGLE_STRONGHOLD_COUNTS,
+    )
+    # A blank line (\n\n) exists somewhere after the header block
+    assert "\n\n" in msg
+
+
+def test_blank_line_between_remove_from_and_set_at():
+    """A blank line must appear between the Remove From and Set At sections."""
+    only_prev = _post_pos(18)
+    only_curr = _post_pos(2)
+
+    msg = build_member_notification_message(
+        siege_date="2026-03-17",
+        has_reserve_set=True,
+        attack_day=1,
+        current_positions=[only_curr],
+        previous_positions=[only_prev],
+        building_type_counts=SINGLE_STRONGHOLD_COUNTS,
+    )
+    assert "\n\n" in msg
+
+
+def test_no_blank_line_when_only_one_section():
+    """When only one section is present there should be no blank line within that section."""
+    msg = build_member_notification_message(
+        siege_date="2026-03-17",
+        has_reserve_set=True,
+        attack_day=1,
+        current_positions=[_post_pos(1)],
+        previous_positions=[],
+        building_type_counts=SINGLE_STRONGHOLD_COUNTS,
+    )
+    # The header contributes 2 blank lines (\n\n): one between the title and
+    # the metadata block, and one between the metadata and the section block.
+    # With only one section there are no inter-section separators, so the total
+    # count should be exactly 2.
+    assert msg.count("\n\n") == 2
+
+
+def test_blank_line_count_with_all_three_sections():
+    """With all three sections there should be exactly two blank lines between them
+    (plus one after header)."""
+    shared = _stronghold_pos(group=1, pos=1)
+    only_prev = _post_pos(18)
+    only_curr = _post_pos(2)
+
+    msg = build_member_notification_message(
+        siege_date="2026-03-17",
+        has_reserve_set=True,
+        attack_day=1,
+        current_positions=[shared, only_curr],
+        previous_positions=[shared, only_prev],
+        building_type_counts=SINGLE_STRONGHOLD_COUNTS,
+    )
+    # Header contributes 2 blank lines + 2 inter-section separators = 4 total
+    assert msg.count("\n\n") == 4
