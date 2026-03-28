@@ -426,7 +426,8 @@ def test_no_blank_line_when_only_one_section():
 
 
 def test_blank_line_count_with_all_three_sections():
-    """With all three sections there should be exactly two blank lines between them (plus one after header)."""
+    """With all three sections there should be exactly two blank lines between them
+    (plus one after header)."""
     shared = _stronghold_pos(group=1, pos=1)
     only_prev = _post_pos(18)
     only_curr = _post_pos(2)
