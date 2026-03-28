@@ -1,5 +1,5 @@
 param(
-    [string]$ExcelPath   = 'E:\My Files\Games\Raid Shadow Legends\siege',
+    [string]$ExcelPath = 'E:\My Files\Games\Raid Shadow Legends\siege',
     [string]$Environment = 'dev'
 )
 
@@ -10,7 +10,7 @@ if ($Environment -notin @('dev', 'prod')) {
     exit 1
 }
 
-$ResourceGroup = if ($Environment -eq 'dev') { 'siege-web-dev' } else { 'siege-rg' }
+$ResourceGroup = if ($Environment -eq 'dev') { 'siege-web-dev' } else { 'siege-web-prod' }
 
 Write-Host "==> Excel import for environment: $Environment"
 Write-Host "    Resource group: $ResourceGroup"
@@ -27,7 +27,7 @@ if (-not (Test-Path $ExcelPath)) {
 }
 
 $XlsmFiles = Get-ChildItem -Path $ExcelPath -Filter '*.xlsm' -File
-$FileCount  = $XlsmFiles.Count
+$FileCount = $XlsmFiles.Count
 
 if ($FileCount -eq 0) {
     Write-Error "No .xlsm files found in: $ExcelPath`nEnsure the siege export files are present before running this script."
@@ -130,7 +130,8 @@ try {
         Write-Error 'Excel import failed. Check the output above for details.'
         exit 1
     }
-} finally {
+}
+finally {
     Write-Host ""
     Write-Host "==> Removing temporary firewall rule '$FirewallRuleName'..."
     az postgres flexible-server firewall-rule delete `
