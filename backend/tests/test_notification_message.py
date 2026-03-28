@@ -156,9 +156,9 @@ def test_header_contains_siege_date_and_member_settings():
         previous_positions=[],
         building_type_counts={},
     )
-    assert "[1MOM] Masters of Magicka Siege Assignment (2026-03-17)" in msg
-    assert "Have Reserve Set: Yes" in msg
-    assert "Attack Day: 2" in msg
+    assert "**[1MOM] Masters of Magicka Siege Assignment (2026-03-17)**" in msg
+    assert "**Have Reserve Set:** Yes" in msg
+    assert "**Attack Day:** 2" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -176,8 +176,8 @@ def test_none_fields_display_as_unknown():
         previous_positions=[],
         building_type_counts={},
     )
-    assert "Have Reserve Set: Unknown" in msg
-    assert "Attack Day: Unknown" in msg
+    assert "**Have Reserve Set:** Unknown" in msg
+    assert "**Attack Day:** Unknown" in msg
 
 
 def test_false_reserve_set_displays_no():
@@ -190,7 +190,7 @@ def test_false_reserve_set_displays_no():
         previous_positions=[],
         building_type_counts={},
     )
-    assert "Have Reserve Set: No" in msg
+    assert "**Have Reserve Set:** No" in msg
 
 
 # ---------------------------------------------------------------------------
@@ -348,10 +348,8 @@ def test_no_change_section_has_header_and_plain_position_lines():
         previous_positions=pos,
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
-    assert ":shield:  No Change  :shield:" in msg
-    position_lines = [
-        ln for ln in msg.splitlines() if any(ln.startswith(c) for c in _BUILDING_CIRCLE_EMOJIS)
-    ]
+    assert ":shield: ** No Change ** :shield:" in msg
+    position_lines = [ln for ln in msg.splitlines() if ln.startswith("- ") and any(c in ln for c in _BUILDING_CIRCLE_EMOJIS)]
     assert len(position_lines) > 0
     assert not any(ln.startswith(ICON_NO_CHANGE) for ln in position_lines)
 
@@ -370,10 +368,8 @@ def test_remove_from_section_has_header_and_plain_position_lines():
         previous_positions=[_post_pos(7)],
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
-    assert ":x:  Remove From  :x:" in msg
-    position_lines = [
-        ln for ln in msg.splitlines() if any(ln.startswith(c) for c in _BUILDING_CIRCLE_EMOJIS)
-    ]
+    assert ":x: ** Remove From ** :x:" in msg
+    position_lines = [ln for ln in msg.splitlines() if ln.startswith("- ") and any(c in ln for c in _BUILDING_CIRCLE_EMOJIS)]
     assert len(position_lines) > 0
     assert not any(ln.startswith(ICON_REMOVE_FROM) for ln in position_lines)
 
@@ -392,10 +388,8 @@ def test_set_at_section_has_header_and_plain_position_lines():
         previous_positions=[],
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
-    assert ":crossed_swords:  Set At  :crossed_swords:" in msg
-    position_lines = [
-        ln for ln in msg.splitlines() if any(ln.startswith(c) for c in _BUILDING_CIRCLE_EMOJIS)
-    ]
+    assert ":crossed_swords: ** Set At ** :crossed_swords:" in msg
+    position_lines = [ln for ln in msg.splitlines() if ln.startswith("- ") and any(c in ln for c in _BUILDING_CIRCLE_EMOJIS)]
     assert len(position_lines) > 0
     assert not any(ln.startswith(ICON_SET_AT) for ln in position_lines)
 
@@ -448,11 +442,11 @@ def test_no_blank_line_when_only_one_section():
         previous_positions=[],
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
-    # The header contributes 2 blank lines (\n\n): one between the title and
-    # the metadata block, and one between the metadata and the section block.
-    # With only one section there are no inter-section separators, so the total
-    # count should be exactly 2.
-    assert msg.count("\n\n") == 2
+    # The header contributes 3 blank lines (\n\n): one after the warning line,
+    # one between the title and the metadata block, and one between the metadata
+    # and the section block.  With only one section there are no inter-section
+    # separators, so the total count should be exactly 3.
+    assert msg.count("\n\n") == 3
 
 
 def test_blank_line_count_with_all_three_sections():
@@ -470,8 +464,8 @@ def test_blank_line_count_with_all_three_sections():
         previous_positions=[shared, only_prev],
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
-    # Header contributes 2 blank lines + 2 inter-section separators = 4 total
-    assert msg.count("\n\n") == 4
+    # Header contributes 3 blank lines + 2 inter-section separators = 5 total
+    assert msg.count("\n\n") == 5
 
 
 # ---------------------------------------------------------------------------
@@ -494,9 +488,9 @@ def test_all_three_section_headers_exact_format():
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
     lines = msg.splitlines()
-    assert ":shield:  No Change  :shield:" in lines
-    assert ":x:  Remove From  :x:" in lines
-    assert ":crossed_swords:  Set At  :crossed_swords:" in lines
+    assert ":shield: ** No Change ** :shield:" in lines
+    assert ":x: ** Remove From ** :x:" in lines
+    assert ":crossed_swords: ** Set At ** :crossed_swords:" in lines
 
 
 def test_header_line_not_a_position_line():
@@ -510,7 +504,7 @@ def test_header_line_not_a_position_line():
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
     lines = msg.splitlines()
-    header_line = ":crossed_swords:  Set At  :crossed_swords:"
+    header_line = ":crossed_swords: ** Set At ** :crossed_swords:"
     assert header_line in lines
     # The header line must not contain any building-type circle emoji
     assert not any(circle in header_line for circle in _BUILDING_CIRCLE_EMOJIS)

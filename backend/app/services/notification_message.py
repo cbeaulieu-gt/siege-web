@@ -137,9 +137,10 @@ def _build_section(
     """
     icon = _CHANGE_TYPE_ICON[change_type]
     label = _CHANGE_TYPE_LABEL[change_type]
-    header = f"{icon}  {label}  {icon}"
+    header = f"{icon} ** {label} ** {icon}"
     position_lines = [
-        _position_label(p, building_type_counts) for p in sorted(positions, key=_position_sort_key)
+        "- " + _position_label(p, building_type_counts)
+        for p in sorted(positions, key=_position_sort_key)
     ]
     return header + "\n" + "\n".join(position_lines)
 
@@ -180,10 +181,12 @@ def build_member_notification_message(
     attack_day_str = "Unknown" if attack_day is None else str(attack_day)
 
     lines: list[str] = [
-        f"[1MOM] Masters of Magicka Siege Assignment ({siege_date})",
+        ":warning: **This bot is a work in progress. Please verify assignments manually if needed.** :warning:",
         "",
-        f"Have Reserve Set: {reserve_str}",
-        f"Attack Day: {attack_day_str}",
+        f"**[1MOM] Masters of Magicka Siege Assignment ({siege_date})**",
+        "",
+        f"**Have Reserve Set:** {reserve_str}",
+        f"**Attack Day:** {attack_day_str}",
     ]
 
     # --- Diff computation ---
