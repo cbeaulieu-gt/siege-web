@@ -121,7 +121,7 @@ Secrets for Azure deployments are stored in per-environment files (both gitignor
 | File | Purpose |
 |---|---|
 | `.env.deploy.dev` | Secrets for the dev Azure instance (`siege-web-dev` resource group) |
-| `.env.deploy.prod` | Secrets for the prod Azure instance (`siege-rg` resource group) |
+| `.env.deploy.prod` | Secrets for the prod Azure instance (`siege-web-prod` resource group) |
 
 Copy `.env.deploy.example` to both files and fill in the values. At minimum, `DISCORD_GUILD_ID` must differ between environments.
 

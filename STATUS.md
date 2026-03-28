@@ -2,14 +2,15 @@
 
 ## Current State
 
-The application is feature-complete through Phase 8. All core backend logic (CRUD,
-assignment board, validation engine, auto-fill, attack day, comparison, Discord bot,
-image generation, notifications, and Excel import) is implemented and covered by 3500+
-lines of backend tests. The React frontend covers the full planner workflow including the
-assignment board, post/member management, the comparison view, and Discord notification
-controls. Phase 9 (hardening and launch) is in progress: the RUNBOOK.md has been written,
-and the remaining gaps are Playwright end-to-end tests, Azure Bicep IaC, Vitest frontend
-unit tests, and production environment provisioning.
+The application is feature-complete through Phase 9 (hardening and launch). All core
+backend logic (CRUD, assignment board, validation engine, auto-fill, attack day, comparison,
+Discord bot, image generation, notifications, and Excel import) is implemented and covered
+by 3500+ backend tests. Playwright end-to-end tests cover the full siege lifecycle.
+Vitest component tests cover the assignment board and notification polling. Azure Bicep IaC
+is authored for both dev and prod environments. The RUNBOOK.md documents all operational
+procedures. The remaining Phase 9 items (prod provisioning, GitHub Actions CD pipeline,
+planner sign-off, smoke tests, and 48-hour post-launch monitoring) are pre-launch steps
+that depend on the production environment being stood up.
 
 ## Phase Completion
 
@@ -24,7 +25,7 @@ unit tests, and production environment provisioning.
 | 6 — Frontend Core | Complete | Member CRUD, siege management, assignment board, auto-fill UI, validation panel |
 | 7 — Frontend Discord/Compare | Complete | Comparison view, DM notification panel, channel post action, image preview/download |
 | 8 — Excel Import | Complete | One-time CLI script using openpyxl; imports historical .xlsm siege files |
-| 9 — Hardening/Launch | In Progress | RUNBOOK.md done; E2E tests, Bicep IaC, Vitest frontend tests, and prod provisioning remaining |
+| 9 — Hardening/Launch | In Progress | E2E tests, Bicep IaC, Vitest, RUNBOOK.md done; prod provisioning + CD pipeline + launch steps remaining |
 
 ## What's Working
 
@@ -44,15 +45,16 @@ unit tests, and production environment provisioning.
 
 **Done:**
 - RUNBOOK.md — restart procedures, rollback, DB restore, secret rotation, log queries, incident playbooks
+- Playwright end-to-end tests: full siege lifecycle covered; 22 flaky tests fixed
+- Azure Bicep IaC: all modules authored (ACR, Log Analytics, App Insights, PostgreSQL, Key Vault, Container Apps); dev + prod param files in place
+- Vitest frontend unit tests: BoardPage and notification polling (SiegeSettingsPage) covered
+- Azure Container Apps health check fixes (Key Vault role assignments, nginx envsubst, ACR naming)
 
-**Remaining:**
-- Playwright end-to-end tests: full siege lifecycle in CI against staging
-- Azure Bicep IaC: production environment definition (Container Apps, PostgreSQL, ACR, Key Vault)
-- Vitest frontend unit tests: component tests for board interactions and notification polling
-- Performance validation: board load target < 2s, image generation target < 5s
-- Application Insights configuration: error monitoring and request tracing
-- Production Azure environment provisioning (separate from dev)
+**Remaining (pre-launch):**
+- Production Azure environment provisioning (stand up `siege-web-prod` resource group from Bicep)
 - GitHub Actions deployment pipeline: merge to main → build → push to ACR → deploy to prod
+- Performance validation: board load target < 2s, image generation target < 5s
+- Application Insights SDK integration in backend and bot services
 - Planner sign-off walkthrough
 - Smoke tests against production
 - 48-hour post-launch monitoring
@@ -78,13 +80,11 @@ planned as part of Phase 9 and is not yet configured.
 
 ## Next Steps (ordered, pre-launch)
 
-1. Write Playwright E2E tests covering the full siege lifecycle
-2. Write Vitest component tests for the assignment board and notification polling
-3. Author Azure Bicep IaC for the production environment
-4. Configure Application Insights on all three Container Apps
-5. Provision production Azure environment from Bicep templates
-6. Configure GitHub Actions CD pipeline (build → ACR push → Container App deploy on merge to main)
-7. Validate RUNBOOK.md against the real production environment
-8. Run a full walkthrough with the siege planner; address any critical feedback
-9. Deploy to production and run smoke tests
-10. Monitor for 48 hours post-launch (see RUNBOOK.md Section 6 checklist)
+1. Provision production Azure environment (`siege-web-prod` resource group) from Bicep templates
+2. Configure GitHub Actions CD pipeline (build → ACR push → Container App deploy on merge to main)
+3. Enable Application Insights SDK in backend and bot (`azure-monitor-opentelemetry`)
+4. Validate performance: board load < 2s, image generation < 5s
+5. Validate RUNBOOK.md against the real production environment
+6. Run a full walkthrough with the siege planner; address any critical feedback
+7. Deploy to production and run smoke tests
+8. Monitor for 48 hours post-launch (see RUNBOOK.md Section 6 checklist)

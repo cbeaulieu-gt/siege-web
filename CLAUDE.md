@@ -14,7 +14,7 @@ Monorepo with three independently containerized services:
 - **`frontend/`** — React 18 + TypeScript, Vite, React Router v6, React Query, Tailwind CSS, shadcn/ui
 - **`bot/`** — discord.py client + FastAPI HTTP sidecar (port 8001); backend calls the bot's HTTP API to send DMs / post images
 
-Data flow: Azure AD → Easy Auth → frontend (Nginx) → `/api/*` proxy → backend → PostgreSQL. Backend calls bot HTTP API for Discord notifications. Bot uses Playwright for image generation (headless HTML/CSS → PNG).
+Data flow: Azure AD → Easy Auth → frontend (Nginx) → `/api/*` proxy → backend → PostgreSQL. Backend calls bot HTTP API for Discord notifications. Backend generates images via Playwright (headless HTML/CSS → PNG); the bot receives the finished PNG and posts it.
 
  - Keep an STATUS.md file with a high level summary of the state of the project and the anticipated next steps. Frequently update it W
 
@@ -37,9 +37,9 @@ pip install -r requirements-dev.txt
 uvicorn app.main:app --reload
 
 # Test
-pytest
-pytest tests/test_health.py          # single file
-pytest -k "test_health"              # single test by name
+pytest --ignore=tests/test_schema.py -v     # standard run (test_schema.py requires live DB)
+pytest tests/test_health.py                 # single file
+pytest -k "test_health"                     # single test by name
 pytest --cov=app --cov-report=term-missing
 
 # Lint / format
@@ -90,7 +90,7 @@ pytest
 - API base URL from `VITE_API_URL` env var; Axios client in `src/api/client.ts`.
 - Pages in `src/pages/`; routes wired in `src/App.tsx`.
 - `cn()` utility from `src/lib/utils.ts` for Tailwind class merging.
-- Prettier enforces single quotes and Tailwind class sorting (`.prettierrc`).
+- Prettier enforces double quotes and Tailwind class sorting (`.prettierrc`).
 
 ### Bot
 - `SiegeBot` (discord.py) and the HTTP API (FastAPI on port 8001) run concurrently via `asyncio.TaskGroup`.
@@ -103,7 +103,7 @@ On PR to `main`:
 - **Backend**: black check → ruff → pytest (uses test DB URL from env)
 - **Frontend**: npm ci → eslint → npm build
 
-No deployment pipeline yet (Phase 9).
+Deployment pipeline (merge to main → ACR push → Container Apps deploy) is planned but not yet configured.
 
 ## Environment Variables
 
@@ -116,6 +116,8 @@ Copy `.env.example` to `.env`. Required:
 | `DISCORD_GUILD_ID` | backend, bot |
 | `DISCORD_BOT_API_URL` | backend (calls bot) |
 | `DISCORD_BOT_API_KEY` / `BOT_API_KEY` | backend → bot auth |
+| `DISCORD_SIEGE_CHANNEL` | backend (channel to post images) |
+| `DISCORD_SIEGE_IMAGES_CHANNEL` | backend (channel to post image CDN links) |
 | `ENVIRONMENT` | all (controls debug/docs) |
 
 ## Domain Reference
