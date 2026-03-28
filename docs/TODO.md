@@ -43,6 +43,14 @@
 - [x] Add 2 new tests for exact header format (group 13)
 - [x] All 21 tests pass
 
+## Discord DM formatting polish (PR #86)
+- [x] Add WIP warning line at top of message
+- [x] Bold the title line
+- [x] Bold the metadata field keys (`Have Reserve Set:`, `Attack Day:`)
+- [x] Change section header to `{icon} ** {Label} ** {icon}` (bold label with surrounding spaces)
+- [x] Prefix each position line with `- `
+- [x] Update test assertions to match new format
+
 ## Bug #80 — Batch succeeds but per-member status shows "Notification failed" / "Status unknown"
 - [x] Backend: commit `batch.status = completed` atomically with result rows in the same transaction (try block), not in always-running `finally`
 - [x] Backend: keep `finally` block as safety net — only fires when try block raised, marks batch `completed` via isolated session
