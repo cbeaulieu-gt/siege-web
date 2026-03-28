@@ -39,10 +39,17 @@ _BUILDING_LABELS: dict[BuildingType, str] = {
 }
 
 _MEMBER_ROLE_COLORS: dict[MemberRole, str] = {
-    MemberRole.heavy_hitter: "#f59e0b",
-    MemberRole.advanced: "#a855f7",
-    MemberRole.medium: "#3b82f6",
-    MemberRole.novice: "#94a3b8",
+    # Colors mirror the UI's role hue families (BoardPage ROLE_CHIP_COLORS) adapted for
+    # the dark cell background (#1f2937).  Tailwind-400 variants give sufficient contrast
+    # on dark backgrounds while staying visually consistent with the light-mode role chips:
+    #   heavy_hitter → red (red-400)
+    #   advanced     → amber (amber-400)
+    #   medium       → green (green-400)
+    #   novice       → blue (blue-400)
+    MemberRole.heavy_hitter: "#f87171",  # red-400
+    MemberRole.advanced: "#fbbf24",  # amber-400
+    MemberRole.medium: "#4ade80",  # green-400
+    MemberRole.novice: "#60a5fa",  # blue-400
 }
 
 
