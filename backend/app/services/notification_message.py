@@ -24,11 +24,21 @@ _BUILDING_TYPE_LABEL: dict[BuildingType, str] = {
     BuildingType.post: "Post",
 }
 
-# Per-change-type icon prefixes used in DM message lines.
+# Per-change-type Discord shortcode icons used in section headers.
+# Discord renders these shortcodes into emoji in DMs; shortcodes are the
+# canonical format matching the design spec's intended output.
 _CHANGE_TYPE_ICON: dict[str, str] = {
-    "no_change": "\U0001f6e1\ufe0f",  # 🛡️  Shield
-    "remove_from": "\u274c",  # ❌  X
-    "set_at": "\u2694\ufe0f",  # ⚔️  Crossed Swords
+    "no_change": ":shield:",
+    "remove_from": ":x:",
+    "set_at": ":crossed_swords:",
+}
+
+# Human-readable label for each change type, used alongside the icon in the
+# section header line (e.g. ":shield:  No Change  :shield:").
+_CHANGE_TYPE_LABEL: dict[str, str] = {
+    "no_change": "No Change",
+    "remove_from": "Remove From",
+    "set_at": "Set At",
 }
 
 # Canonical ordering for BuildingType enum values (used to sort positions).
@@ -118,17 +128,20 @@ def _build_section(
     positions: list[PositionInfo],
     building_type_counts: dict[BuildingType, int],
 ) -> str:
-    """Render one diff section as icon-prefixed position lines (no header).
+    """Render one diff section as a header line followed by plain position lines.
 
-    Each line is prefixed with the icon for ``change_type`` (one of
-    ``"no_change"``, ``"remove_from"``, ``"set_at"``).  Sections are
-    separated by blank lines by the caller.
+    The header takes the form ``{icon}  {Label}  {icon}`` (e.g.
+    ``:shield:  No Change  :shield:``).  Each position line starts directly
+    with the building-type circle emoji provided by ``_position_label()``.
+    Sections are separated by blank lines by the caller.
     """
     icon = _CHANGE_TYPE_ICON[change_type]
-    lines = []
-    for p in sorted(positions, key=_position_sort_key):
-        lines.append(f"{icon} {_position_label(p, building_type_counts)}")
-    return "\n".join(lines)
+    label = _CHANGE_TYPE_LABEL[change_type]
+    header = f"{icon}  {label}  {icon}"
+    position_lines = [
+        _position_label(p, building_type_counts) for p in sorted(positions, key=_position_sort_key)
+    ]
+    return header + "\n" + "\n".join(position_lines)
 
 
 # ---------------------------------------------------------------------------

@@ -7,9 +7,9 @@ from app.services.notification_message import PositionInfo, build_member_notific
 # Icon constants (mirrors _CHANGE_TYPE_ICON in notification_message.py)
 # ---------------------------------------------------------------------------
 
-ICON_NO_CHANGE = "\U0001f6e1\ufe0f"  # 🛡️
-ICON_REMOVE_FROM = "\u274c"  # ❌
-ICON_SET_AT = "\u2694\ufe0f"  # ⚔️
+ICON_NO_CHANGE = ":shield:"
+ICON_REMOVE_FROM = ":x:"
+ICON_SET_AT = ":crossed_swords:"
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -321,12 +321,24 @@ def test_positions_sorted_within_section():
 
 
 # ---------------------------------------------------------------------------
-# 11. Icon per line — each position line is prefixed with its section's icon
+# 11. Section headers — change-type icon flanks the label; position lines are plain
 # ---------------------------------------------------------------------------
 
+_BUILDING_CIRCLE_EMOJIS = (
+    ":red_circle:",
+    ":green_circle:",
+    ":yellow_circle:",
+    ":blue_circle:",
+    ":white_circle:",
+)
 
-def test_no_change_lines_prefixed_with_shield_icon():
-    """Every No Change position line must start with the 🛡️ shield icon."""
+
+def test_no_change_section_has_header_and_plain_position_lines():
+    """No Change section must have a ':shield:  No Change  :shield:' header.
+
+    Position lines must start with a building-type circle emoji, NOT the
+    change-type icon — the icon belongs only on the header.
+    """
     pos = [_stronghold_pos(group=3, pos=2), _post_pos(5)]
     msg = build_member_notification_message(
         siege_date="2026-03-17",
@@ -336,14 +348,20 @@ def test_no_change_lines_prefixed_with_shield_icon():
         previous_positions=pos,
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
-    lines_with_content = [
-        ln for ln in msg.splitlines() if ":red_circle:" in ln or ":white_circle:" in ln
+    assert ":shield:  No Change  :shield:" in msg
+    position_lines = [
+        ln for ln in msg.splitlines() if any(ln.startswith(c) for c in _BUILDING_CIRCLE_EMOJIS)
     ]
-    assert all(ln.startswith(ICON_NO_CHANGE) for ln in lines_with_content)
+    assert len(position_lines) > 0
+    assert not any(ln.startswith(ICON_NO_CHANGE) for ln in position_lines)
 
 
-def test_remove_from_lines_prefixed_with_x_icon():
-    """Every Remove From position line must start with the ❌ icon."""
+def test_remove_from_section_has_header_and_plain_position_lines():
+    """Remove From section must have a ':x:  Remove From  :x:' header.
+
+    Position lines must start with a building-type circle emoji, NOT the
+    change-type icon.
+    """
     msg = build_member_notification_message(
         siege_date="2026-03-17",
         has_reserve_set=True,
@@ -352,12 +370,20 @@ def test_remove_from_lines_prefixed_with_x_icon():
         previous_positions=[_post_pos(7)],
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
-    lines_with_content = [ln for ln in msg.splitlines() if ":white_circle:" in ln]
-    assert all(ln.startswith(ICON_REMOVE_FROM) for ln in lines_with_content)
+    assert ":x:  Remove From  :x:" in msg
+    position_lines = [
+        ln for ln in msg.splitlines() if any(ln.startswith(c) for c in _BUILDING_CIRCLE_EMOJIS)
+    ]
+    assert len(position_lines) > 0
+    assert not any(ln.startswith(ICON_REMOVE_FROM) for ln in position_lines)
 
 
-def test_set_at_lines_prefixed_with_crossed_swords_icon():
-    """Every Set At position line must start with the ⚔️ crossed swords icon."""
+def test_set_at_section_has_header_and_plain_position_lines():
+    """Set At section must have a ':crossed_swords:  Set At  :crossed_swords:' header.
+
+    Position lines must start with a building-type circle emoji, NOT the
+    change-type icon.
+    """
     msg = build_member_notification_message(
         siege_date="2026-03-17",
         has_reserve_set=True,
@@ -366,8 +392,12 @@ def test_set_at_lines_prefixed_with_crossed_swords_icon():
         previous_positions=[],
         building_type_counts=SINGLE_STRONGHOLD_COUNTS,
     )
-    lines_with_content = [ln for ln in msg.splitlines() if ":white_circle:" in ln]
-    assert all(ln.startswith(ICON_SET_AT) for ln in lines_with_content)
+    assert ":crossed_swords:  Set At  :crossed_swords:" in msg
+    position_lines = [
+        ln for ln in msg.splitlines() if any(ln.startswith(c) for c in _BUILDING_CIRCLE_EMOJIS)
+    ]
+    assert len(position_lines) > 0
+    assert not any(ln.startswith(ICON_SET_AT) for ln in position_lines)
 
 
 # ---------------------------------------------------------------------------
@@ -442,3 +472,45 @@ def test_blank_line_count_with_all_three_sections():
     )
     # Header contributes 2 blank lines + 2 inter-section separators = 4 total
     assert msg.count("\n\n") == 4
+
+
+# ---------------------------------------------------------------------------
+# 13. Section header exact format
+# ---------------------------------------------------------------------------
+
+
+def test_all_three_section_headers_exact_format():
+    """All three section headers must appear as exact lines in the message."""
+    shared = _stronghold_pos(group=1, pos=1)
+    only_prev = _post_pos(18)
+    only_curr = _post_pos(2)
+
+    msg = build_member_notification_message(
+        siege_date="2026-03-17",
+        has_reserve_set=True,
+        attack_day=2,
+        current_positions=[shared, only_curr],
+        previous_positions=[shared, only_prev],
+        building_type_counts=SINGLE_STRONGHOLD_COUNTS,
+    )
+    lines = msg.splitlines()
+    assert ":shield:  No Change  :shield:" in lines
+    assert ":x:  Remove From  :x:" in lines
+    assert ":crossed_swords:  Set At  :crossed_swords:" in lines
+
+
+def test_header_line_not_a_position_line():
+    """The section header line itself must not contain a building-type circle emoji."""
+    msg = build_member_notification_message(
+        siege_date="2026-03-17",
+        has_reserve_set=True,
+        attack_day=1,
+        current_positions=[_post_pos(1)],
+        previous_positions=[],
+        building_type_counts=SINGLE_STRONGHOLD_COUNTS,
+    )
+    lines = msg.splitlines()
+    header_line = ":crossed_swords:  Set At  :crossed_swords:"
+    assert header_line in lines
+    # The header line must not contain any building-type circle emoji
+    assert not any(circle in header_line for circle in _BUILDING_CIRCLE_EMOJIS)
