@@ -286,6 +286,46 @@ async def test_apply_returns_409_when_preview_expired():
     assert exc_info.value.status_code == 409
 
 
+@pytest.mark.asyncio
+async def test_preview_skips_broken_building_positions():
+    """Broken building positions are excluded from autofill (issue #94).
+
+    Siege has one normal building (2 empty positions) and one broken building (2 empty
+    positions).  preview_autofill must only fill the 2 positions on the healthy building;
+    the broken building's positions must not appear in the result at all.
+    """
+    member = _make_member(1)
+
+    # Normal building: positions 10, 11
+    normal_positions = [_make_position(id=10, position_number=1), _make_position(id=11, position_number=2)]
+    normal_group = _make_group(id=1, slot_count=2)
+    normal_group.positions = normal_positions
+    normal_building = _make_building(id=1)
+    normal_building.groups = [normal_group]
+
+    # Broken building: positions 20, 21
+    broken_positions = [_make_position(id=20, position_number=1), _make_position(id=21, position_number=2)]
+    broken_group = _make_group(id=2, slot_count=2)
+    broken_group.positions = broken_positions
+    broken_building = _make_building(id=2)
+    broken_building.is_broken = True
+    broken_building.groups = [broken_group]
+
+    siege = _make_siege()
+    siege.buildings = [normal_building, broken_building]
+    siege.siege_members = [_make_sm(member.id, member)]
+
+    # position_count=2 (only the normal building's 2 positions count)
+    session = _make_session_for_preview(siege, position_count=2)
+    result = await preview_autofill(session, 1)
+
+    assigned_position_ids = {a.position_id for a in result.assignments}
+    assert assigned_position_ids == {10, 11}, (
+        "Only normal-building positions should be auto-filled; "
+        f"broken positions 20 and 21 must not appear. Got: {assigned_position_ids}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Session helpers
 # ---------------------------------------------------------------------------

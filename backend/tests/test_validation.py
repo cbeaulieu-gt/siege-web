@@ -252,6 +252,44 @@ async def test_rule1_active_member_no_error():
 
 
 @pytest.mark.asyncio
+async def test_rule2_broken_building_assignment_not_counted():
+    """Rule 2: assignment on a broken building does not count toward the scroll limit (issue #94).
+
+    A member is assigned to 3 positions on a broken building.  compute_scroll_count (mocked to
+    return 5) gives a limit of 3.  If broken positions were counted, the member would appear to
+    have 3 assignments and — at the boundary — the test would still pass, so we add a 4th
+    position on the broken building (which would clearly exceed the limit if counted) to make
+    the exclusion unambiguous.  No Rule 2 error should fire because all assignments are on a
+    broken building and are excluded from scroll accounting.
+    """
+    member = _make_member(id=1, is_active=True)
+    # 4 positions on a broken building — would exceed the limit of 3 if counted
+    positions = [
+        _make_position(id=i, position_number=i, member_id=1, member=member) for i in range(1, 5)
+    ]
+    group = _make_group(id=1, slot_count=4)
+    group.positions = positions
+    broken_building = _make_building(id=1)
+    broken_building.is_broken = True
+    broken_building.groups = [group]
+
+    siege = _make_siege()
+    siege.buildings = [broken_building]
+    sm = _make_siege_member(member_id=1, attack_day=1, has_reserve_set=True, member=member)
+    siege.siege_members = [sm]
+
+    # compute_scroll_count returns 5 → limit = 3.  Member has 4 assignments on a
+    # broken building; they must all be excluded so no Rule 2 error fires.
+    session = _session_with_siege_and_configs(siege)
+    result = await svc_validate(session, 1)
+    rule2_errors = [e for e in result.errors if e.rule == 2]
+    assert len(rule2_errors) == 0, (
+        "Assignments on broken buildings must not count toward the scroll limit; "
+        f"unexpected Rule 2 errors: {rule2_errors}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_rule2_exceeds_scroll_count():
     """Rule 2: member assigned 4 times when scrolls_per_player limit is 3 → error."""
     member = _make_member(id=1, is_active=True)

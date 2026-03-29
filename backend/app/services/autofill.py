@@ -41,17 +41,21 @@ async def preview_autofill(session: AsyncSession, siege_id: int) -> AutofillPrev
     if siege.status == SiegeStatus.complete:
         raise HTTPException(status_code=400, detail="Cannot auto-fill a completed siege")
 
-    # 1. Collect empty, non-disabled, non-reserve positions
+    # 1. Collect empty, non-disabled, non-reserve positions (skip broken buildings)
     empty_positions: list[Position] = []
     for building in siege.buildings:
+        if building.is_broken:
+            continue
         for group in building.groups:
             for pos in group.positions:
                 if not pos.is_disabled and not pos.is_reserve and pos.member_id is None:
                     empty_positions.append(pos)
 
-    # 2. Count existing assignments per member
+    # 2. Count existing assignments per member (skip broken buildings)
     assignment_counts: dict[int, int] = defaultdict(int)
     for building in siege.buildings:
+        if building.is_broken:
+            continue
         for group in building.groups:
             for pos in group.positions:
                 if pos.member_id is not None and not pos.is_reserve and not pos.is_disabled:

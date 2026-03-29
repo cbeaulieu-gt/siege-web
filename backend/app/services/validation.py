@@ -58,10 +58,17 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
             for position in group.positions:
                 all_positions.append((position, group, building))
 
-    # Assigned member ids across all positions (non-reserve, non-disabled)
+    # Assigned member ids across non-broken, non-reserve, non-disabled positions.
+    # Broken building positions are excluded so they don't count against the scroll
+    # budget (which is also computed without broken buildings in compute_scroll_count).
     assignments_by_member: dict[int, int] = defaultdict(int)
     for pos, group, building in all_positions:
-        if pos.member_id is not None and not pos.is_reserve and not pos.is_disabled:
+        if (
+            pos.member_id is not None
+            and not pos.is_reserve
+            and not pos.is_disabled
+            and not building.is_broken
+        ):
             assignments_by_member[pos.member_id] += 1
 
     # Build siege_member lookup by member_id
