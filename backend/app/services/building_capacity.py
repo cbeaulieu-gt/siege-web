@@ -1,3 +1,5 @@
+from app.models.enums import BuildingType
+
 # Teams per building type per level (from game data).
 # Post buildings are not listed here — they always have exactly 1 position.
 _LEVEL_TEAMS: dict[str, dict[int, int]] = {
@@ -8,23 +10,37 @@ _LEVEL_TEAMS: dict[str, dict[int, int]] = {
 }
 
 
-def get_team_count(building_type: str, level: int) -> int:
+def get_team_count(building_type: str | BuildingType, level: int) -> int:
     """Return the theoretical total team slots for a building type at a given level.
 
     This is derived purely from game data in ``_LEVEL_TEAMS`` and is independent
     of database state (no Position or BuildingGroup records are consulted).
 
-    Post buildings are not in ``_LEVEL_TEAMS``; they always have 1 position, so
-    the fallback chain ``levels.get(1, 1)`` returns 1 for any unrecognised type.
+    Post buildings always have exactly 1 position and are handled explicitly before
+    the lookup table is consulted.  Any building type that is not ``post`` and is
+    also not found in ``_LEVEL_TEAMS`` raises ``ValueError`` — this catches typos
+    and new enum values that haven't been added to the table yet.
 
     Args:
-        building_type: The building type as a string or enum with a ``.value``
-            attribute (e.g. ``BuildingType.stronghold`` or ``"stronghold"``).
+        building_type: The building type as a string or ``BuildingType`` enum value
+            (e.g. ``BuildingType.stronghold`` or ``"stronghold"``).
         level: The building level (1–6).
 
     Returns:
         Total position count for the given type+level combination.
+
+    Raises:
+        ValueError: If ``building_type`` is not ``post`` and has no entry in
+            ``_LEVEL_TEAMS``.  Add the missing type to ``_LEVEL_TEAMS`` to fix.
     """
     type_key = building_type.value if hasattr(building_type, "value") else building_type
-    levels = _LEVEL_TEAMS.get(type_key, {})
-    return levels.get(level, levels.get(1, 1))
+
+    if type_key == BuildingType.post.value:
+        return 1
+
+    levels = _LEVEL_TEAMS.get(type_key)
+    if levels is None:
+        raise ValueError(
+            f"Unknown building type '{type_key}' — add it to _LEVEL_TEAMS in building_capacity.py"
+        )
+    return levels.get(level, levels[1])

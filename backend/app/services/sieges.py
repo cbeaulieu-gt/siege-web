@@ -34,6 +34,12 @@ async def compute_scroll_count(session: AsyncSession, siege_id: int) -> int:
     its structural slot in the siege layout, so its theoretical capacity must remain in
     the denominator.  The scroll limit should only change when buildings are added,
     removed, or levelled — all of which are locked once a siege is active.
+
+    Stability invariant: this count cannot change during an active siege because
+    ``update_building`` in ``buildings.py`` rejects all building mutations (including
+    level changes and breaking/unbreaking) whenever the siege status is ``active`` or
+    ``complete``.  That gate is the single guard that makes this value stable for the
+    duration of a live siege.
     """
     buildings_result = await session.execute(select(Building).where(Building.siege_id == siege_id))
     buildings = buildings_result.scalars().all()

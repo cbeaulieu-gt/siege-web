@@ -265,6 +265,10 @@ async def update_building(
     session: AsyncSession, siege_id: int, building_id: int, data: BuildingUpdate
 ) -> Building:
     siege = await get_siege(session, siege_id)
+    # This gate is the stability invariant for compute_scroll_count in sieges.py:
+    # by rejecting all building mutations (level changes, breaking, unbreaking) once
+    # a siege is active or complete, we guarantee the scroll count cannot shift
+    # under an in-progress siege.
     if siege.status in (SiegeStatus.active, SiegeStatus.complete):
         raise HTTPException(
             status_code=400,
