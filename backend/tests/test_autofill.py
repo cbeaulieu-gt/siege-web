@@ -442,9 +442,9 @@ async def test_apply_autofill_skips_broken_building_positions(db_session: AsyncS
 
     # The healthy position must have been assigned
     await db_session.refresh(healthy_pos)
-    assert healthy_pos.member_id == member.id, (
-        f"Healthy building position should have member_id={member.id}, got {healthy_pos.member_id}"
-    )
+    assert (
+        healthy_pos.member_id == member.id
+    ), f"Healthy building position should have member_id={member.id}, got {healthy_pos.member_id}"
 
     # The broken position must NOT have been assigned — filter excluded it
     await db_session.refresh(broken_pos)
