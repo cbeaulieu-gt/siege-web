@@ -170,7 +170,7 @@ async def test_compute_scroll_count_returns_zero_when_none():
 
 @pytest.mark.asyncio
 async def test_compute_scroll_count_query_filters_broken_and_disabled():
-    """compute_scroll_count query includes Building.is_broken==False and Position.is_disabled==False.
+    """compute_scroll_count query filters broken buildings and disabled positions.
 
     Verifies that the compiled SQL string contains both filter predicates, ensuring broken
     buildings and disabled positions are excluded from the scroll count baseline (issue #94).
