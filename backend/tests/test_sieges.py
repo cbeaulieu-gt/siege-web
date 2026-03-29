@@ -14,10 +14,9 @@ import app.models  # noqa: F401  — populate metadata
 from app.db.base import Base
 from app.main import app
 from app.models.building import Building
-from app.models.building_group import BuildingGroup
 from app.models.enums import BuildingType, SiegeStatus
-from app.models.position import Position
 from app.models.siege import Siege
+from app.services.building_capacity import _LEVEL_TEAMS
 
 
 def _make_siege(
@@ -166,18 +165,13 @@ async def db_session():
     await engine.dispose()
 
 
-async def _seed_siege_with_buildings(
-    session: AsyncSession,
-    *,
-    healthy_position_count: int,
-    broken_position_count: int,
-    disabled_position_count: int = 0,
-) -> int:
-    """Insert a siege with two buildings and return the siege id.
+async def _seed_siege(session: AsyncSession, buildings: list[dict]) -> int:
+    """Insert a siege with the given buildings and return the siege id.
 
-    - Building 1: healthy, ``healthy_position_count`` enabled positions
-    - Building 2: broken, ``broken_position_count`` positions
-    - Building 3 (optional): healthy, ``disabled_position_count`` disabled positions
+    Each dict in ``buildings`` must have keys: ``building_type``, ``level``,
+    ``building_number``, and optionally ``is_broken`` (default False).
+    No Position or BuildingGroup records are created — compute_scroll_count no
+    longer touches them.
     """
     siege = Siege(
         date=datetime.date(2026, 3, 20), status=SiegeStatus.planning, defense_scroll_count=0
@@ -185,112 +179,128 @@ async def _seed_siege_with_buildings(
     session.add(siege)
     await session.flush()
 
-    # --- healthy building ---
-    b1 = Building(
-        siege_id=siege.id,
-        building_type=BuildingType.stronghold,
-        building_number=1,
-        level=1,
-        is_broken=False,
-    )
-    session.add(b1)
-    await session.flush()
-    if healthy_position_count > 0:
-        g1 = BuildingGroup(
-            building_id=b1.id, group_number=1, slot_count=min(healthy_position_count, 3)
+    for spec in buildings:
+        session.add(
+            Building(
+                siege_id=siege.id,
+                building_type=spec["building_type"],
+                building_number=spec["building_number"],
+                level=spec["level"],
+                is_broken=spec.get("is_broken", False),
+            )
         )
-        session.add(g1)
-        await session.flush()
-        for i in range(1, healthy_position_count + 1):
-            session.add(Position(building_group_id=g1.id, position_number=i, is_disabled=False))
-
-    # --- broken building ---
-    b2 = Building(
-        siege_id=siege.id,
-        building_type=BuildingType.stronghold,
-        building_number=2,
-        level=1,
-        is_broken=True,
-    )
-    session.add(b2)
-    await session.flush()
-    if broken_position_count > 0:
-        g2 = BuildingGroup(
-            building_id=b2.id, group_number=1, slot_count=min(broken_position_count, 3)
-        )
-        session.add(g2)
-        await session.flush()
-        for i in range(1, broken_position_count + 1):
-            session.add(Position(building_group_id=g2.id, position_number=i, is_disabled=False))
-
-    # --- healthy building with disabled positions ---
-    if disabled_position_count > 0:
-        b3 = Building(
-            siege_id=siege.id,
-            building_type=BuildingType.stronghold,
-            building_number=3,
-            level=1,
-            is_broken=False,
-        )
-        session.add(b3)
-        await session.flush()
-        g3 = BuildingGroup(
-            building_id=b3.id, group_number=1, slot_count=min(disabled_position_count, 3)
-        )
-        session.add(g3)
-        await session.flush()
-        for i in range(1, disabled_position_count + 1):
-            session.add(Position(building_group_id=g3.id, position_number=i, is_disabled=True))
 
     await session.flush()
     return siege.id
 
 
-async def test_compute_scroll_count_counts_healthy_positions(db_session: AsyncSession):
-    """compute_scroll_count counts enabled positions from non-broken buildings (issue #94).
+# ---------------------------------------------------------------------------
+# compute_scroll_count integration tests (issue #94)
+#
+# The count is derived from theoretical capacity (_LEVEL_TEAMS) per building
+# type+level.  Position records are not consulted, and is_broken is ignored.
+# ---------------------------------------------------------------------------
 
-    Healthy building: 3 positions.  Broken building: 3 positions.
-    Expected result: 3 (broken building excluded by WHERE Building.is_broken == False).
 
-    This test FAILS if the is_broken filter is removed from the query — without it, the
-    count would be 6 instead of 3.
+async def test_compute_scroll_count_sums_theoretical_capacity(db_session: AsyncSession):
+    """compute_scroll_count returns the sum of _LEVEL_TEAMS capacities for all buildings.
+
+    Two stronghold level-1 buildings: 12 + 12 = 24.
+    One mana_shrine level-2 building: 7.
+    Expected total: 31.
     """
-    siege_id = await _seed_siege_with_buildings(
-        db_session, healthy_position_count=3, broken_position_count=3
-    )
-    count = await compute_scroll_count(db_session, siege_id)
-    assert count == 3, (
-        f"Expected 3 (healthy building only), got {count}. "
-        "Broken building positions must be excluded by Building.is_broken == False filter."
-    )
-
-
-async def test_compute_scroll_count_returns_zero_for_all_broken(db_session: AsyncSession):
-    """compute_scroll_count returns 0 when the only building is broken (issue #94).
-
-    With no healthy buildings, no positions should count toward the scroll budget.
-    """
-    siege_id = await _seed_siege_with_buildings(
-        db_session, healthy_position_count=0, broken_position_count=3
-    )
-    count = await compute_scroll_count(db_session, siege_id)
-    assert count == 0, f"Expected 0 (all buildings broken), got {count}."
-
-
-async def test_compute_scroll_count_excludes_disabled_positions(db_session: AsyncSession):
-    """compute_scroll_count also excludes disabled positions from healthy buildings.
-
-    Healthy enabled: 3, healthy disabled: 2, broken enabled: 3.
-    Expected: 3 (only the healthy+enabled positions).
-    """
-    siege_id = await _seed_siege_with_buildings(
+    siege_id = await _seed_siege(
         db_session,
-        healthy_position_count=3,
-        broken_position_count=3,
-        disabled_position_count=2,
+        buildings=[
+            {"building_type": BuildingType.stronghold, "level": 1, "building_number": 1},
+            {"building_type": BuildingType.stronghold, "level": 1, "building_number": 2},
+            {"building_type": BuildingType.mana_shrine, "level": 2, "building_number": 1},
+        ],
     )
+    expected = (
+        _LEVEL_TEAMS["stronghold"][1]
+        + _LEVEL_TEAMS["stronghold"][1]
+        + _LEVEL_TEAMS["mana_shrine"][2]
+    )  # 12 + 12 + 7 = 31
     count = await compute_scroll_count(db_session, siege_id)
-    assert count == 3, (
-        f"Expected 3 (healthy+enabled only), got {count}. "
-        "Both broken buildings and disabled positions must be excluded."
+    assert count == expected, f"Expected {expected}, got {count}."
+
+
+async def test_compute_scroll_count_broken_building_unchanged(db_session: AsyncSession):
+    """Breaking a building must NOT change the scroll count (regression guard for issue #94).
+
+    One stronghold level-1 (healthy) and one stronghold level-1 (broken).
+    Both contribute their theoretical capacity: 12 + 12 = 24.
+    If is_broken were incorrectly used to filter, the broken building would be excluded
+    and the result would be 12 instead of 24.
+    """
+    siege_id = await _seed_siege(
+        db_session,
+        buildings=[
+            {
+                "building_type": BuildingType.stronghold,
+                "level": 1,
+                "building_number": 1,
+                "is_broken": False,
+            },
+            {
+                "building_type": BuildingType.stronghold,
+                "level": 1,
+                "building_number": 2,
+                "is_broken": True,
+            },
+        ],
     )
+    expected = _LEVEL_TEAMS["stronghold"][1] * 2  # 24
+    count = await compute_scroll_count(db_session, siege_id)
+    assert count == expected, (
+        f"Expected {expected} (broken building still counts), got {count}. "
+        "is_broken must not filter buildings out of the scroll count."
+    )
+
+
+async def test_compute_scroll_count_level_change_updates_count(db_session: AsyncSession):
+    """A level change must update the scroll count.
+
+    One defense_tower at level 1 (capacity 2) vs level 6 (capacity 12).
+    After updating the building's level in-place, compute_scroll_count must
+    return the new capacity.
+    """
+    siege_id = await _seed_siege(
+        db_session,
+        buildings=[
+            {"building_type": BuildingType.defense_tower, "level": 1, "building_number": 1},
+        ],
+    )
+    count_l1 = await compute_scroll_count(db_session, siege_id)
+    assert count_l1 == _LEVEL_TEAMS["defense_tower"][1], f"Level-1 count wrong: {count_l1}"
+
+    # Simulate a level upgrade by mutating the building row directly
+    from sqlalchemy import select as sa_select
+
+    result = await db_session.execute(sa_select(Building).where(Building.siege_id == siege_id))
+    building = result.scalar_one()
+    building.level = 6
+    await db_session.flush()
+
+    count_l6 = await compute_scroll_count(db_session, siege_id)
+    assert (
+        count_l6 == _LEVEL_TEAMS["defense_tower"][6]
+    ), f"Expected {_LEVEL_TEAMS['defense_tower'][6]} after level 6 upgrade, got {count_l6}."
+
+
+async def test_compute_scroll_count_post_buildings_contribute_one(db_session: AsyncSession):
+    """Post buildings (not in _LEVEL_TEAMS) must contribute 1 position each.
+
+    One stronghold level-1 (12) + one post (1) = 13.
+    """
+    siege_id = await _seed_siege(
+        db_session,
+        buildings=[
+            {"building_type": BuildingType.stronghold, "level": 1, "building_number": 1},
+            {"building_type": BuildingType.post, "level": 1, "building_number": 1},
+        ],
+    )
+    expected = _LEVEL_TEAMS["stronghold"][1] + 1  # 13
+    count = await compute_scroll_count(db_session, siege_id)
+    assert count == expected, f"Expected {expected} (post contributes 1), got {count}."

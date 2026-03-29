@@ -9,22 +9,8 @@ from app.models.enums import BuildingType, SiegeStatus
 from app.models.position import Position
 from app.models.post import Post
 from app.schemas.building import BuildingCreate, BuildingUpdate, GroupCreate
+from app.services.building_capacity import get_team_count
 from app.services.sieges import get_siege
-
-# Teams per building type per level (from game data)
-_LEVEL_TEAMS: dict[str, dict[int, int]] = {
-    "stronghold": {1: 12, 2: 16, 3: 18, 4: 22, 5: 25, 6: 30},
-    "mana_shrine": {1: 6, 2: 7, 3: 9, 4: 11, 5: 13, 6: 15},
-    "magic_tower": {1: 2, 2: 3, 3: 4, 4: 5, 5: 7, 6: 9},
-    "defense_tower": {1: 2, 2: 3, 3: 4, 4: 6, 5: 9, 6: 12},
-}
-
-
-def _get_team_count(building_type: str, level: int) -> int:
-    """Return total team slots for a building type at a given level."""
-    type_key = building_type.value if hasattr(building_type, "value") else building_type
-    levels = _LEVEL_TEAMS.get(type_key, {})
-    return levels.get(level, levels.get(1, 3))
 
 
 async def _rebuild_groups_for_level(
@@ -41,7 +27,7 @@ async def _rebuild_groups_for_level(
     if building_type == BuildingType.post:
         return
 
-    target_teams = _get_team_count(building_type, level)
+    target_teams = get_team_count(building_type, level)
     if target_teams % 3 == 0:
         target_groups = target_teams // 3
         last_slots = 3
