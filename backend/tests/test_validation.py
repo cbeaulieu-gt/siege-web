@@ -290,6 +290,57 @@ async def test_rule2_broken_building_assignment_not_counted():
 
 
 @pytest.mark.asyncio
+async def test_rule2_mixed_broken_and_healthy_assignments_not_counted():
+    """Rule 2: assignments on a broken building are excluded even when healthy ones also exist.
+
+    Member has 2 assignments on a healthy building + 2 assignments on a broken building.
+    compute_scroll_count (mocked to return 5) → limit = 3.
+    Only the 2 healthy assignments count; 2 < 3, so Rule 2 must NOT fire.
+
+    If the broken-building exclusion were absent, the total would be 4 which exceeds the
+    limit of 3, and Rule 2 would incorrectly fire.  This test distinguishes that case from
+    test_rule2_broken_building_assignment_not_counted (which uses 0 healthy assignments).
+    """
+    member = _make_member(id=1, is_active=True)
+
+    # 2 positions on a healthy building
+    healthy_positions = [
+        _make_position(id=i, position_number=i, member_id=1, member=member) for i in range(1, 3)
+    ]
+    healthy_group = _make_group(id=1, slot_count=2)
+    healthy_group.positions = healthy_positions
+    healthy_building = _make_building(id=1)
+    healthy_building.is_broken = False
+    healthy_building.groups = [healthy_group]
+
+    # 2 positions on a broken building
+    broken_positions = [
+        _make_position(id=i, position_number=i - 2, member_id=1, member=member)
+        for i in range(3, 5)
+    ]
+    broken_group = _make_group(id=2, slot_count=2)
+    broken_group.positions = broken_positions
+    broken_building = _make_building(id=2)
+    broken_building.is_broken = True
+    broken_building.groups = [broken_group]
+
+    siege = _make_siege()
+    siege.buildings = [healthy_building, broken_building]
+    sm = _make_siege_member(member_id=1, attack_day=1, has_reserve_set=True, member=member)
+    siege.siege_members = [sm]
+
+    # compute_scroll_count returns 5 → limit = 3.
+    # Healthy-building count = 2, which is within the limit → no Rule 2 error.
+    session = _session_with_siege_and_configs(siege)
+    result = await svc_validate(session, 1)
+    rule2_errors = [e for e in result.errors if e.rule == 2]
+    assert len(rule2_errors) == 0, (
+        "Only healthy-building assignments should count toward the scroll limit; "
+        f"unexpected Rule 2 errors: {rule2_errors}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_rule2_exceeds_scroll_count():
     """Rule 2: member assigned 4 times when scrolls_per_player limit is 3 → error."""
     member = _make_member(id=1, is_active=True)

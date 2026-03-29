@@ -231,8 +231,12 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
     # WARNINGS
     # ------------------------------------------------------------------ #
 
-    # Rule 10/12: Empty unresolved slots (not assigned, not disabled, not reserve)
+    # Rule 10/12: Empty unresolved slots (not assigned, not disabled, not reserve).
+    # Broken buildings are skipped: their surviving positions are intentionally empty
+    # (the building is out of action) and flagging them produces unactionable warnings.
     for pos, group, building in all_positions:
+        if building.is_broken:
+            continue
         if pos.member_id is None and not pos.is_disabled and not pos.is_reserve:
             warnings.append(
                 ValidationIssue(

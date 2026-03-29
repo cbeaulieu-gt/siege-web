@@ -7,9 +7,17 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+import app.models  # noqa: F401  — populate metadata
+from app.db.base import Base
 from app.main import app
-from app.models.enums import SiegeStatus
+from app.models.building import Building
+from app.models.building_group import BuildingGroup
+from app.models.enums import BuildingType, SiegeStatus
+from app.models.position import Position
+from app.models.siege import Siege
 
 
 def _make_siege(
@@ -128,74 +136,153 @@ async def test_delete_active_siege_returns_400(client):
 
 
 # ---------------------------------------------------------------------------
-# 6. compute_scroll_count — unit tests for the query filter fix (issue #94)
+# 6. compute_scroll_count — real integration tests (issue #94)
+#
+# These tests use an in-memory SQLite DB so that the WHERE clauses in
+# compute_scroll_count are actually evaluated.  A mock-based test cannot
+# verify that Building.is_broken == False is present in the query — it only
+# confirms that whatever scalar the DB returns is passed through unchanged.
 # ---------------------------------------------------------------------------
 
 
 from app.services.sieges import compute_scroll_count  # noqa: E402
 
 
-@pytest.mark.asyncio
-async def test_compute_scroll_count_returns_db_value():
-    """compute_scroll_count passes the DB scalar result through unchanged."""
-    from unittest.mock import MagicMock
-
-    mock_result = MagicMock()
-    mock_result.scalar.return_value = 42
-
-    session = AsyncMock()
-    session.execute = AsyncMock(return_value=mock_result)
-
-    count = await compute_scroll_count(session, siege_id=1)
-
-    assert count == 42
-    session.execute.assert_awaited_once()
+def _enable_sqlite_fk(dbapi_conn, _connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA foreign_keys = ON")
+    cursor.close()
 
 
-@pytest.mark.asyncio
-async def test_compute_scroll_count_returns_zero_when_none():
-    """compute_scroll_count returns 0 when the DB scalar is None (empty result)."""
-    from unittest.mock import MagicMock
-
-    mock_result = MagicMock()
-    mock_result.scalar.return_value = None
-
-    session = AsyncMock()
-    session.execute = AsyncMock(return_value=mock_result)
-
-    count = await compute_scroll_count(session, siege_id=1)
-
-    assert count == 0
+@pytest.fixture
+async def db_session():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    event.listen(engine.sync_engine, "connect", _enable_sqlite_fk)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        yield session
+    await engine.dispose()
 
 
-@pytest.mark.asyncio
-async def test_compute_scroll_count_excludes_broken_buildings():
-    """compute_scroll_count excludes broken-building positions from the count (issue #94).
+async def _seed_siege_with_buildings(
+    session: AsyncSession,
+    *,
+    healthy_position_count: int,
+    broken_position_count: int,
+    disabled_position_count: int = 0,
+) -> int:
+    """Insert a siege with two buildings and return the siege id.
 
-    The DB mock returns different values based on what the query filters out.  We verify that
-    the function passes the result through unchanged: if the DB (after applying is_broken=false
-    and is_disabled=false) returns 3, the function returns 3 — not 6 (all positions) or 0.
-
-    This is a behavioral test: it confirms the function does not add, subtract, or ignore the
-    DB scalar.  The SQL filter itself is exercised through the ORM (the WHERE clauses are built
-    by compute_scroll_count and sent to the DB); the mock represents the DB honouring those
-    filters and returning the filtered count.
+    - Building 1: healthy, ``healthy_position_count`` enabled positions
+    - Building 2: broken, ``broken_position_count`` positions
+    - Building 3 (optional): healthy, ``disabled_position_count`` disabled positions
     """
-    from unittest.mock import MagicMock
+    siege = Siege(date=datetime.date(2026, 3, 20), status=SiegeStatus.planning, defense_scroll_count=0)
+    session.add(siege)
+    await session.flush()
 
-    # Scenario: 2 buildings, each 3 positions.  Building 2 is broken.
-    # DB honours the is_broken=false filter and returns 3 (building 1 only).
-    mock_result = MagicMock()
-    mock_result.scalar.return_value = 3
-
-    session = AsyncMock()
-    session.execute = AsyncMock(return_value=mock_result)
-
-    count = await compute_scroll_count(session, siege_id=1)
-
-    assert count == 3, (
-        "compute_scroll_count must return exactly the DB scalar — "
-        "broken buildings are excluded by the WHERE clause so the DB returns 3, not 6"
+    # --- healthy building ---
+    b1 = Building(
+        siege_id=siege.id,
+        building_type=BuildingType.stronghold,
+        building_number=1,
+        level=1,
+        is_broken=False,
     )
-    # Confirm the session was queried exactly once (no extra fallback queries)
-    session.execute.assert_awaited_once()
+    session.add(b1)
+    await session.flush()
+    if healthy_position_count > 0:
+        g1 = BuildingGroup(building_id=b1.id, group_number=1, slot_count=min(healthy_position_count, 3))
+        session.add(g1)
+        await session.flush()
+        for i in range(1, healthy_position_count + 1):
+            session.add(Position(building_group_id=g1.id, position_number=i, is_disabled=False))
+
+    # --- broken building ---
+    b2 = Building(
+        siege_id=siege.id,
+        building_type=BuildingType.stronghold,
+        building_number=2,
+        level=1,
+        is_broken=True,
+    )
+    session.add(b2)
+    await session.flush()
+    if broken_position_count > 0:
+        g2 = BuildingGroup(building_id=b2.id, group_number=1, slot_count=min(broken_position_count, 3))
+        session.add(g2)
+        await session.flush()
+        for i in range(1, broken_position_count + 1):
+            session.add(Position(building_group_id=g2.id, position_number=i, is_disabled=False))
+
+    # --- healthy building with disabled positions ---
+    if disabled_position_count > 0:
+        b3 = Building(
+            siege_id=siege.id,
+            building_type=BuildingType.stronghold,
+            building_number=3,
+            level=1,
+            is_broken=False,
+        )
+        session.add(b3)
+        await session.flush()
+        g3 = BuildingGroup(building_id=b3.id, group_number=1, slot_count=min(disabled_position_count, 3))
+        session.add(g3)
+        await session.flush()
+        for i in range(1, disabled_position_count + 1):
+            session.add(Position(building_group_id=g3.id, position_number=i, is_disabled=True))
+
+    await session.flush()
+    return siege.id
+
+
+async def test_compute_scroll_count_counts_healthy_positions(db_session: AsyncSession):
+    """compute_scroll_count counts enabled positions from non-broken buildings (issue #94).
+
+    Healthy building: 3 positions.  Broken building: 3 positions.
+    Expected result: 3 (broken building excluded by WHERE Building.is_broken == False).
+
+    This test FAILS if the is_broken filter is removed from the query — without it, the
+    count would be 6 instead of 3.
+    """
+    siege_id = await _seed_siege_with_buildings(
+        db_session, healthy_position_count=3, broken_position_count=3
+    )
+    count = await compute_scroll_count(db_session, siege_id)
+    assert count == 3, (
+        f"Expected 3 (healthy building only), got {count}. "
+        "Broken building positions must be excluded by Building.is_broken == False filter."
+    )
+
+
+async def test_compute_scroll_count_returns_zero_for_all_broken(db_session: AsyncSession):
+    """compute_scroll_count returns 0 when the only building is broken (issue #94).
+
+    With no healthy buildings, no positions should count toward the scroll budget.
+    """
+    siege_id = await _seed_siege_with_buildings(
+        db_session, healthy_position_count=0, broken_position_count=3
+    )
+    count = await compute_scroll_count(db_session, siege_id)
+    assert count == 0, f"Expected 0 (all buildings broken), got {count}."
+
+
+async def test_compute_scroll_count_excludes_disabled_positions(db_session: AsyncSession):
+    """compute_scroll_count also excludes disabled positions from healthy buildings.
+
+    Healthy enabled: 3, healthy disabled: 2, broken enabled: 3.
+    Expected: 3 (only the healthy+enabled positions).
+    """
+    siege_id = await _seed_siege_with_buildings(
+        db_session,
+        healthy_position_count=3,
+        broken_position_count=3,
+        disabled_position_count=2,
+    )
+    count = await compute_scroll_count(db_session, siege_id)
+    assert count == 3, (
+        f"Expected 3 (healthy+enabled only), got {count}. "
+        "Both broken buildings and disabled positions must be excluded."
+    )

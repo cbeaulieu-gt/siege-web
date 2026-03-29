@@ -67,3 +67,8 @@
 - [x] Update `README.md`: add Deploy environments section
 - [x] Verify both new files are gitignored
 - [x] Commit tracked changes and open PR
+
+## Issue #94 — Scroll-per-member: use total potential scrolls from unbroken buildings (PR #97)
+- [x] Add `Building.is_broken == False` filter to `compute_scroll_count` in `backend/app/services/sieges.py`
+- [x] Update docstring to explain both filters serve independent purposes
+- [x] Add regression tests asserting both filters appear in generated SQL

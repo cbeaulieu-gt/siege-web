@@ -27,10 +27,12 @@ def scrolls_per_player(total_positions: int) -> int:
 async def compute_scroll_count(session: AsyncSession, siege_id: int) -> int:
     """Compute total scroll count: non-disabled positions from unbroken buildings only.
 
-    Broken buildings are excluded so that the per-member scroll limit (scrolls_per_player)
-    is based on a stable potential total that does not shrink mid-siege as buildings break.
-    is_disabled is kept as an independent filter because it is also used for building
-    level/slot configuration (extra positions disabled when a building is downgraded).
+    Broken building positions are excluded because assignments on broken buildings do not
+    count against the per-member scroll limit (see Rule 2 in validation.py).  Counting
+    broken-building positions would inflate the denominator and produce an incorrect limit.
+    is_disabled is kept as an independent filter because disabled slots represent inactive
+    positions due to building level/slot configuration (e.g. a downgraded building), not
+    building destruction, and those positions should never count toward the scroll budget.
     """
     pos_result = await session.execute(
         select(func.count())
