@@ -195,9 +195,9 @@ async def test_compute_scroll_count_query_filters_broken_and_disabled():
     sql = str(captured_stmt["stmt"].compile(compile_kwargs={"literal_binds": True}))
 
     # Both filters must appear in the compiled query
-    assert re.search(r"building\.is_broken\s*=\s*false", sql, re.IGNORECASE), (
-        f"Expected 'building.is_broken = false' filter in query, got:\n{sql}"
-    )
-    assert re.search(r"position\.is_disabled\s*=\s*false", sql, re.IGNORECASE), (
-        f"Expected 'position.is_disabled = false' filter in query, got:\n{sql}"
-    )
+    assert re.search(
+        r"building\.is_broken\s*=\s*false", sql, re.IGNORECASE
+    ), f"Expected 'building.is_broken = false' filter in query, got:\n{sql}"
+    assert re.search(
+        r"position\.is_disabled\s*=\s*false", sql, re.IGNORECASE
+    ), f"Expected 'position.is_disabled = false' filter in query, got:\n{sql}"
