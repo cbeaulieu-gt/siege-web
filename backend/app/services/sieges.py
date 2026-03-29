@@ -1,5 +1,5 @@
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.building import Building
@@ -13,6 +13,7 @@ from app.models.post_priority_config import PostPriorityConfig
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 from app.schemas.siege import SiegeCreate, SiegeUpdate
+from app.services.building_capacity import get_team_count
 
 
 def scrolls_per_player(total_positions: int) -> int:
@@ -25,25 +26,24 @@ def scrolls_per_player(total_positions: int) -> int:
 
 
 async def compute_scroll_count(session: AsyncSession, siege_id: int) -> int:
-    """Compute total scroll count: non-disabled positions from unbroken buildings only.
+    """Compute total scroll count from the theoretical capacity of every building.
 
-    Broken building positions are excluded because assignments on broken buildings do not
-    count against the per-member scroll limit (see Rule 2 in validation.py).  Counting
-    broken-building positions would inflate the denominator and produce an incorrect limit.
-    is_disabled is kept as an independent filter because disabled slots represent inactive
-    positions due to building level/slot configuration (e.g. a downgraded building), not
-    building destruction, and those positions should never count toward the scroll budget.
+    The count is derived from ``get_team_count(building.building_type, building.level)``
+    summed across all buildings for the siege.  Position records are never consulted,
+    and ``Building.is_broken`` is deliberately ignored: a broken building still occupies
+    its structural slot in the siege layout, so its theoretical capacity must remain in
+    the denominator.  The scroll limit should only change when buildings are added,
+    removed, or levelled — all of which are locked once a siege is active.
+
+    Stability invariant: this count cannot change during an active siege because
+    ``update_building`` in ``buildings.py`` rejects all building mutations (including
+    level changes and breaking/unbreaking) whenever the siege status is ``active`` or
+    ``complete``.  That gate is the single guard that makes this value stable for the
+    duration of a live siege.
     """
-    pos_result = await session.execute(
-        select(func.count())
-        .select_from(Position)
-        .join(BuildingGroup, Position.building_group_id == BuildingGroup.id)
-        .join(Building, BuildingGroup.building_id == Building.id)
-        .where(Building.siege_id == siege_id)
-        .where(Building.is_broken == False)  # noqa: E712
-        .where(Position.is_disabled == False)  # noqa: E712
-    )
-    return pos_result.scalar() or 0
+    buildings_result = await session.execute(select(Building).where(Building.siege_id == siege_id))
+    buildings = buildings_result.scalars().all()
+    return sum(get_team_count(b.building_type, b.level) for b in buildings)
 
 
 async def list_sieges(session: AsyncSession, status: SiegeStatus | None) -> list[Siege]:

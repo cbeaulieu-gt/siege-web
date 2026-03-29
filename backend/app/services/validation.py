@@ -58,10 +58,22 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
             for position in group.positions:
                 all_positions.append((position, group, building))
 
-    # Broken-building exclusion principle:
-    #   - SCROLL BUDGET (assignments_by_member, Rule 2 limit) excludes broken buildings —
-    #     assignments there do not consume the per-member scroll budget, consistent with
-    #     compute_scroll_count which also excludes broken buildings from the position count.
+    # Broken-building exclusion — intentional asymmetry between scroll limit and assignment
+    # accounting:
+    #
+    #   - SCROLL LIMIT (compute_scroll_count in sieges.py) includes ALL buildings regardless
+    #     of is_broken.  It sums theoretical capacity by building type + level from game data,
+    #     never consulting Position records.  The limit is a stable planning baseline that
+    #     should only shift when buildings are added, removed, or levelled — none of which
+    #     can happen once a siege is active (update_building in buildings.py rejects all
+    #     building changes, including breaking, when the siege is active or complete).
+    #
+    #   - SCROLL BUDGET usage (assignments_by_member, Rule 2) excludes broken buildings —
+    #     assignments on broken buildings do not burn the per-member scroll allowance because
+    #     those buildings are not active defenders.  The asymmetry is intentional: the scroll
+    #     limit counts every slot that *could* be defended; the budget only charges for slots
+    #     that *are* actively defended.
+    #
     #   - COUNTING rules that are NOT scroll-related (Rule 15 reserve-set check) use
     #     all_assigned_member_ids, which INCLUDES broken buildings — every assigned member
     #     is accountable for configuring their reserve set regardless of building state.
