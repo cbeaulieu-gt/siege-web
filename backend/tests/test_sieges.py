@@ -179,7 +179,9 @@ async def _seed_siege_with_buildings(
     - Building 2: broken, ``broken_position_count`` positions
     - Building 3 (optional): healthy, ``disabled_position_count`` disabled positions
     """
-    siege = Siege(date=datetime.date(2026, 3, 20), status=SiegeStatus.planning, defense_scroll_count=0)
+    siege = Siege(
+        date=datetime.date(2026, 3, 20), status=SiegeStatus.planning, defense_scroll_count=0
+    )
     session.add(siege)
     await session.flush()
 
@@ -194,7 +196,9 @@ async def _seed_siege_with_buildings(
     session.add(b1)
     await session.flush()
     if healthy_position_count > 0:
-        g1 = BuildingGroup(building_id=b1.id, group_number=1, slot_count=min(healthy_position_count, 3))
+        g1 = BuildingGroup(
+            building_id=b1.id, group_number=1, slot_count=min(healthy_position_count, 3)
+        )
         session.add(g1)
         await session.flush()
         for i in range(1, healthy_position_count + 1):
@@ -211,7 +215,9 @@ async def _seed_siege_with_buildings(
     session.add(b2)
     await session.flush()
     if broken_position_count > 0:
-        g2 = BuildingGroup(building_id=b2.id, group_number=1, slot_count=min(broken_position_count, 3))
+        g2 = BuildingGroup(
+            building_id=b2.id, group_number=1, slot_count=min(broken_position_count, 3)
+        )
         session.add(g2)
         await session.flush()
         for i in range(1, broken_position_count + 1):
@@ -228,7 +234,9 @@ async def _seed_siege_with_buildings(
         )
         session.add(b3)
         await session.flush()
-        g3 = BuildingGroup(building_id=b3.id, group_number=1, slot_count=min(disabled_position_count, 3))
+        g3 = BuildingGroup(
+            building_id=b3.id, group_number=1, slot_count=min(disabled_position_count, 3)
+        )
         session.add(g3)
         await session.flush()
         for i in range(1, disabled_position_count + 1):

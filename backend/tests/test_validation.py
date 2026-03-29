@@ -315,8 +315,7 @@ async def test_rule2_mixed_broken_and_healthy_assignments_not_counted():
 
     # 2 positions on a broken building
     broken_positions = [
-        _make_position(id=i, position_number=i - 2, member_id=1, member=member)
-        for i in range(3, 5)
+        _make_position(id=i, position_number=i - 2, member_id=1, member=member) for i in range(3, 5)
     ]
     broken_group = _make_group(id=2, slot_count=2)
     broken_group.positions = broken_positions
