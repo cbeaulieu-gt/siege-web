@@ -6,9 +6,18 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+import app.models  # noqa: F401  — populate metadata
+from app.db.base import Base
 from app.main import app
+from app.models.building import Building
+from app.models.building_group import BuildingGroup
 from app.models.enums import BuildingType, MemberRole, SiegeStatus
+from app.models.member import Member
+from app.models.position import Position
+from app.models.siege import Siege
 from app.schemas.autofill import AutofillApplyResult, AutofillAssignment, AutofillPreviewResult
 
 # ---------------------------------------------------------------------------
@@ -330,6 +339,123 @@ async def test_preview_skips_broken_building_positions():
         "Only normal-building positions should be auto-filled; "
         f"broken positions 20 and 21 must not appear. Got: {assigned_position_ids}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — real DB (SQLite in-memory)
+# ---------------------------------------------------------------------------
+
+
+def _enable_sqlite_fk_autofill(dbapi_conn, _connection_record):
+    cursor = dbapi_conn.cursor()
+    cursor.execute("PRAGMA foreign_keys = ON")
+    cursor.close()
+
+
+@pytest.fixture
+async def db_session():
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    event.listen(engine.sync_engine, "connect", _enable_sqlite_fk_autofill)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    factory = async_sessionmaker(engine, expire_on_commit=False)
+    async with factory() as session:
+        yield session
+    await engine.dispose()
+
+
+async def test_apply_autofill_skips_broken_building_positions(db_session: AsyncSession):
+    """apply_autofill must not assign members to positions on broken buildings.
+
+    The SQL join in apply_autofill filters Building.is_broken == False when loading
+    positions.  This test FAILS if that filter is removed — without it, the broken
+    building's position would also receive a member assignment.
+
+    Scenario:
+      - Siege with one healthy building (position id tracked as healthy_pos_id)
+        and one broken building (position id tracked as broken_pos_id).
+      - A stored autofill preview names BOTH position IDs with member_id=member.id.
+      - After apply_autofill, the healthy position must have member_id set and the
+        broken position must still have member_id=None.
+    """
+    # Seed a member
+    member = Member(name="TestMember", role=MemberRole.advanced, is_active=True)
+    db_session.add(member)
+    await db_session.flush()
+
+    # Seed a siege
+    siege = Siege(
+        date=datetime.date(2026, 3, 20),
+        status=SiegeStatus.planning,
+        defense_scroll_count=0,
+    )
+    db_session.add(siege)
+    await db_session.flush()
+
+    # Healthy building with one position
+    healthy_building = Building(
+        siege_id=siege.id,
+        building_type=BuildingType.stronghold,
+        building_number=1,
+        level=1,
+        is_broken=False,
+    )
+    db_session.add(healthy_building)
+    await db_session.flush()
+    healthy_group = BuildingGroup(building_id=healthy_building.id, group_number=1, slot_count=1)
+    db_session.add(healthy_group)
+    await db_session.flush()
+    healthy_pos = Position(building_group_id=healthy_group.id, position_number=1)
+    db_session.add(healthy_pos)
+    await db_session.flush()
+
+    # Broken building with one position
+    broken_building = Building(
+        siege_id=siege.id,
+        building_type=BuildingType.stronghold,
+        building_number=2,
+        level=1,
+        is_broken=True,
+    )
+    db_session.add(broken_building)
+    await db_session.flush()
+    broken_group = BuildingGroup(building_id=broken_building.id, group_number=1, slot_count=1)
+    db_session.add(broken_group)
+    await db_session.flush()
+    broken_pos = Position(building_group_id=broken_group.id, position_number=1)
+    db_session.add(broken_pos)
+    await db_session.flush()
+
+    # Store a preview that targets BOTH positions
+    expires = datetime.datetime.now(datetime.UTC).replace(tzinfo=None) + datetime.timedelta(hours=1)
+    siege.autofill_preview = {
+        "assignments": [
+            {"position_id": healthy_pos.id, "member_id": member.id, "is_reserve": False},
+            {"position_id": broken_pos.id, "member_id": member.id, "is_reserve": False},
+        ]
+    }
+    siege.autofill_preview_expires_at = expires
+    await db_session.commit()
+
+    # Run apply_autofill against the real DB
+    result = await apply_autofill(db_session, siege.id)
+
+    # The healthy position must have been assigned
+    await db_session.refresh(healthy_pos)
+    assert healthy_pos.member_id == member.id, (
+        f"Healthy building position should have member_id={member.id}, got {healthy_pos.member_id}"
+    )
+
+    # The broken position must NOT have been assigned — filter excluded it
+    await db_session.refresh(broken_pos)
+    assert broken_pos.member_id is None, (
+        f"Broken building position must remain unassigned (member_id=None), "
+        f"got {broken_pos.member_id}. Building.is_broken==False filter may be missing."
+    )
+
+    # apply_autofill should report 1 applied (healthy only), 0 reserve
+    assert result.applied_count == 1
+    assert result.reserve_count == 0
 
 
 # ---------------------------------------------------------------------------
