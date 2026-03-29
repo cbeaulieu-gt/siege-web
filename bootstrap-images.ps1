@@ -21,7 +21,8 @@ if (Test-Path $EnvDeployPath) {
     }
     $SecretsLoaded = $true
     Write-Host "==> Loaded secrets from $EnvFile"
-} else {
+}
+else {
     Write-Host "    (no $EnvFile found - secrets must be set in the environment)" -ForegroundColor Yellow
 }
 
@@ -36,8 +37,8 @@ if ($Env -notin @('dev', 'prod')) {
     exit 1
 }
 
-$ResourceGroup = if ($Env -eq 'dev') { 'siege-web-dev' } else { 'siege-rg' }
-$ParamFile     = if ($Env -eq 'dev') { 'infra/main.dev.bicepparam' } else { 'infra/main.prod.bicepparam' }
+$ResourceGroup = if ($Env -eq 'dev') { 'siege-web-dev' } else { 'siege-web-prod' }
+$ParamFile = if ($Env -eq 'dev') { 'infra/main.dev.bicepparam' } else { 'infra/main.prod.bicepparam' }
 
 Write-Host "==> Looking up ACR login server in resource group $ResourceGroup..."
 $Registry = az acr list --resource-group $ResourceGroup --query "[0].loginServer" -o tsv
@@ -60,7 +61,7 @@ Write-Host '==> Logging in to Azure Container Registry...'
 az acr login --name $Registry
 
 foreach ($Image in $Images) {
-    $Tag       = "$Registry/$($Image.Name):$ImageTag"
+    $Tag = "$Registry/$($Image.Name):$ImageTag"
     $LatestTag = "$Registry/$($Image.Name):latest"
 
     Write-Host ""
@@ -80,7 +81,8 @@ Write-Host "==> All images pushed successfully."
 Write-Host ""
 if ($SecretsLoaded) {
     Write-Host "==> Secrets loaded from $EnvFile" -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "    WARNING: Before running the deploy command below, set these environment variables" -ForegroundColor Yellow
     Write-Host "    or the deployment will proceed with blank secrets:" -ForegroundColor Yellow
     Write-Host ""
@@ -112,10 +114,10 @@ if ($SecretsLoaded) {
         --parameters $ParamFile `
         --parameters imageTag=$ImageTag `
         --parameters postgresAdminPassword=$env:PG_ADMIN_PASSWORD `
-                     discordToken=$env:DISCORD_TOKEN `
-                     discordBotApiKey=$env:DISCORD_BOT_API_KEY `
-                     botApiKey=$env:BOT_API_KEY `
-                     discordGuildId=$env:DISCORD_GUILD_ID
+        discordToken=$env:DISCORD_TOKEN `
+        discordBotApiKey=$env:DISCORD_BOT_API_KEY `
+        botApiKey=$env:BOT_API_KEY `
+        discordGuildId=$env:DISCORD_GUILD_ID
     if ($LASTEXITCODE -ne 0) {
         Write-Host "==> Deployment failed (exit code $LASTEXITCODE)." -ForegroundColor Red
         exit 1

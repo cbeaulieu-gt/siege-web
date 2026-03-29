@@ -234,6 +234,46 @@ az containerapp update \
   --max-replicas 5
 ```
 
+## Running the Excel import
+
+`bootstrap-excel-import.ps1` connects directly from your local machine to the
+Azure PostgreSQL server. It fetches the `database-url` secret from Key Vault
+and adds a temporary firewall rule for your public IP automatically — but it
+requires your Azure AD account to have read access to Key Vault secrets first.
+
+The Bicep deployment only grants `Key Vault Secrets User` to the Container App
+managed identities, not to developer accounts. You must grant it to yourself
+once per environment before running the import.
+
+**Step 1 — grant yourself Key Vault Secrets User:**
+
+```powershell
+$MyObjectId = az ad signed-in-user show --query id -o tsv
+$VaultName  = az keyvault list -g siege-web-prod --query "[0].name" -o tsv
+
+az role assignment create `
+  --role "Key Vault Secrets User" `
+  --assignee $MyObjectId `
+  --scope (az keyvault show --name $VaultName --query id -o tsv)
+```
+
+Wait ~30 seconds for the role assignment to propagate.
+
+**Step 2 — run the import:**
+
+```powershell
+.\bootstrap-excel-import.ps1 -Environment prod
+```
+
+The script will:
+1. Fetch `database-url` from Key Vault
+2. Add a temporary firewall rule for your current public IP
+3. Run the import against the production database
+4. Remove the firewall rule automatically when done (even on failure)
+
+> **Dev environment:** substitute `siege-web-dev` for the resource group name
+> in the role assignment command, and pass `-Environment dev` to the script.
+
 ## Tear down
 
 > This deletes all resources including the database. Ensure backups are taken first.
