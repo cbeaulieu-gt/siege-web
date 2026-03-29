@@ -297,14 +297,20 @@ async def test_preview_skips_broken_building_positions():
     member = _make_member(1)
 
     # Normal building: positions 10, 11
-    normal_positions = [_make_position(id=10, position_number=1), _make_position(id=11, position_number=2)]
+    normal_positions = [
+        _make_position(id=10, position_number=1),
+        _make_position(id=11, position_number=2),
+    ]
     normal_group = _make_group(id=1, slot_count=2)
     normal_group.positions = normal_positions
     normal_building = _make_building(id=1)
     normal_building.groups = [normal_group]
 
     # Broken building: positions 20, 21
-    broken_positions = [_make_position(id=20, position_number=1), _make_position(id=21, position_number=2)]
+    broken_positions = [
+        _make_position(id=20, position_number=1),
+        _make_position(id=21, position_number=2),
+    ]
     broken_group = _make_group(id=2, slot_count=2)
     broken_group.positions = broken_positions
     broken_building = _make_building(id=2)
