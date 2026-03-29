@@ -58,10 +58,30 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
             for position in group.positions:
                 all_positions.append((position, group, building))
 
-    # Assigned member ids across all positions (non-reserve, non-disabled)
+    # Broken-building exclusion principle:
+    #   - SCROLL BUDGET (assignments_by_member, Rule 2 limit) excludes broken buildings —
+    #     assignments there do not consume the per-member scroll budget, consistent with
+    #     compute_scroll_count which also excludes broken buildings from the position count.
+    #   - COUNTING rules that are NOT scroll-related (Rule 15 reserve-set check) use
+    #     all_assigned_member_ids, which INCLUDES broken buildings — every assigned member
+    #     is accountable for configuring their reserve set regardless of building state.
+    #   - NOISE rules (Rule 10 empty-slot warnings) skip broken buildings —
+    #     empty slots on broken buildings are not actionable.
+    #   - STRUCTURAL rules (Rules 1, 3, 4, 5, 7, 8, 9, 11) still check broken buildings —
+    #     a broken building can still have invalid configuration or invalid assignments.
+
+    # Scroll-budget usage counter: excludes broken buildings because assignments on
+    # broken buildings do not count against the per-member scroll limit (Rule 2).
+    # Note: other rules (e.g. Rule 15) use all_assigned_member_ids which includes
+    # broken buildings, because those rules are not scroll-related.
     assignments_by_member: dict[int, int] = defaultdict(int)
     for pos, group, building in all_positions:
-        if pos.member_id is not None and not pos.is_reserve and not pos.is_disabled:
+        if (
+            pos.member_id is not None
+            and not pos.is_reserve
+            and not pos.is_disabled
+            and not building.is_broken
+        ):
             assignments_by_member[pos.member_id] += 1
 
     # Build siege_member lookup by member_id
@@ -224,8 +244,12 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
     # WARNINGS
     # ------------------------------------------------------------------ #
 
-    # Rule 10/12: Empty unresolved slots (not assigned, not disabled, not reserve)
+    # Rule 10/12: Empty unresolved slots (not assigned, not disabled, not reserve).
+    # Broken buildings are skipped: their surviving positions are intentionally empty
+    # (the building is out of action) and flagging them produces unactionable warnings.
     for pos, group, building in all_positions:
+        if building.is_broken:
+            continue
         if pos.member_id is None and not pos.is_disabled and not pos.is_reserve:
             warnings.append(
                 ValidationIssue(
@@ -301,8 +325,15 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
         )
 
     # Rule 15: Assigned members with has_reserve_set = NULL
-    assigned_member_ids = set(assignments_by_member.keys())
-    for member_id in assigned_member_ids:
+    # Uses all_assigned_member_ids (includes broken buildings) because reserve-set
+    # configuration is not scroll-related — a member assigned only to broken buildings
+    # must still have has_reserve_set configured.
+    all_assigned_member_ids: set[int] = {
+        pos.member_id
+        for pos, group, building in all_positions
+        if pos.member_id is not None and not pos.is_reserve and not pos.is_disabled
+    }
+    for member_id in all_assigned_member_ids:
         sm = sm_by_member.get(member_id)
         name = sm.member.name if sm and sm.member else "Unknown"
         if sm is None or sm.has_reserve_set is None:

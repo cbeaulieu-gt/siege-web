@@ -41,17 +41,21 @@ async def preview_autofill(session: AsyncSession, siege_id: int) -> AutofillPrev
     if siege.status == SiegeStatus.complete:
         raise HTTPException(status_code=400, detail="Cannot auto-fill a completed siege")
 
-    # 1. Collect empty, non-disabled, non-reserve positions
+    # 1. Collect empty, non-disabled, non-reserve positions (skip broken buildings)
     empty_positions: list[Position] = []
     for building in siege.buildings:
+        if building.is_broken:
+            continue
         for group in building.groups:
             for pos in group.positions:
                 if not pos.is_disabled and not pos.is_reserve and pos.member_id is None:
                     empty_positions.append(pos)
 
-    # 2. Count existing assignments per member
+    # 2. Count existing assignments per member (skip broken buildings)
     assignment_counts: dict[int, int] = defaultdict(int)
     for building in siege.buildings:
+        if building.is_broken:
+            continue
         for group in building.groups:
             for pos in group.positions:
                 if pos.member_id is not None and not pos.is_reserve and not pos.is_disabled:
@@ -134,11 +138,19 @@ async def apply_autofill(session: AsyncSession, siege_id: int) -> AutofillApplyR
 
     raw_assignments: list[dict] = siege.autofill_preview.get("assignments", [])
 
-    # Load all positions referenced
+    # Load all positions referenced, excluding positions from broken buildings.
+    # A building may have been broken between preview generation and apply (within the
+    # 30-minute TTL).  Joining to Building and filtering on is_broken means those positions
+    # will simply be absent from positions_by_id, and the existing `if pos is None: continue`
+    # guard below will silently skip them — no assignment lands on a broken building.
     position_ids = [a["position_id"] for a in raw_assignments]
     if position_ids:
         positions_result = await session.execute(
-            select(Position).where(Position.id.in_(position_ids))
+            select(Position)
+            .join(BuildingGroup, Position.building_group_id == BuildingGroup.id)
+            .join(Building, BuildingGroup.building_id == Building.id)
+            .where(Position.id.in_(position_ids))
+            .where(Building.is_broken == False)  # noqa: E712
         )
         positions_by_id = {p.id: p for p in positions_result.scalars().all()}
     else:
