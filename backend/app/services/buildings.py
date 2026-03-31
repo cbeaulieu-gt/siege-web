@@ -250,9 +250,7 @@ async def add_building(session: AsyncSession, siege_id: int, data: BuildingCreat
     if data.building_type == BuildingType.post:
         # Look up global priority for this post number (mirrors create_siege logic)
         ppc_result = await session.execute(
-            select(PostPriorityConfig).where(
-                PostPriorityConfig.post_number == data.building_number
-            )
+            select(PostPriorityConfig).where(PostPriorityConfig.post_number == data.building_number)
         )
         ppc = ppc_result.scalar_one_or_none()
         session.add(

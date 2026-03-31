@@ -457,9 +457,9 @@ async def test_add_building_post_uses_priority_config():
     assert len(added_posts) == 1, f"Expected 1 Post to be created, got {len(added_posts)}"
 
     post = added_posts[0]
-    assert post.priority == 3, (
-        f"Post.priority should be 3 (from PostPriorityConfig), got {post.priority}"
-    )
-    assert post.description == "High priority post", (
-        f"Post.description should come from PostPriorityConfig, got {post.description!r}"
-    )
+    assert (
+        post.priority == 3
+    ), f"Post.priority should be 3 (from PostPriorityConfig), got {post.priority}"
+    assert (
+        post.description == "High priority post"
+    ), f"Post.description should come from PostPriorityConfig, got {post.description!r}"
