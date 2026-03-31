@@ -650,7 +650,9 @@ async def test_rule10_empty_unresolved_slot():
 @pytest.mark.asyncio
 async def test_rule10_message_uses_position_name():
     """Rule 10 message uses human-readable name, not raw position id."""
-    pos = _make_position(id=3090, position_number=2, member_id=None, is_disabled=False, is_reserve=False)
+    pos = _make_position(
+        id=3090, position_number=2, member_id=None, is_disabled=False, is_reserve=False
+    )
     group = _make_group(id=1, group_number=3)
     group.positions = [pos]
     building = _make_building(id=1, building_type=BuildingType.stronghold, building_number=1)
