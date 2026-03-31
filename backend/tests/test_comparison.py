@@ -295,9 +295,9 @@ async def test_inactive_member_excluded_from_comparison():
 
     assert len(captured_stmts) == 1, "Expected exactly one query from _load_assignments"
     stmt_str = str(captured_stmts[0].compile(compile_kwargs={"literal_binds": True}))
-    assert "is_active" in stmt_str, (
-        "Query must filter on Member.is_active to exclude inactive members from comparison"
-    )
+    assert (
+        "is_active" in stmt_str
+    ), "Query must filter on Member.is_active to exclude inactive members from comparison"
 
 
 @pytest.mark.asyncio
