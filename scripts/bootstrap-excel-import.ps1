@@ -43,11 +43,11 @@ Write-Host ""
 
 # ── Install script dependencies ───────────────────────────────────────────────
 
-Write-Host '==> Installing script dependencies from scripts/requirements.txt...'
+Write-Host '==> Installing script dependencies from scripts/excel-import/requirements.txt...'
 Write-Host '    pip output below may be verbose -- this is expected.'
 Write-Host ""
 
-pip install -r scripts/requirements.txt
+pip install -r scripts/excel-import/requirements.txt
 
 if ($LASTEXITCODE -ne 0) {
     Write-Error 'pip install failed. Check the output above for details.'
@@ -124,7 +124,7 @@ Write-Host '==> Running Excel import...'
 Write-Host ""
 
 try {
-    python scripts/import_excel.py "$ExcelPath" --database-url $DbUrl
+    python scripts/excel-import/import_excel.py "$ExcelPath" --database-url $DbUrl
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error 'Excel import failed. Check the output above for details.'
