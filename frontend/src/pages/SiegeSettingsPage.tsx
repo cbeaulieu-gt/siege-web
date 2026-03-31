@@ -52,6 +52,7 @@ import {
 } from 'lucide-react';
 import { isAxiosError } from 'axios';
 import { cn } from '../lib/utils';
+import { BUILDING_COLORS, BUILDING_LABELS } from '../lib/buildingColors';
 
 export default function SiegeSettingsPage() {
   const { id } = useParams<{ id: string }>();
@@ -596,56 +597,83 @@ export default function SiegeSettingsPage() {
         <h2 className="mb-4 text-base font-semibold text-slate-900">Buildings</h2>
         {buildings && buildings.length > 0 && (
           <div className="mb-4 space-y-2">
-            {buildings.filter((b) => b.building_type !== 'post').map((b) => (
-              <div
-                key={b.id}
-                className="flex items-center gap-3 rounded-md border border-slate-100 bg-slate-50 px-3 py-2"
-              >
-                <span className="w-32 text-sm font-medium capitalize">
-                  {b.building_type.replace(/_/g, ' ')} {b.building_number}
-                </span>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs text-slate-500 mr-1">Lvl</span>
-                  {[1, 2, 3, 4, 5, 6].map((lvl) => (
-                    <button
-                      key={lvl}
-                      className={`h-7 w-7 rounded text-xs font-medium transition-colors ${
-                        b.level === lvl
-                          ? 'bg-violet-600 text-white'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      } disabled:cursor-not-allowed disabled:opacity-50`}
-                      disabled={siege?.status === 'complete'}
-                      onClick={() => {
-                        if (lvl !== b.level) {
-                          updateBuildingMutation.mutate({
-                            buildingId: b.id,
-                            data: { level: lvl },
-                          });
+            {buildings.filter((b) => b.building_type !== 'post').map((b) => {
+              const colors = BUILDING_COLORS[b.building_type];
+              return (
+                <div
+                  key={b.id}
+                  className={cn(
+                    'flex overflow-hidden rounded-md border',
+                    colors.border,
+                    b.is_broken && 'opacity-60',
+                  )}
+                >
+                  {/* Colored label bar — mirrors the Board page building header */}
+                  <div
+                    className={cn(
+                      colors.header,
+                      'flex w-36 shrink-0 flex-col justify-center px-2 py-2 text-white',
+                    )}
+                  >
+                    <p className="text-xs font-semibold leading-tight">
+                      {BUILDING_LABELS[b.building_type]} {b.building_number}
+                    </p>
+                    <p className="mt-0.5 text-xs opacity-75">
+                      Lv {b.level}
+                      {b.is_broken ? ' · Broken' : ''}
+                    </p>
+                  </div>
+
+                  {/* Controls area */}
+                  <div className={cn('flex flex-1 items-center gap-4 px-3 py-2', colors.bg)}>
+                    <div className="flex items-center gap-1">
+                      <span className="mr-1 text-xs text-slate-500">Lvl</span>
+                      {[1, 2, 3, 4, 5, 6].map((lvl) => (
+                        <button
+                          key={lvl}
+                          className={cn(
+                            'h-7 w-7 rounded text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                            b.level === lvl
+                              ? cn(colors.header, 'text-white')
+                              : 'bg-white text-slate-600 hover:bg-slate-100',
+                          )}
+                          disabled={siege?.status === 'complete'}
+                          onClick={() => {
+                            if (lvl !== b.level) {
+                              updateBuildingMutation.mutate({
+                                buildingId: b.id,
+                                data: { level: lvl },
+                              });
+                            }
+                          }}
+                        >
+                          {lvl}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Checkbox
+                        id={`broken-${b.id}`}
+                        checked={b.is_broken}
+                        disabled={siege?.status === 'complete'}
+                        onCheckedChange={
+                          siege?.status === 'complete'
+                            ? undefined
+                            : (v) =>
+                                updateBuildingMutation.mutate({
+                                  buildingId: b.id,
+                                  data: { is_broken: Boolean(v) },
+                                })
                         }
-                      }}
-                    >
-                      {lvl}
-                    </button>
-                  ))}
+                      />
+                      <Label htmlFor={`broken-${b.id}`} className="text-xs text-slate-500">
+                        Broken
+                      </Label>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <Checkbox
-                    id={`broken-${b.id}`}
-                    checked={b.is_broken}
-                    disabled={siege?.status === 'complete'}
-                    onCheckedChange={siege?.status === 'complete' ? undefined : (v) =>
-                      updateBuildingMutation.mutate({
-                        buildingId: b.id,
-                        data: { is_broken: Boolean(v) },
-                      })
-                    }
-                  />
-                  <Label htmlFor={`broken-${b.id}`} className="text-xs text-slate-500">
-                    Broken
-                  </Label>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
