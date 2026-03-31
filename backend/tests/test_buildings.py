@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.models.enums import BuildingType, SiegeStatus
-from app.schemas.building import BuildingUpdate
-from app.services.buildings import update_building
+from app.schemas.building import BuildingCreate, BuildingUpdate
+from app.services.buildings import add_building, update_building
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -43,11 +43,20 @@ def _make_group(id, group_number, slot_count, building_id=1):
     )
 
 
-def _make_config(building_type, base_group_count, base_last_group_slots):
+def _make_config(building_type, base_group_count, base_last_group_slots, count=3):
     return SimpleNamespace(
         building_type=building_type,
         base_group_count=base_group_count,
         base_last_group_slots=base_last_group_slots,
+        count=count,
+    )
+
+
+def _make_post_priority_config(post_number, priority, description=None):
+    return SimpleNamespace(
+        post_number=post_number,
+        priority=priority,
+        description=description,
     )
 
 
@@ -372,3 +381,85 @@ async def test_update_building_break_then_unbreak_roundtrip():
     assert (
         base_groups[3].slot_count == 3
     ), "Group 4 should be expanded back to 3 slots during unbreak"
+
+
+# ---------------------------------------------------------------------------
+# add_building — Post priority lookup
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_add_building_post_uses_priority_config():
+    """
+    Adding a post-type building must use PostPriorityConfig to set the Post
+    priority — not hardcode 0.  When a matching PostPriorityConfig row exists
+    (post_number == building_number), the created Post.priority must equal
+    ppc.priority and Post.description must equal ppc.description.
+    """
+    siege = _make_siege()
+    # Post building #2 maps to PostPriorityConfig with priority=3 (High)
+    ppc = _make_post_priority_config(post_number=2, priority=3, description="High priority post")
+
+    # post building_type config: base_group_count=1, base_last_group_slots=3, count=3
+    config = _make_config(BuildingType.post, base_group_count=1, base_last_group_slots=3, count=3)
+
+    call_count = 0
+
+    async def fake_execute(stmt):
+        nonlocal call_count
+        call_count += 1
+        # 1: get_siege
+        if call_count == 1:
+            return _scalar_one_or_none(siege)
+        # 2: _get_building_type_config
+        if call_count == 2:
+            return _scalar_one_or_none(config)
+        # 3: uniqueness check (building_type + building_number)
+        if call_count == 3:
+            return _scalar_one_or_none(None)
+        # 4: count check (how many buildings of this type exist)
+        if call_count == 4:
+            return _scalars_all([])
+        # 5: PostPriorityConfig lookup (building_number == post_number)
+        if call_count == 5:
+            return _scalar_one_or_none(ppc)
+        return _scalar_one_or_none(None)
+
+    added_objects = []
+    flush_count = 0
+
+    async def fake_flush():
+        nonlocal flush_count
+        flush_count += 1
+        if flush_count == 1:
+            # First flush is after session.add(building); assign an id
+            for obj in added_objects:
+                from app.models.building import Building
+
+                if isinstance(obj, Building) and not hasattr(obj, "_id_set"):
+                    obj.id = 99
+                    obj._id_set = True
+
+    session = AsyncMock()
+    session.execute = fake_execute
+    session.flush = fake_flush
+    session.commit = AsyncMock()
+    session.delete = AsyncMock()
+    session.add = lambda obj: added_objects.append(obj)
+    session.refresh = AsyncMock()
+
+    data = BuildingCreate(building_type=BuildingType.post, building_number=2, level=1)
+    await add_building(session, siege_id=1, data=data)
+
+    from app.models.post import Post
+
+    added_posts = [o for o in added_objects if isinstance(o, Post)]
+    assert len(added_posts) == 1, f"Expected 1 Post to be created, got {len(added_posts)}"
+
+    post = added_posts[0]
+    assert post.priority == 3, (
+        f"Post.priority should be 3 (from PostPriorityConfig), got {post.priority}"
+    )
+    assert post.description == "High priority post", (
+        f"Post.description should come from PostPriorityConfig, got {post.description!r}"
+    )

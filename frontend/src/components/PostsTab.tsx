@@ -40,12 +40,14 @@ const POWER_LABELS: Record<string, string> = {
 };
 
 const PRIORITY_LABELS: Record<number, string> = {
+  0: 'Unset',
   1: 'Low',
   2: 'Medium',
   3: 'High',
 };
 
 const PRIORITY_BADGE_COLORS: Record<number, string> = {
+  0: 'bg-slate-100 text-slate-400',
   1: 'bg-slate-100 text-slate-600',
   2: 'bg-amber-100 text-amber-700',
   3: 'bg-red-100 text-red-700',
