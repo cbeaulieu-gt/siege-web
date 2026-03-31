@@ -45,7 +45,7 @@ import {
   MessageSquare,
   Search,
 } from 'lucide-react';
-import { BUILDING_COLORS, BUILDING_LABELS, type BuildingColorClass } from '../lib/buildingColors';
+import { BUILDING_COLORS, BUILDING_LABELS } from '../lib/buildingColors';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
