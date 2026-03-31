@@ -267,8 +267,9 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
                 ValidationIssue(
                     rule=10,
                     message=(
-                        f"Position id={pos.id} is unassigned, not disabled, "
-                        f"and not marked reserve"
+                        f"{building.building_type} {building.building_number} "
+                        f"Group {group.group_number} Position {pos.position_number} "
+                        f"is unassigned, not disabled, and not marked reserve"
                     ),
                     context={
                         "position_id": pos.id,

@@ -648,6 +648,29 @@ async def test_rule10_empty_unresolved_slot():
 
 
 @pytest.mark.asyncio
+async def test_rule10_message_uses_position_name():
+    """Rule 10 message uses human-readable name, not raw position id."""
+    pos = _make_position(
+        id=3090, position_number=2, member_id=None, is_disabled=False, is_reserve=False
+    )
+    group = _make_group(id=1, group_number=3)
+    group.positions = [pos]
+    building = _make_building(id=1, building_type=BuildingType.stronghold, building_number=1)
+    building.groups = [group]
+    siege = _make_siege()
+    siege.buildings = [building]
+
+    session = _session_with_siege_and_configs(siege)
+    result = await svc_validate(session, 1)
+    rule10_warnings = [w for w in result.warnings if w.rule == 10]
+    assert len(rule10_warnings) >= 1
+    msg = rule10_warnings[0].message
+    assert "id=" not in msg, f"Message must not expose raw id, got: {msg!r}"
+    assert "Group 3" in msg, f"Message must contain group number, got: {msg!r}"
+    assert "Position 2" in msg, f"Message must contain position number, got: {msg!r}"
+
+
+@pytest.mark.asyncio
 async def test_rule10_no_warning_when_disabled():
     """Rule 10 pass: disabled empty position → no rule 10 warning."""
     pos = _make_position(id=1, member_id=None, is_disabled=True, is_reserve=False)
