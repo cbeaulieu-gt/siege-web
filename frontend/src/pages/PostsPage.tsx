@@ -12,7 +12,7 @@ import { Checkbox } from '../components/ui/checkbox';
 import { Badge } from '../components/ui/badge';
 import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 
-const PRIORITY_LABELS: Record<number, string> = { 1: 'Low', 2: 'Medium', 3: 'High' };
+const PRIORITY_LABELS: Record<number, string> = { 0: 'Unset', 1: 'Low', 2: 'Medium', 3: 'High' };
 
 function groupConditionsByLevel(conditions: PostConditionRef[]) {
   const groups: Record<number, PostConditionRef[]> = {};

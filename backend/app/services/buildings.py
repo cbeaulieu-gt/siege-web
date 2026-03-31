@@ -8,6 +8,7 @@ from app.models.building_type_config import BuildingTypeConfig
 from app.models.enums import BuildingType, SiegeStatus
 from app.models.position import Position
 from app.models.post import Post
+from app.models.post_priority_config import PostPriorityConfig
 from app.schemas.building import BuildingCreate, BuildingUpdate, GroupCreate
 from app.services.building_capacity import get_team_count
 from app.services.sieges import get_siege
@@ -247,12 +248,17 @@ async def add_building(session: AsyncSession, siege_id: int, data: BuildingCreat
 
     # Auto-create Post record for post buildings
     if data.building_type == BuildingType.post:
+        # Look up global priority for this post number (mirrors create_siege logic)
+        ppc_result = await session.execute(
+            select(PostPriorityConfig).where(PostPriorityConfig.post_number == data.building_number)
+        )
+        ppc = ppc_result.scalar_one_or_none()
         session.add(
             Post(
                 siege_id=siege_id,
                 building_id=building.id,
-                priority=0,
-                description=None,
+                priority=ppc.priority if ppc else 2,
+                description=ppc.description if ppc else None,
             )
         )
 
