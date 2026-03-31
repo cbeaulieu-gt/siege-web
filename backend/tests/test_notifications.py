@@ -1030,3 +1030,57 @@ async def test_send_dms_sets_completed_status_even_when_bot_raises():
     # The except block must have committed the session with completed status.
     assert mock_session.commit.called
     assert batch.status == NotificationBatchStatus.completed
+
+
+# ---------------------------------------------------------------------------
+# 17. POST /api/sieges/{id}/notify — 400 when siege has no date
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_notify_no_date_returns_400(client):
+    """POST /notify must return 400 with a clear message when siege.date is None."""
+    siege = _make_siege(date=None)
+
+    from app.db.session import get_db
+
+    async def fake_get_db():
+        yield MagicMock()
+
+    app.dependency_overrides[get_db] = fake_get_db
+
+    with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
+        async with client as c:
+            response = await c.post("/api/sieges/1/notify")
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "date" in detail.lower()
+
+
+# ---------------------------------------------------------------------------
+# 18. POST /api/sieges/{id}/post-to-channel — 400 when siege has no date
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_post_to_channel_no_date_returns_400(client):
+    """POST /post-to-channel must return 400 with a clear message when siege.date is None."""
+    siege = _make_siege(date=None)
+
+    from app.db.session import get_db
+
+    async def fake_get_db():
+        yield MagicMock()
+
+    app.dependency_overrides[get_db] = fake_get_db
+
+    with patch("app.api.notifications.get_siege", new_callable=AsyncMock, return_value=siege):
+        async with client as c:
+            response = await c.post("/api/sieges/1/post-to-channel")
+
+    app.dependency_overrides.clear()
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert "date" in detail.lower()

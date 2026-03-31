@@ -143,6 +143,11 @@ async def notify_siege_members(
     siege = await get_siege(db, siege_id)
     if siege.status == SiegeStatus.complete:
         raise HTTPException(status_code=400, detail="Cannot notify for a completed siege")
+    if siege.date is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Siege has no date set. Set a siege date before sending notifications.",
+        )
 
     validation = await validate_siege(db, siege_id)
     if validation.errors:
@@ -365,6 +370,11 @@ async def post_to_channel(
 ):
     """Generate images and post them + a summary message to Discord channels."""
     siege = await get_siege(db, siege_id)
+    if siege.date is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Siege has no date set. Set a siege date before posting to Discord.",
+        )
     siege_date = siege.date.isoformat()
 
     # Load board
