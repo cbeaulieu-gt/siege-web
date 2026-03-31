@@ -276,9 +276,7 @@ async def test_inactive_member_excluded_from_comparison():
     1. Capturing the SQL statement and asserting is_active appears in the WHERE clause.
     2. Simulating the filtered result (inactive member absent) and asserting they don't surface.
     """
-    from sqlalchemy import String as SAString
     from app.services.comparison import _load_assignments
-    from app.models.member import Member
 
     captured_stmts = []
 
