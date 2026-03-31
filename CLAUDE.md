@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Raid Shadow Legends Siege Assignment Web App — replaces a manual Discord-based workflow for assigning clan members to stronghold siege buildings. See `IMPLEMENTATION_PLAN.md` for the phased roadmap and `WEB_DESIGN_DOCUMENT.md` for full domain spec (validation rules, auto-fill algorithm, attack day logic, building configs).
+Raid Shadow Legends Siege Assignment Web App — replaces a manual Discord-based workflow for assigning clan members to stronghold siege buildings. See `docs/IMPLEMENTATION_PLAN.md` for the phased roadmap and `docs/WEB_DESIGN_DOCUMENT.md` for full domain spec (validation rules, auto-fill algorithm, attack day logic, building configs).
 
 ## Architecture
 
@@ -16,7 +16,7 @@ Monorepo with three independently containerized services:
 
 Data flow: Azure AD → Easy Auth → frontend (Nginx) → `/api/*` proxy → backend → PostgreSQL. Backend calls bot HTTP API for Discord notifications. Backend generates images via Playwright (headless HTML/CSS → PNG); the bot receives the finished PNG and posts it.
 
- - Keep an STATUS.md file with a high level summary of the state of the project and the anticipated next steps. Frequently update it W
+ - Keep `docs/STATUS.md` with a high level summary of the state of the project and the anticipated next steps. Frequently update it.
 
 ## Common Commands
 
@@ -123,7 +123,7 @@ Copy `.env.example` to `.env`. Required:
 ## Domain Reference
 
 Key domain docs (read before implementing business logic):
-- **Validation rules** (16 total, errors + warnings): `WEB_DESIGN_DOCUMENT.md` and memory `project_validation_rules.md`
+- **Validation rules** (16 total, errors + warnings): `docs/WEB_DESIGN_DOCUMENT.md` and memory `project_validation_rules.md`
 - **BuildingTypeConfig** (base groups + last slot counts): memory `project_building_type_config.md`
 - **Auto-fill algorithm**: preview stores result; apply commits exactly what was previewed — `project_autofill.md`
 - **Attack day algorithm**: pinned members count toward Day 2 threshold — `project_attack_day.md`
