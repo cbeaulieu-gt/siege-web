@@ -6,7 +6,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-Set-Location $PSScriptRoot
+Set-Location (Join-Path $PSScriptRoot '..')
 
 Write-Host "=== Stopping containers ===" -ForegroundColor Cyan
 docker-compose down
@@ -32,8 +32,8 @@ Write-Host "=== Seeding database ===" -ForegroundColor Cyan
 docker-compose exec -T backend python scripts/seed.py
 
 Write-Host "=== Running Excel import ===" -ForegroundColor Cyan
-pip install -q -r scripts/requirements.txt 2>$null
-python scripts/import_excel.py
+pip install -q -r scripts/excel-import/requirements.txt 2>$null
+python scripts/excel-import/import_excel.py
 
 Write-Host ""
 Write-Host "=== Done ===" -ForegroundColor Green
