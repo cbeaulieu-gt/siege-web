@@ -11,15 +11,22 @@ from app.schemas.comparison import ComparisonResult, MemberDiff, PositionKey
 
 
 async def _load_assignments(session: AsyncSession, siege_id: int) -> dict[int, list[PositionKey]]:
-    """Return {member_id: [PositionKey, ...]} for non-reserve, non-disabled assigned positions."""
+    """Return {member_id: [PositionKey, ...]} for non-reserve, non-disabled assigned positions.
+
+    Only positions belonging to active members are included.  Assignments copied from a cloned
+    siege may reference members who are (or have since become) inactive; those are excluded here
+    so they never surface in the comparison view.
+    """
     result = await session.execute(
         select(Position, BuildingGroup, Building)
         .join(BuildingGroup, Position.building_group_id == BuildingGroup.id)
         .join(Building, BuildingGroup.building_id == Building.id)
+        .join(Member, Position.member_id == Member.id)
         .where(Building.siege_id == siege_id)
         .where(Position.member_id.is_not(None))
         .where(Position.is_reserve.is_(False))
         .where(Position.is_disabled.is_(False))
+        .where(Member.is_active.is_(True))
     )
 
     assignments: dict[int, list[PositionKey]] = {}
