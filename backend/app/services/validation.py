@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from app.models.building import Building
 from app.models.building_group import BuildingGroup
 from app.models.building_type_config import BuildingTypeConfig
-from app.models.enums import BuildingType
+from app.models.enums import BuildingType, MemberRole
 from app.models.member import Member
 from app.models.position import Position
 from app.models.post import Post
@@ -337,10 +337,13 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
             )
         )
 
-    # Rule 15: Assigned members with has_reserve_set = NULL
+    # Rule 15: HH/Advanced Role members without a reserve flag configured.
+    # Only Heavy Hitter and Advanced Role members are required to have the reserve
+    # toggle set; other roles are not subject to this requirement.
     # Uses all_assigned_member_ids (includes broken buildings) because reserve-set
     # configuration is not scroll-related — a member assigned only to broken buildings
     # must still have has_reserve_set configured.
+    _HH_ADVANCED_ROLES = {MemberRole.heavy_hitter, MemberRole.advanced}
     all_assigned_member_ids: set[int] = {
         pos.member_id
         for pos, group, building in all_positions
@@ -348,12 +351,20 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
     }
     for member_id in all_assigned_member_ids:
         sm = sm_by_member.get(member_id)
-        name = sm.member.name if sm and sm.member else "Unknown"
-        if sm is None or sm.has_reserve_set is None:
+        if sm is None:
+            continue
+        member_role = sm.member.role if sm.member else None
+        if member_role not in _HH_ADVANCED_ROLES:
+            continue
+        if not sm.has_reserve_set:
+            name = sm.member.name if sm.member else "Unknown"
             warnings.append(
                 ValidationIssue(
                     rule=15,
-                    message=f"Member '{name}' is assigned but has_reserve_set is not configured",
+                    message=(
+                        f"Member '{name}' is a Heavy Hitter/Advanced Role "
+                        f"but has no reserve configured"
+                    ),
                     context={"member_id": member_id},
                 )
             )

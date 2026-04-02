@@ -829,9 +829,9 @@ async def test_rule14_ten_or_more_day2():
 
 
 @pytest.mark.asyncio
-async def test_rule15_has_reserve_set_null():
-    """Rule 15: assigned member with has_reserve_set=None → warning."""
-    member = _make_member(id=1, is_active=True)
+async def test_rule15_hh_no_reserve():
+    """Rule 15: HH member with has_reserve_set=None → warning."""
+    member = _make_member(id=1, is_active=True, role=MemberRole.heavy_hitter)
     pos = _make_position(id=1, member_id=1, member=member)
     group = _make_group(id=1)
     group.positions = [pos]
@@ -849,9 +849,29 @@ async def test_rule15_has_reserve_set_null():
 
 
 @pytest.mark.asyncio
-async def test_rule15_has_reserve_set_configured():
-    """Rule 15 pass: has_reserve_set is True."""
-    member = _make_member(id=1, is_active=True)
+async def test_rule15_advanced_no_reserve():
+    """Rule 15: Advanced Role member with has_reserve_set=None → warning."""
+    member = _make_member(id=1, is_active=True, role=MemberRole.advanced)
+    pos = _make_position(id=1, member_id=1, member=member)
+    group = _make_group(id=1)
+    group.positions = [pos]
+    building = _make_building(id=1)
+    building.groups = [group]
+    siege = _make_siege(defense_scroll_count=5)
+    siege.buildings = [building]
+    sm = _make_siege_member(member_id=1, attack_day=1, has_reserve_set=None, member=member)
+    siege.siege_members = [sm]
+
+    session = _session_with_siege_and_configs(siege)
+    result = await svc_validate(session, 1)
+    rule15_warnings = [w for w in result.warnings if w.rule == 15]
+    assert len(rule15_warnings) >= 1
+
+
+@pytest.mark.asyncio
+async def test_rule15_hh_reserve_configured():
+    """Rule 15 pass: HH member with has_reserve_set=True → no warning."""
+    member = _make_member(id=1, is_active=True, role=MemberRole.heavy_hitter)
     pos = _make_position(id=1, member_id=1, member=member)
     group = _make_group(id=1)
     group.positions = [pos]
@@ -860,6 +880,26 @@ async def test_rule15_has_reserve_set_configured():
     siege = _make_siege(defense_scroll_count=5)
     siege.buildings = [building]
     sm = _make_siege_member(member_id=1, attack_day=1, has_reserve_set=True, member=member)
+    siege.siege_members = [sm]
+
+    session = _session_with_siege_and_configs(siege)
+    result = await svc_validate(session, 1)
+    rule15_warnings = [w for w in result.warnings if w.rule == 15]
+    assert len(rule15_warnings) == 0
+
+
+@pytest.mark.asyncio
+async def test_rule15_non_hh_no_reserve_no_warning():
+    """Rule 15 pass: medium/novice member with has_reserve_set=None → no warning."""
+    member = _make_member(id=1, is_active=True, role=MemberRole.medium)
+    pos = _make_position(id=1, member_id=1, member=member)
+    group = _make_group(id=1)
+    group.positions = [pos]
+    building = _make_building(id=1)
+    building.groups = [group]
+    siege = _make_siege(defense_scroll_count=5)
+    siege.buildings = [building]
+    sm = _make_siege_member(member_id=1, attack_day=1, has_reserve_set=None, member=member)
     siege.siege_members = [sm]
 
     session = _session_with_siege_and_configs(siege)
