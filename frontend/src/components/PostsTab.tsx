@@ -307,6 +307,14 @@ function PostRow({
     .find((p) => !p.is_disabled);
   const assignedMemberName = assignedPosition?.member_name ?? null;
   const isReserve = assignedPosition?.is_reserve ?? false;
+  // Reserves don't have matched conditions since they're manual placeholders
+  const matchedCondition = useMemo(
+    () =>
+      !isReserve && assignedPosition?.matched_condition_id
+        ? (activeConditions.find((c) => c.id === assignedPosition.matched_condition_id) ?? null)
+        : null,
+    [isReserve, assignedPosition?.matched_condition_id, activeConditions],
+  );
 
   const reserveMutation = useMutation({
     mutationFn: (posId: number) =>
@@ -421,12 +429,19 @@ function PostRow({
             RESERVE
           </span>
         ) : (
-          <span
-            className={`ml-2 shrink-0 text-sm ${
-              assignedMemberName ? 'font-medium text-slate-800' : 'text-slate-400'
-            }`}
-          >
-            {assignedMemberName ?? 'Unassigned'}
+          <span className="ml-2 flex shrink-0 items-center gap-1.5">
+            <span
+              className={`text-sm ${
+                assignedMemberName ? 'font-medium text-slate-800' : 'text-slate-400'
+              }`}
+            >
+              {assignedMemberName ?? 'Unassigned'}
+            </span>
+            {matchedCondition && (
+              <span className="rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-700">
+                {matchedCondition.description}
+              </span>
+            )}
           </span>
         )}
       </button>
