@@ -22,9 +22,12 @@ concurrency:
 
 # Least-privilege permissions. pull-requests: write is required for the
 # on-failure comment steps that tag @claude on failing PRs.
+# contents: write and actions: read are required by the claude-lint-fix
+# reusable workflow (it pushes fix commits and reads workflow run logs).
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
+  actions: read
 
 jobs:
   backend-ci:
@@ -61,18 +64,6 @@ jobs:
       - name: Run tests with coverage
         run: pytest tests/ --cov=app
 
-      - name: Post failure comment
-        if: failure() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GH_PAT }}
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `## ❌ Backend Lint & Test failed\n\n[View full logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n@claude please investigate the backend CI failure and push a fix.`
-            })
 
   frontend-ci:
     name: Frontend Lint & Build
@@ -104,18 +95,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Post failure comment
-        if: failure() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GH_PAT }}
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `## ❌ Frontend Lint & Build failed\n\n[View full logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n@claude please investigate the frontend CI failure and push a fix.`
-            })
 
   # E2E (Playwright) tests are NOT run in CI automatically — they require a live
   # docker-compose stack. To run locally:
@@ -153,15 +132,16 @@ jobs:
       - name: Run tests
         run: pytest tests/ -v
 
-      - name: Post failure comment
-        if: failure() && github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GH_PAT }}
-          script: |
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: `## ❌ Bot Lint & Test failed\n\n[View full logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\n\n@claude please investigate the bot CI failure and push a fix.`
-            })
+
+  claude-lint-fix:
+    name: Claude Lint Fix
+    needs: [backend-ci, frontend-ci, bot-ci]
+    if: failure() && github.event_name == 'pull_request'
+    uses: cbeaulieu-gt/github-actions/.github/workflows/claude-lint-fix.yml@v1
+    secrets:
+      claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      gh_pat: ${{ secrets.GH_PAT }}
+    with:
+      pr_number: ${{ github.event.pull_request.number }}
+      run_id: ${{ github.run_id }}
+      auto_apply: false

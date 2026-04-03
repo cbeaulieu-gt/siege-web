@@ -1,0 +1,15 @@
+name: Claude CI Fix
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+jobs:
+  fix:
+    uses: cbeaulieu-gt/github-actions/.github/workflows/ci-failure.yaml@v1
+    secrets:
+      claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      gh_pat: ${{ secrets.GH_PAT }}
+    with:
+      auto_apply: true
