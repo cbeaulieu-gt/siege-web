@@ -422,6 +422,13 @@ function PostRow({
           <span className="shrink-0 text-xs text-slate-400">No conditions</span>
         )}
 
+        {/* Matched condition pill — between condition count and member name */}
+        {matchedCondition && (
+          <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-700">
+            {matchedCondition.description}
+          </span>
+        )}
+
         {/* Assigned member / reserve status */}
         {isReserve ? (
           <span className="ml-2 flex shrink-0 items-center gap-1 text-sm font-medium text-teal-700">
@@ -429,7 +436,7 @@ function PostRow({
             RESERVE
           </span>
         ) : (
-          <span className="ml-2 flex shrink-0 items-center gap-1.5">
+          <span className="ml-2 shrink-0">
             <span
               className={`text-sm ${
                 assignedMemberName ? 'font-medium text-slate-800' : 'text-slate-400'
@@ -437,11 +444,6 @@ function PostRow({
             >
               {assignedMemberName ?? 'Unassigned'}
             </span>
-            {matchedCondition && (
-              <span className="rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-700">
-                {matchedCondition.description}
-              </span>
-            )}
           </span>
         )}
       </button>
