@@ -59,10 +59,16 @@ on:
 # deploy.yml must include it even though the deploy pipeline itself never
 # writes to pull requests (the comment steps in ci.yml are gated on
 # github.event_name == 'pull_request' and will never fire here).
+#
+# contents: write and actions: read are also required because ci.yml
+# declares them. GitHub enforces that callers must hold at least every
+# permission the called (reusable) workflow declares — even if deploy.yml
+# itself never exercises those permissions directly.
 
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
+  actions: read
 
 concurrency:
   group: >-
