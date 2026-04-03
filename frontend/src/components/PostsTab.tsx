@@ -307,10 +307,14 @@ function PostRow({
     .find((p) => !p.is_disabled);
   const assignedMemberName = assignedPosition?.member_name ?? null;
   const isReserve = assignedPosition?.is_reserve ?? false;
-  const matchedCondition =
-    !isReserve && assignedPosition?.matched_condition_id
-      ? (activeConditions.find((c) => c.id === assignedPosition.matched_condition_id) ?? null)
-      : null;
+  // Reserves don't have matched conditions since they're manual placeholders
+  const matchedCondition = useMemo(
+    () =>
+      !isReserve && assignedPosition?.matched_condition_id
+        ? (activeConditions.find((c) => c.id === assignedPosition.matched_condition_id) ?? null)
+        : null,
+    [isReserve, assignedPosition?.matched_condition_id, activeConditions],
+  );
 
   const reserveMutation = useMutation({
     mutationFn: (posId: number) =>
