@@ -91,11 +91,18 @@ jobs:
 
       - name: Get current image tag (dev)
         run: |
+          # Preserve the currently-running image tag to prevent silent rollback to :latest.
+          # Falls back to 'latest' if the container app doesn't exist (e.g., first deployment).
           IMAGE_TAG=$(az containerapp show \
             --name siege-web-api-dev \
             --resource-group ${{ vars.RESOURCE_GROUP }} \
             --query "properties.template.containers[0].image" \
-            --output tsv | awk -F: '{print $NF}')
+            --output tsv 2>/dev/null | awk -F: '{print $NF}') || IMAGE_TAG="latest"
+          if [ -z "$IMAGE_TAG" ]; then
+            echo "⚠️  Could not determine current image tag, defaulting to 'latest'"
+            IMAGE_TAG="latest"
+          fi
+          echo "Using image tag: ${IMAGE_TAG}"
           echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
 
       - name: Deploy infra (dev)
@@ -135,11 +142,18 @@ jobs:
 
       - name: Get current image tag (prod)
         run: |
+          # Preserve the currently-running image tag to prevent silent rollback to :latest.
+          # Falls back to 'latest' if the container app doesn't exist (e.g., first deployment).
           IMAGE_TAG=$(az containerapp show \
             --name siege-web-api-prod \
             --resource-group ${{ vars.RESOURCE_GROUP }} \
             --query "properties.template.containers[0].image" \
-            --output tsv | awk -F: '{print $NF}')
+            --output tsv 2>/dev/null | awk -F: '{print $NF}') || IMAGE_TAG="latest"
+          if [ -z "$IMAGE_TAG" ]; then
+            echo "⚠️  Could not determine current image tag, defaulting to 'latest'"
+            IMAGE_TAG="latest"
+          fi
+          echo "Using image tag: ${IMAGE_TAG}"
           echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
 
       - name: Deploy infra (prod)
