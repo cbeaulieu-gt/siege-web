@@ -22,9 +22,12 @@ concurrency:
 
 # Least-privilege permissions. pull-requests: write is required for the
 # on-failure comment steps that tag @claude on failing PRs.
+# contents: write and actions: read are required by the claude-lint-fix
+# reusable workflow (it pushes fix commits and reads workflow run logs).
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
+  actions: read
 
 jobs:
   backend-ci:
