@@ -4,7 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPosts, setPostConditions } from '../api/posts';
 import { getPostConditions } from '../api/members';
 import { getSiege } from '../api/sieges';
-import type { Post, PostConditionRef } from '../api/types';
+import { getBoard } from '../api/board';
+import type { Post, PostConditionRef, BuildingResponse } from '../api/types';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -28,11 +29,13 @@ function PostRow({
   siegeId,
   isLocked,
   initialExpanded = false,
+  building,
 }: {
   post: Post;
   siegeId: number;
   isLocked?: boolean;
   initialExpanded?: boolean;
+  building?: BuildingResponse;
 }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(initialExpanded);
@@ -68,6 +71,37 @@ function PostRow({
 
   const condGroups = allConditions ? groupConditionsByLevel(allConditions) : {};
 
+  // Derive the assignment match state from the board data for this building.
+  // Flatten all non-reserve, non-disabled positions and find the first assigned one.
+  const assignedPosition = building
+    ? building.groups
+        .flatMap((g) => g.positions)
+        .find((p) => !p.is_reserve && !p.is_disabled && p.member_id !== null)
+    : undefined;
+
+  const matchedCondition =
+    assignedPosition && assignedPosition.matched_condition_id !== null
+      ? post.active_conditions.find((c) => c.id === assignedPosition.matched_condition_id)
+      : undefined;
+
+  // matchBadge is the element to render, or null when no member is assigned
+  const matchBadge =
+    assignedPosition == null ? null : matchedCondition != null ? (
+      <Badge
+        variant="default"
+        className="shrink-0 text-xs bg-green-100 text-green-800 border border-green-200 hover:bg-green-100"
+      >
+        ✓ {matchedCondition.description}
+      </Badge>
+    ) : (
+      <Badge
+        variant="secondary"
+        className="shrink-0 text-xs bg-amber-50 text-amber-700 border border-amber-200"
+      >
+        No condition match
+      </Badge>
+    );
+
   return (
     <div className="rounded-lg border border-slate-200 bg-white">
       <div className="flex items-center gap-4 px-4 py-3">
@@ -75,6 +109,7 @@ function PostRow({
           Post {post.building_number}
         </span>
         <span className="text-sm text-slate-500">Priority: {PRIORITY_LABELS[post.priority] ?? post.priority}</span>
+        {matchBadge}
         {post.description && (
           <span className="text-sm text-slate-600 truncate">{post.description}</span>
         )}
@@ -179,6 +214,11 @@ export default function PostsPage() {
     queryFn: () => getPosts(siegeId),
   });
 
+  const { data: board } = useQuery({
+    queryKey: ['board', siegeId],
+    queryFn: () => getBoard(siegeId),
+  });
+
   const sorted = posts?.slice().sort((a, b) => a.priority - b.priority);
 
   return (
@@ -218,6 +258,7 @@ export default function PostsPage() {
               siegeId={siegeId}
               isLocked={siege?.status === 'complete'}
               initialExpanded={expandPostNumber === post.building_number}
+              building={board?.buildings.find((b) => b.id === post.building_id)}
             />
           ))}
         </div>
