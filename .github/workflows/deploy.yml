@@ -105,6 +105,11 @@ jobs:
 # are the foundation of the promotion model: the exact bytes built here are
 # what gets deployed to dev and later promoted unchanged to prod via a v* tag.
 #
+# Each image is pushed to both the dev ACR (vars.ACR_LOGIN_SERVER) and the
+# prod ACR (vars.PROD_ACR_LOGIN_SERVER) so that prod deploys can pull the
+# same immutable SHA without a separate build step. The prod push is guarded
+# by `if: vars.PROD_ACR_NAME != ''` so dev-only setups are unaffected.
+#
 # This job runs only on main-branch pushes (after CI passes). Tag-triggered
 # and workflow_dispatch runs skip it because the image already exists in ACR.
 
@@ -180,6 +185,14 @@ jobs:
             -t "${IMAGE}:${{ github.sha }}" \
             ${{ matrix.context }}
           docker push "${IMAGE}:${{ github.sha }}"
+
+      - name: Push to prod ACR
+        if: vars.PROD_ACR_NAME != ''
+        run: |
+          az acr login --name ${{ vars.PROD_ACR_NAME }}
+          PROD_IMAGE=${{ vars.PROD_ACR_LOGIN_SERVER }}/${{ matrix.service }}
+          docker tag ${{ vars.ACR_LOGIN_SERVER }}/${{ matrix.service }}:${{ github.sha }} "${PROD_IMAGE}:${{ github.sha }}"
+          docker push "${PROD_IMAGE}:${{ github.sha }}"
 
 # ── Deploy API (dev) ───────────────────────────────────────────────────────────
 #
