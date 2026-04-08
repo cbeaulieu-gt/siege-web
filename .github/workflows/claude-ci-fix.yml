@@ -11,9 +11,10 @@ permissions:
 
 jobs:
   fix:
-    uses: cbeaulieu-gt/github-actions/.github/workflows/ci-failure.yaml@v1
+    uses: cbeaulieu-gt/github-actions/.github/workflows/ci-failure.yaml@v2.0.0
     secrets:
       claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-      gh_pat: ${{ secrets.GH_PAT }}
+      app_id: ${{ secrets.APP_ID }}
+      app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
     with:
       auto_apply: true
