@@ -1,6 +1,8 @@
 import os
+import secrets
 from pathlib import Path
 
+import discord
 from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
@@ -33,7 +35,7 @@ def _get_bot() -> SiegeBot:
 
 def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme)) -> None:
     """Validate the Bearer token against the configured bot API key."""
-    if credentials.credentials != settings.bot_api_key:
+    if not secrets.compare_digest(credentials.credentials, settings.bot_api_key):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key",
@@ -128,3 +130,32 @@ async def get_members(
     """Retrieve guild member list."""
     bot = _get_bot()
     return await bot.get_members()
+
+
+@app.get("/api/members/{discord_user_id}")
+async def get_guild_member(
+    discord_user_id: str,
+    _: None = Depends(verify_api_key),
+) -> dict:
+    """Look up a single guild member by Discord user ID.
+
+    Returns ``{"is_member": false}`` if the user is not in the guild (Discord
+    404), a 503 if the guild object is not available or Discord returns an
+    unexpected error, and a full member payload on success.
+    """
+    guild = _bot.get_guild(int(settings.discord_guild_id)) if _bot is not None else None
+    if guild is None:
+        raise HTTPException(status_code=503, detail="Guild not available")
+    try:
+        member = await guild.fetch_member(int(discord_user_id))
+    except discord.NotFound:
+        return {"is_member": False}
+    except discord.HTTPException as e:
+        raise HTTPException(status_code=503, detail=f"Discord API error: {e}")
+    return {
+        "is_member": True,
+        "discord_id": str(member.id),
+        "username": member.name,
+        "display_name": member.display_name,
+        "roles": [str(r.id) for r in member.roles if r.name != "@everyone"],
+    }

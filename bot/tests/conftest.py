@@ -26,8 +26,19 @@ if "discord" not in sys.modules:
     class _FakeTextChannel:
         pass
 
+    # discord.NotFound and discord.HTTPException must be real exception classes
+    # so that ``except discord.NotFound`` and ``except discord.HTTPException``
+    # clauses in http_api.py work correctly during tests.
+    class _FakeHTTPException(Exception):
+        pass
+
+    class _FakeNotFound(_FakeHTTPException):
+        pass
+
     discord_mock.Client = _FakeClient
     discord_mock.TextChannel = _FakeTextChannel
+    discord_mock.HTTPException = _FakeHTTPException
+    discord_mock.NotFound = _FakeNotFound
     discord_mock.Intents = MagicMock()
     discord_mock.File = MagicMock()
     # Provide a real find() so SiegeBot methods work with mock guilds
