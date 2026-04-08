@@ -5,3 +5,4 @@ pytest-cov>=6.0
 black>=24.10
 ruff>=0.8
 aiosqlite>=0.20
+respx>=0.21
