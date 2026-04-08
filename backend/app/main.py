@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,11 +30,24 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan — runs startup guards before serving requests."""
+    if settings.auth_disabled and settings.environment != "development":
+        raise RuntimeError(
+            "AUTH_DISABLED=true is not permitted outside development. "
+            f"Current environment: {settings.environment}"
+        )
+    yield
+
+
 app = FastAPI(
     title="Siege Assignment API",
     version="0.1.0",
     docs_url="/api/docs" if settings.environment == "development" else None,
     redoc_url=None,
+    lifespan=lifespan,
 )
 
 app.add_middleware(RequestLoggingMiddleware)
