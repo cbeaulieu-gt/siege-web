@@ -1,6 +1,6 @@
-import { useParams, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useParams, Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import {
   getSiege,
   getSiegeMembers,
@@ -8,9 +8,9 @@ import {
   updateSiegeMember,
   previewAttackDay,
   applyAttackDay,
-} from '../api/sieges';
-import { getMembers } from '../api/members';
-import type { SiegeMember, AttackDayPreviewResult } from '../api/types';
+} from "../api/sieges";
+import { getMembers } from "../api/members";
+import type { SiegeMember, AttackDayPreviewResult } from "../api/types";
 import {
   Table,
   TableBody,
@@ -18,16 +18,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../components/ui/table';
-import { Button } from '../components/ui/button';
-import { Checkbox } from '../components/ui/checkbox';
+} from "../components/ui/table";
+import { Button } from "../components/ui/button";
+import { Checkbox } from "../components/ui/checkbox";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../components/ui/select';
+} from "../components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -35,8 +35,8 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '../components/ui/dialog';
-import { ArrowLeft, Lock, UserPlus, Loader2 } from 'lucide-react';
+} from "../components/ui/dialog";
+import { ArrowLeft, Lock, UserPlus, Loader2 } from "lucide-react";
 
 function AttackDaySelect({
   value,
@@ -47,8 +47,8 @@ function AttackDaySelect({
 }) {
   return (
     <Select
-      value={value != null ? String(value) : 'none'}
-      onValueChange={(v) => onChange(v === 'none' ? null : Number(v))}
+      value={value != null ? String(value) : "none"}
+      onValueChange={(v) => onChange(v === "none" ? null : Number(v))}
     >
       <SelectTrigger className="h-7 w-20 text-xs">
         <SelectValue />
@@ -62,7 +62,15 @@ function AttackDaySelect({
   );
 }
 
-function SiegeMemberRow({ member, siegeId, isLocked }: { member: SiegeMember; siegeId: number; isLocked?: boolean }) {
+function SiegeMemberRow({
+  member,
+  siegeId,
+  isLocked,
+}: {
+  member: SiegeMember;
+  siegeId: number;
+  isLocked?: boolean;
+}) {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
@@ -72,7 +80,7 @@ function SiegeMemberRow({ member, siegeId, isLocked }: { member: SiegeMember; si
       attack_day_override?: boolean;
     }) => updateSiegeMember(siegeId, member.member_id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['siegeMembers', siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["siegeMembers", siegeId] });
     },
   });
 
@@ -80,13 +88,18 @@ function SiegeMemberRow({ member, siegeId, isLocked }: { member: SiegeMember; si
     <TableRow>
       <TableCell className="font-medium">{member.member_name}</TableCell>
       <TableCell className="text-sm text-slate-600">
-        {{ heavy_hitter: 'Heavy Hitter', advanced: 'Advanced', medium: 'Medium', novice: 'Novice' }[member.member_role] ?? member.member_role}
+        {{
+          heavy_hitter: "Heavy Hitter",
+          advanced: "Advanced",
+          medium: "Medium",
+          novice: "Novice",
+        }[member.member_role] ?? member.member_role}
       </TableCell>
       <TableCell>
         <div className="flex items-center gap-1.5">
           {isLocked ? (
             <span className="text-sm text-slate-600">
-              {member.attack_day ? `Day ${member.attack_day}` : '-'}
+              {member.attack_day ? `Day ${member.attack_day}` : "-"}
             </span>
           ) : (
             <AttackDaySelect
@@ -103,14 +116,22 @@ function SiegeMemberRow({ member, siegeId, isLocked }: { member: SiegeMember; si
         <Checkbox
           checked={Boolean(member.attack_day_override)}
           disabled={isLocked}
-          onCheckedChange={isLocked ? undefined : (v) => mutation.mutate({ attack_day_override: Boolean(v) })}
+          onCheckedChange={
+            isLocked
+              ? undefined
+              : (v) => mutation.mutate({ attack_day_override: Boolean(v) })
+          }
         />
       </TableCell>
       <TableCell>
         <Checkbox
           checked={Boolean(member.has_reserve_set)}
           disabled={isLocked}
-          onCheckedChange={isLocked ? undefined : (v) => mutation.mutate({ has_reserve_set: Boolean(v) })}
+          onCheckedChange={
+            isLocked
+              ? undefined
+              : (v) => mutation.mutate({ has_reserve_set: Boolean(v) })
+          }
         />
       </TableCell>
     </TableRow>
@@ -124,25 +145,29 @@ export default function SiegeMembersPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [preview, setPreview] = useState<AttackDayPreviewResult | null>(null);
   const [addOpen, setAddOpen] = useState(false);
-  const [selectedMemberId, setSelectedMemberId] = useState<string>('');
+  const [selectedMemberId, setSelectedMemberId] = useState<string>("");
   const [addError, setAddError] = useState<string | null>(null);
   const [reserveAssigning, setReserveAssigning] = useState(false);
 
   const { data: siege } = useQuery({
-    queryKey: ['siege', siegeId],
+    queryKey: ["siege", siegeId],
     queryFn: () => getSiege(siegeId),
   });
 
-  const { data: members, isLoading, error } = useQuery({
-    queryKey: ['siegeMembers', siegeId],
+  const {
+    data: members,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["siegeMembers", siegeId],
     queryFn: () => getSiegeMembers(siegeId),
   });
 
   // Only fetch available members when the add dialog is open and siege is planning
   const { data: allMembers } = useQuery({
-    queryKey: ['members', { is_active: true }],
+    queryKey: ["members", { is_active: true }],
     queryFn: () => getMembers({ is_active: true }),
-    enabled: addOpen && siege?.status === 'planning',
+    enabled: addOpen && siege?.status === "planning",
   });
 
   const siegeMemberIds = new Set(members?.map((m) => m.member_id) ?? []);
@@ -153,14 +178,16 @@ export default function SiegeMembersPage() {
   const addMutation = useMutation({
     mutationFn: (memberId: number) => addSiegeMember(siegeId, memberId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['siegeMembers', siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["siegeMembers", siegeId] });
       setAddOpen(false);
-      setSelectedMemberId('');
+      setSelectedMemberId("");
       setAddError(null);
     },
     onError: (err: unknown) => {
       const message =
-        err instanceof Error ? err.message : 'Failed to add member. Please try again.';
+        err instanceof Error
+          ? err.message
+          : "Failed to add member. Please try again.";
       setAddError(message);
     },
   });
@@ -176,7 +203,7 @@ export default function SiegeMembersPage() {
   const applyMutation = useMutation({
     mutationFn: () => applyAttackDay(siegeId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['siegeMembers', siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["siegeMembers", siegeId] });
       setPreviewOpen(false);
       setPreview(null);
     },
@@ -188,9 +215,11 @@ export default function SiegeMembersPage() {
     setReserveAssigning(true);
     try {
       for (const m of day2Members) {
-        await updateSiegeMember(siegeId, m.member_id, { has_reserve_set: true });
+        await updateSiegeMember(siegeId, m.member_id, {
+          has_reserve_set: true,
+        });
       }
-      queryClient.invalidateQueries({ queryKey: ['siegeMembers', siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["siegeMembers", siegeId] });
     } finally {
       setReserveAssigning(false);
     }
@@ -205,12 +234,12 @@ export default function SiegeMembersPage() {
   function handleAddOpenChange(open: boolean) {
     setAddOpen(open);
     if (!open) {
-      setSelectedMemberId('');
+      setSelectedMemberId("");
       setAddError(null);
     }
   }
 
-  const isPlanning = siege?.status === 'planning';
+  const isPlanning = siege?.status === "planning";
 
   // Build a quick name lookup for the preview dialog
   const nameLookup: Record<number, string> = {};
@@ -234,31 +263,40 @@ export default function SiegeMembersPage() {
           </h1>
         </div>
         <div className="flex gap-2">
-            {isPlanning && (
-              <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
-                <UserPlus className="mr-1.5 h-4 w-4" />
-                Add Member
-              </Button>
-            )}
+          {isPlanning && (
             <Button
+              size="sm"
               variant="outline"
-              size="sm"
-              onClick={handleAutoAssignReserves}
-              disabled={reserveAssigning || siege?.status === 'complete'}
+              onClick={() => setAddOpen(true)}
             >
-              {reserveAssigning ? (
-                <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" />Assigning...</>
-              ) : (
-                'Auto-Assign Reserves'
-              )}
+              <UserPlus className="mr-1.5 h-4 w-4" />
+              Add Member
             </Button>
-            <Button
-              size="sm"
-              onClick={() => previewMutation.mutate()}
-              disabled={previewMutation.isPending || siege?.status === 'complete'}
-            >
-              {previewMutation.isPending ? 'Loading...' : 'Auto-Assign Attack Days'}
-            </Button>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAutoAssignReserves}
+            disabled={reserveAssigning || siege?.status === "complete"}
+          >
+            {reserveAssigning ? (
+              <>
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                Assigning...
+              </>
+            ) : (
+              "Auto-Assign Reserves"
+            )}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => previewMutation.mutate()}
+            disabled={previewMutation.isPending || siege?.status === "complete"}
+          >
+            {previewMutation.isPending
+              ? "Loading..."
+              : "Auto-Assign Attack Days"}
+          </Button>
         </div>
       </div>
 
@@ -285,14 +323,25 @@ export default function SiegeMembersPage() {
             <TableBody>
               {members?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-8 text-center text-slate-500">
+                  <TableCell
+                    colSpan={4}
+                    className="py-8 text-center text-slate-500"
+                  >
                     No members in this siege.
                   </TableCell>
                 </TableRow>
               )}
-              {members?.slice().sort((a, b) => a.member_name.localeCompare(b.member_name)).map((m) => (
-                <SiegeMemberRow key={m.member_id} member={m} siegeId={siegeId} isLocked={siege?.status === 'complete'} />
-              ))}
+              {members
+                ?.slice()
+                .sort((a, b) => a.member_name.localeCompare(b.member_name))
+                .map((m) => (
+                  <SiegeMemberRow
+                    key={m.member_id}
+                    member={m}
+                    siegeId={siegeId}
+                    isLocked={siege?.status === "complete"}
+                  />
+                ))}
             </TableBody>
           </Table>
         </div>
@@ -308,7 +357,10 @@ export default function SiegeMembersPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
-            <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
+            <Select
+              value={selectedMemberId}
+              onValueChange={setSelectedMemberId}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select a member..." />
               </SelectTrigger>
@@ -326,17 +378,22 @@ export default function SiegeMembersPage() {
                 )}
               </SelectContent>
             </Select>
-            {addError && <p className="mt-2 text-sm text-red-600">{addError}</p>}
+            {addError && (
+              <p className="mt-2 text-sm text-red-600">{addError}</p>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => handleAddOpenChange(false)}>
+            <Button
+              variant="outline"
+              onClick={() => handleAddOpenChange(false)}
+            >
               Cancel
             </Button>
             <Button
               onClick={handleAddConfirm}
               disabled={!selectedMemberId || addMutation.isPending}
             >
-              {addMutation.isPending ? 'Adding...' : 'Add'}
+              {addMutation.isPending ? "Adding..." : "Add"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -351,49 +408,68 @@ export default function SiegeMembersPage() {
               {preview?.assignments.length ?? 0} members will be assigned.
             </DialogDescription>
           </DialogHeader>
-          {preview && (() => {
-            const byName = (a: { member_id: number }, b: { member_id: number }) =>
-              (nameLookup[a.member_id] ?? '').localeCompare(nameLookup[b.member_id] ?? '');
-            const day1 = preview.assignments.filter((a) => a.attack_day === 1).sort(byName);
-            const day2 = preview.assignments.filter((a) => a.attack_day === 2).sort(byName);
-            const rows = Math.max(day1.length, day2.length);
-            return (
-              <div className="grid grid-cols-2 divide-x divide-slate-200 rounded-md border border-slate-200">
-                <div>
-                  <div className="border-b border-slate-200 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Day 1 ({day1.length})
-                  </div>
-                  {Array.from({ length: rows }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="px-3 py-1.5 text-sm odd:bg-slate-50"
-                    >
-                      {day1[i] ? (nameLookup[day1[i].member_id] ?? `Member ${day1[i].member_id}`) : ''}
+          {preview &&
+            (() => {
+              const byName = (
+                a: { member_id: number },
+                b: { member_id: number }
+              ) =>
+                (nameLookup[a.member_id] ?? "").localeCompare(
+                  nameLookup[b.member_id] ?? ""
+                );
+              const day1 = preview.assignments
+                .filter((a) => a.attack_day === 1)
+                .sort(byName);
+              const day2 = preview.assignments
+                .filter((a) => a.attack_day === 2)
+                .sort(byName);
+              const rows = Math.max(day1.length, day2.length);
+              return (
+                <div className="grid grid-cols-2 divide-x divide-slate-200 rounded-md border border-slate-200">
+                  <div>
+                    <div className="border-b border-slate-200 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Day 1 ({day1.length})
                     </div>
-                  ))}
-                </div>
-                <div>
-                  <div className="border-b border-slate-200 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Day 2 ({day2.length})
+                    {Array.from({ length: rows }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="px-3 py-1.5 text-sm odd:bg-slate-50"
+                      >
+                        {day1[i]
+                          ? (nameLookup[day1[i].member_id] ??
+                            `Member ${day1[i].member_id}`)
+                          : ""}
+                      </div>
+                    ))}
                   </div>
-                  {Array.from({ length: rows }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="px-3 py-1.5 text-sm odd:bg-slate-50"
-                    >
-                      {day2[i] ? (nameLookup[day2[i].member_id] ?? `Member ${day2[i].member_id}`) : ''}
+                  <div>
+                    <div className="border-b border-slate-200 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Day 2 ({day2.length})
                     </div>
-                  ))}
+                    {Array.from({ length: rows }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="px-3 py-1.5 text-sm odd:bg-slate-50"
+                      >
+                        {day2[i]
+                          ? (nameLookup[day2[i].member_id] ??
+                            `Member ${day2[i].member_id}`)
+                          : ""}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
           <DialogFooter>
             <Button variant="outline" onClick={() => setPreviewOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => applyMutation.mutate()} disabled={applyMutation.isPending}>
-              {applyMutation.isPending ? 'Applying...' : 'Apply'}
+            <Button
+              onClick={() => applyMutation.mutate()}
+              disabled={applyMutation.isPending}
+            >
+              {applyMutation.isPending ? "Applying..." : "Apply"}
             </Button>
           </DialogFooter>
         </DialogContent>

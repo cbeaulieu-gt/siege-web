@@ -10,30 +10,32 @@
  *  - Locked (siege complete) board — context menu button hidden, auto-fill disabled
  */
 
-import { screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { http, HttpResponse } from 'msw';
-import { beforeAll, afterAll, afterEach, describe, it, expect } from 'vitest';
-import { Routes, Route } from 'react-router-dom';
-import { server } from '../server';
-import { renderWithProviders } from '../utils';
-import BoardPage from '../../pages/BoardPage';
+import { screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { http, HttpResponse } from "msw";
+import { beforeAll, afterAll, afterEach, describe, it, expect } from "vitest";
+import { Routes, Route } from "react-router-dom";
+import { server } from "../server";
+import { renderWithProviders } from "../utils";
+import BoardPage from "../../pages/BoardPage";
 import type {
   BoardResponse,
   PositionResponse,
   SiegeMember,
   Siege,
-} from '../../api/types';
+} from "../../api/types";
 
 // ─── Server lifecycle ──────────────────────────────────────────────────────────
 
-beforeAll(() => server.listen({ onUnhandledRequest: 'warn' }));
+beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));
 afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 // ─── Fixture factories ──────────────────────────────────────────────────────
 
-function makePosition(overrides: Partial<PositionResponse> = {}): PositionResponse {
+function makePosition(
+  overrides: Partial<PositionResponse> = {}
+): PositionResponse {
   return {
     id: 1,
     position_number: 1,
@@ -53,7 +55,7 @@ function makeBoard(positions: PositionResponse[] = []): BoardResponse {
     buildings: [
       {
         id: 10,
-        building_type: 'stronghold',
+        building_type: "stronghold",
         building_number: 1,
         level: 5,
         is_broken: false,
@@ -73,12 +75,12 @@ function makeBoard(positions: PositionResponse[] = []): BoardResponse {
 function makeSiege(overrides: Partial<Siege> = {}): Siege {
   return {
     id: 42,
-    date: '2026-03-22',
-    status: 'active',
+    date: "2026-03-22",
+    status: "active",
     defense_scroll_count: 0,
     computed_scroll_count: 0,
-    created_at: '2026-03-19T00:00:00Z',
-    updated_at: '2026-03-19T00:00:00Z',
+    created_at: "2026-03-19T00:00:00Z",
+    updated_at: "2026-03-19T00:00:00Z",
     ...overrides,
   };
 }
@@ -87,9 +89,9 @@ function makeSiegeMember(overrides: Partial<SiegeMember> = {}): SiegeMember {
   return {
     siege_id: 42,
     member_id: 1,
-    member_name: 'Aethon',
-    member_role: 'heavy_hitter',
-    member_power_level: 'gt_25m',
+    member_name: "Aethon",
+    member_role: "heavy_hitter",
+    member_power_level: "gt_25m",
     attack_day: 1,
     has_reserve_set: false,
     attack_day_override: false,
@@ -103,36 +105,36 @@ function makeSiegeMember(overrides: Partial<SiegeMember> = {}): SiegeMember {
 function setupDefaultHandlers(
   board: BoardResponse = makeBoard(),
   siege: Siege = makeSiege(),
-  members: SiegeMember[] = [],
+  members: SiegeMember[] = []
 ) {
   server.use(
-    http.get('/api/sieges/42/board', () => HttpResponse.json(board)),
-    http.get('/api/sieges/42', () => HttpResponse.json(siege)),
-    http.get('/api/sieges/42/members', () => HttpResponse.json(members)),
-    http.get('/api/post-priorities', () => HttpResponse.json([])),
+    http.get("/api/sieges/42/board", () => HttpResponse.json(board)),
+    http.get("/api/sieges/42", () => HttpResponse.json(siege)),
+    http.get("/api/sieges/42/members", () => HttpResponse.json(members)),
+    http.get("/api/post-priorities", () => HttpResponse.json([]))
   );
 }
 
-function renderBoard(initialPath = '/sieges/42/board') {
+function renderBoard(initialPath = "/sieges/42/board") {
   return renderWithProviders(
     <Routes>
       <Route path="/sieges/:id/board" element={<BoardPage />} />
     </Routes>,
-    { initialEntries: [initialPath] },
+    { initialEntries: [initialPath] }
   );
 }
 
 // ─── Loading state ──────────────────────────────────────────────────────────
 
-describe('BoardPage — loading state', () => {
-  it('shows a loading message while the board is being fetched', () => {
+describe("BoardPage — loading state", () => {
+  it("shows a loading message while the board is being fetched", () => {
     server.use(
-      http.get('/api/sieges/42/board', async () => {
+      http.get("/api/sieges/42/board", async () => {
         await new Promise(() => {}); // never resolves
       }),
-      http.get('/api/sieges/42', () => HttpResponse.json(makeSiege())),
-      http.get('/api/sieges/42/members', () => HttpResponse.json([])),
-      http.get('/api/post-priorities', () => HttpResponse.json([])),
+      http.get("/api/sieges/42", () => HttpResponse.json(makeSiege())),
+      http.get("/api/sieges/42/members", () => HttpResponse.json([])),
+      http.get("/api/post-priorities", () => HttpResponse.json([]))
     );
     renderBoard();
     expect(screen.getByText(/loading board/i)).toBeInTheDocument();
@@ -141,129 +143,154 @@ describe('BoardPage — loading state', () => {
 
 // ─── Summary bar ───────────────────────────────────────────────────────────
 
-describe('BoardPage — summary bar', () => {
-  it('counts each slot category correctly', async () => {
+describe("BoardPage — summary bar", () => {
+  it("counts each slot category correctly", async () => {
     const positions: PositionResponse[] = [
-      makePosition({ id: 1, position_number: 1, member_id: 7, member_name: 'Aethon' }), // assigned
-      makePosition({ id: 2, position_number: 2, is_reserve: true }),                     // reserve
-      makePosition({ id: 3, position_number: 3, has_no_assignment: true }),              // N/A
-      makePosition({ id: 4, position_number: 4 }),                                       // empty
-      makePosition({ id: 5, position_number: 5, is_disabled: true }),                    // disabled
+      makePosition({
+        id: 1,
+        position_number: 1,
+        member_id: 7,
+        member_name: "Aethon",
+      }), // assigned
+      makePosition({ id: 2, position_number: 2, is_reserve: true }), // reserve
+      makePosition({ id: 3, position_number: 3, has_no_assignment: true }), // N/A
+      makePosition({ id: 4, position_number: 4 }), // empty
+      makePosition({ id: 5, position_number: 5, is_disabled: true }), // disabled
     ];
     setupDefaultHandlers(makeBoard(positions), makeSiege(), [
-      makeSiegeMember({ member_id: 7, member_name: 'Aethon' }),
+      makeSiegeMember({ member_id: 7, member_name: "Aethon" }),
     ]);
     renderBoard();
 
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
     // Summary bar contains "5 total"
-    const summaryBar = screen.getByText('total').closest('div')!;
-    expect(within(summaryBar).getByText('5')).toBeInTheDocument();
+    const summaryBar = screen.getByText("total").closest("div")!;
+    expect(within(summaryBar).getByText("5")).toBeInTheDocument();
     // assigned, reserve, N/A, empty each show '1'; disabled also '1'
-    const ones = within(summaryBar).getAllByText('1');
+    const ones = within(summaryBar).getAllByText("1");
     expect(ones.length).toBeGreaterThanOrEqual(4);
   });
 });
 
 // ─── Position cell states ──────────────────────────────────────────────────
 
-describe('BoardPage — position cell states', () => {
-  it('renders an assigned member name inside a position cell', async () => {
-    const positions = [makePosition({ id: 1, member_id: 7, member_name: 'Aethon' })];
+describe("BoardPage — position cell states", () => {
+  it("renders an assigned member name inside a position cell", async () => {
+    const positions = [
+      makePosition({ id: 1, member_id: 7, member_name: "Aethon" }),
+    ];
     setupDefaultHandlers(makeBoard(positions), makeSiege(), [
-      makeSiegeMember({ member_id: 7, member_name: 'Aethon' }),
+      makeSiegeMember({ member_id: 7, member_name: "Aethon" }),
     ]);
     renderBoard();
 
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
     // Aethon appears in both the position cell and the member bucket
-    expect(screen.getAllByText('Aethon').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("Aethon").length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders RESERVE badge for a reserve position', async () => {
+  it("renders RESERVE badge for a reserve position", async () => {
     const positions = [makePosition({ id: 1, is_reserve: true })];
     setupDefaultHandlers(makeBoard(positions));
     renderBoard();
 
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
-    expect(screen.getByText('RESERVE')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
+    expect(screen.getByText("RESERVE")).toBeInTheDocument();
   });
 
-  it('renders N/A text for a no-assignment position', async () => {
+  it("renders N/A text for a no-assignment position", async () => {
     const positions = [makePosition({ id: 1, has_no_assignment: true })];
     setupDefaultHandlers(makeBoard(positions));
     renderBoard();
 
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
     // N/A appears in both the position cell and the summary bar label
-    expect(screen.getAllByText('N/A').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("N/A").length).toBeGreaterThanOrEqual(1);
   });
 
-  it('renders DISABLED text with strikethrough style for a disabled position', async () => {
+  it("renders DISABLED text with strikethrough style for a disabled position", async () => {
     const positions = [makePosition({ id: 1, is_disabled: true })];
     setupDefaultHandlers(makeBoard(positions));
     renderBoard();
 
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
-    const disabledEl = screen.getByText('DISABLED');
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
+    const disabledEl = screen.getByText("DISABLED");
     expect(disabledEl).toBeInTheDocument();
-    expect(disabledEl).toHaveClass('line-through');
+    expect(disabledEl).toHaveClass("line-through");
   });
 
-  it('renders an em-dash placeholder for an empty position', async () => {
+  it("renders an em-dash placeholder for an empty position", async () => {
     const positions = [makePosition({ id: 1 })];
     setupDefaultHandlers(makeBoard(positions));
     renderBoard();
 
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
     // Empty positions show the "—" character
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
   });
 });
 
 // ─── Context menu actions ──────────────────────────────────────────────────
 
-describe('BoardPage — position context menu', () => {
-  it('opens the context dialog when the chevron button is clicked', async () => {
+describe("BoardPage — position context menu", () => {
+  it("opens the context dialog when the chevron button is clicked", async () => {
     const user = userEvent.setup();
     const positions = [makePosition({ id: 1, position_number: 3 })];
     setupDefaultHandlers(makeBoard(positions));
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
     // The chevron button is opacity-0 until hovered; userEvent.hover makes it visible
-    const cell = screen.getByText('3.').closest('div')!;
+    const cell = screen.getByText("3.").closest("div")!;
     await user.hover(cell);
 
-    const chevron = cell.querySelector('button');
+    const chevron = cell.querySelector("button");
     expect(chevron).not.toBeNull();
     await user.click(chevron!);
 
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText(/position 3/i)).toBeInTheDocument();
   });
 
-  it('calls the update endpoint with is_reserve=true when Mark RESERVE is clicked', async () => {
+  it("calls the update endpoint with is_reserve=true when Mark RESERVE is clicked", async () => {
     const user = userEvent.setup();
     const positions = [makePosition({ id: 55, position_number: 1 })];
     setupDefaultHandlers(makeBoard(positions));
 
     let capturedBody: Record<string, unknown> | null = null;
     server.use(
-      http.put('/api/sieges/42/positions/55', async ({ request }) => {
+      http.put("/api/sieges/42/positions/55", async ({ request }) => {
         capturedBody = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(makePosition({ id: 55, position_number: 1, is_reserve: true }));
-      }),
+        return HttpResponse.json(
+          makePosition({ id: 55, position_number: 1, is_reserve: true })
+        );
+      })
     );
 
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
-    const cell = screen.getByText('1.').closest('div')!;
+    const cell = screen.getByText("1.").closest("div")!;
     await user.hover(cell);
-    await user.click(cell.querySelector('button')!);
-    await user.click(screen.getByRole('button', { name: /mark reserve/i }));
+    await user.click(cell.querySelector("button")!);
+    await user.click(screen.getByRole("button", { name: /mark reserve/i }));
 
     await waitFor(() => expect(capturedBody).not.toBeNull());
     expect(capturedBody).toMatchObject({
@@ -273,28 +300,32 @@ describe('BoardPage — position context menu', () => {
     });
   });
 
-  it('calls the update endpoint with has_no_assignment=true when Mark No Assignment is clicked', async () => {
+  it("calls the update endpoint with has_no_assignment=true when Mark No Assignment is clicked", async () => {
     const user = userEvent.setup();
     const positions = [makePosition({ id: 56, position_number: 1 })];
     setupDefaultHandlers(makeBoard(positions));
 
     let capturedBody: Record<string, unknown> | null = null;
     server.use(
-      http.put('/api/sieges/42/positions/56', async ({ request }) => {
+      http.put("/api/sieges/42/positions/56", async ({ request }) => {
         capturedBody = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
-          makePosition({ id: 56, position_number: 1, has_no_assignment: true }),
+          makePosition({ id: 56, position_number: 1, has_no_assignment: true })
         );
-      }),
+      })
     );
 
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
-    const cell = screen.getByText('1.').closest('div')!;
+    const cell = screen.getByText("1.").closest("div")!;
     await user.hover(cell);
-    await user.click(cell.querySelector('button')!);
-    await user.click(screen.getByRole('button', { name: /mark no assignment/i }));
+    await user.click(cell.querySelector("button")!);
+    await user.click(
+      screen.getByRole("button", { name: /mark no assignment/i })
+    );
 
     await waitFor(() => expect(capturedBody).not.toBeNull());
     expect(capturedBody).toMatchObject({
@@ -304,28 +335,37 @@ describe('BoardPage — position context menu', () => {
     });
   });
 
-  it('calls the update endpoint with member_id=null when Clear is clicked', async () => {
+  it("calls the update endpoint with member_id=null when Clear is clicked", async () => {
     const user = userEvent.setup();
-    const positions = [makePosition({ id: 57, position_number: 1, member_id: 7, member_name: 'Aethon' })];
+    const positions = [
+      makePosition({
+        id: 57,
+        position_number: 1,
+        member_id: 7,
+        member_name: "Aethon",
+      }),
+    ];
     setupDefaultHandlers(makeBoard(positions), makeSiege(), [
-      makeSiegeMember({ member_id: 7, member_name: 'Aethon' }),
+      makeSiegeMember({ member_id: 7, member_name: "Aethon" }),
     ]);
 
     let capturedBody: Record<string, unknown> | null = null;
     server.use(
-      http.put('/api/sieges/42/positions/57', async ({ request }) => {
+      http.put("/api/sieges/42/positions/57", async ({ request }) => {
         capturedBody = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(makePosition({ id: 57, position_number: 1 }));
-      }),
+      })
     );
 
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
-    const cell = screen.getByText('1.').closest('div')!;
+    const cell = screen.getByText("1.").closest("div")!;
     await user.hover(cell);
-    await user.click(cell.querySelector('button')!);
-    await user.click(screen.getByRole('button', { name: /^clear$/i }));
+    await user.click(cell.querySelector("button")!);
+    await user.click(screen.getByRole("button", { name: /^clear$/i }));
 
     await waitFor(() => expect(capturedBody).not.toBeNull());
     expect(capturedBody).toMatchObject({
@@ -335,188 +375,259 @@ describe('BoardPage — position context menu', () => {
     });
   });
 
-  it('does not render a chevron button on a disabled position', async () => {
-    const positions = [makePosition({ id: 1, position_number: 1, is_disabled: true })];
+  it("does not render a chevron button on a disabled position", async () => {
+    const positions = [
+      makePosition({ id: 1, position_number: 1, is_disabled: true }),
+    ];
     setupDefaultHandlers(makeBoard(positions));
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
     // The DISABLED text sits inside the cell; no button should be present
-    const disabledSpan = screen.getByText('DISABLED');
+    const disabledSpan = screen.getByText("DISABLED");
     const cell = disabledSpan.closest('[class*="group"]');
-    expect(cell?.querySelector('button')).toBeNull();
+    expect(cell?.querySelector("button")).toBeNull();
   });
 });
 
 // ─── Locked board (siege complete) ────────────────────────────────────────
 
-describe('BoardPage — locked board', () => {
-  it('hides the chevron context button on all positions when siege is complete', async () => {
+describe("BoardPage — locked board", () => {
+  it("hides the chevron context button on all positions when siege is complete", async () => {
     const positions = [makePosition({ id: 1, position_number: 1 })];
-    setupDefaultHandlers(makeBoard(positions), makeSiege({ status: 'complete' }));
+    setupDefaultHandlers(
+      makeBoard(positions),
+      makeSiege({ status: "complete" })
+    );
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
     // When isLocked=true the button is not rendered at all (conditional render, not just hidden)
-    const cell = screen.getByText('1.').closest('[class*="group"]');
-    expect(cell?.querySelector('button')).toBeNull();
+    const cell = screen.getByText("1.").closest('[class*="group"]');
+    expect(cell?.querySelector("button")).toBeNull();
   });
 
-  it('disables the Preview Auto-fill button when siege is complete', async () => {
-    setupDefaultHandlers(makeBoard(), makeSiege({ status: 'complete' }));
+  it("disables the Preview Auto-fill button when siege is complete", async () => {
+    setupDefaultHandlers(makeBoard(), makeSiege({ status: "complete" }));
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
-    expect(screen.getByRole('button', { name: /preview auto-fill/i })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /preview auto-fill/i })
+    ).toBeDisabled();
   });
 });
 
 // ─── MemberBucket ─────────────────────────────────────────────────────────
 
-describe('BoardPage — MemberBucket', () => {
+describe("BoardPage — MemberBucket", () => {
   const members: SiegeMember[] = [
-    makeSiegeMember({ member_id: 1, member_name: 'Aethon', member_role: 'heavy_hitter' }),
-    makeSiegeMember({ member_id: 2, member_name: 'Brint', member_role: 'novice' }),
-    makeSiegeMember({ member_id: 3, member_name: 'Calyx', member_role: 'advanced' }),
+    makeSiegeMember({
+      member_id: 1,
+      member_name: "Aethon",
+      member_role: "heavy_hitter",
+    }),
+    makeSiegeMember({
+      member_id: 2,
+      member_name: "Brint",
+      member_role: "novice",
+    }),
+    makeSiegeMember({
+      member_id: 3,
+      member_name: "Calyx",
+      member_role: "advanced",
+    }),
   ];
 
-  it('renders all siege members in the bucket', async () => {
+  it("renders all siege members in the bucket", async () => {
     setupDefaultHandlers(makeBoard(), makeSiege(), members);
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
-    expect(screen.getByText('Aethon')).toBeInTheDocument();
-    expect(screen.getByText('Brint')).toBeInTheDocument();
-    expect(screen.getByText('Calyx')).toBeInTheDocument();
+    expect(screen.getByText("Aethon")).toBeInTheDocument();
+    expect(screen.getByText("Brint")).toBeInTheDocument();
+    expect(screen.getByText("Calyx")).toBeInTheDocument();
   });
 
-  it('filters members by search text', async () => {
+  it("filters members by search text", async () => {
     const user = userEvent.setup();
     setupDefaultHandlers(makeBoard(), makeSiege(), members);
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
     const searchInput = screen.getByPlaceholderText(/search/i);
-    await user.type(searchInput, 'Aeth');
+    await user.type(searchInput, "Aeth");
 
-    expect(screen.getByText('Aethon')).toBeInTheDocument();
-    expect(screen.queryByText('Brint')).not.toBeInTheDocument();
-    expect(screen.queryByText('Calyx')).not.toBeInTheDocument();
+    expect(screen.getByText("Aethon")).toBeInTheDocument();
+    expect(screen.queryByText("Brint")).not.toBeInTheDocument();
+    expect(screen.queryByText("Calyx")).not.toBeInTheDocument();
   });
 
   it('shows "No members" when search matches nothing', async () => {
     const user = userEvent.setup();
     setupDefaultHandlers(makeBoard(), makeSiege(), members);
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
     const searchInput = screen.getByPlaceholderText(/search/i);
-    await user.type(searchInput, 'zzz');
+    await user.type(searchInput, "zzz");
 
-    expect(screen.getByText('No members')).toBeInTheDocument();
+    expect(screen.getByText("No members")).toBeInTheDocument();
   });
 
-  it('filters members by role via the role select', async () => {
+  it("filters members by role via the role select", async () => {
     const user = userEvent.setup();
     setupDefaultHandlers(makeBoard(), makeSiege(), members);
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
     // MemberBucket uses a plain <select>, not a shadcn Select component
     const roleSelect = screen
-      .getAllByRole('combobox')
-      .find((el) => el.tagName === 'SELECT')!;
-    await user.selectOptions(roleSelect, 'novice');
+      .getAllByRole("combobox")
+      .find((el) => el.tagName === "SELECT")!;
+    await user.selectOptions(roleSelect, "novice");
 
-    expect(screen.getByText('Brint')).toBeInTheDocument();
-    expect(screen.queryByText('Aethon')).not.toBeInTheDocument();
-    expect(screen.queryByText('Calyx')).not.toBeInTheDocument();
+    expect(screen.getByText("Brint")).toBeInTheDocument();
+    expect(screen.queryByText("Aethon")).not.toBeInTheDocument();
+    expect(screen.queryByText("Calyx")).not.toBeInTheDocument();
   });
 
-  it('shows role abbreviation badge next to each member', async () => {
+  it("shows role abbreviation badge next to each member", async () => {
     setupDefaultHandlers(makeBoard(), makeSiege(), [
-      makeSiegeMember({ member_id: 1, member_name: 'Aethon', member_role: 'heavy_hitter' }),
+      makeSiegeMember({
+        member_id: 1,
+        member_name: "Aethon",
+        member_role: "heavy_hitter",
+      }),
     ]);
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
     // heavy_hitter → "HH" abbreviation badge
-    expect(screen.getByText('HH')).toBeInTheDocument();
+    expect(screen.getByText("HH")).toBeInTheDocument();
   });
 
-  it('shows assignment count badge for each member', async () => {
+  it("shows assignment count badge for each member", async () => {
     // Aethon is assigned to two positions
     const positions = [
-      makePosition({ id: 1, position_number: 1, member_id: 1, member_name: 'Aethon' }),
-      makePosition({ id: 2, position_number: 2, member_id: 1, member_name: 'Aethon' }),
+      makePosition({
+        id: 1,
+        position_number: 1,
+        member_id: 1,
+        member_name: "Aethon",
+      }),
+      makePosition({
+        id: 2,
+        position_number: 2,
+        member_id: 1,
+        member_name: "Aethon",
+      }),
     ];
     setupDefaultHandlers(makeBoard(positions), makeSiege(), [
-      makeSiegeMember({ member_id: 1, member_name: 'Aethon', member_role: 'heavy_hitter' }),
+      makeSiegeMember({
+        member_id: 1,
+        member_name: "Aethon",
+        member_role: "heavy_hitter",
+      }),
     ]);
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
     // The count badge "2" should appear in the member bucket next to Aethon
     // Note: the MemberBucket is in the same DOM tree as the board, so scope to Aethon's row
-    const memberRows = screen.getAllByText('Aethon');
+    const memberRows = screen.getAllByText("Aethon");
     // First match is the bucket row; find the "2" count badge inside its parent
-    const bucketRow = memberRows[0].closest('div[class*="flex"]') as HTMLElement;
-    expect(within(bucketRow).getByText('2')).toBeInTheDocument();
+    const bucketRow = memberRows[0].closest(
+      'div[class*="flex"]'
+    ) as HTMLElement;
+    expect(within(bucketRow).getByText("2")).toBeInTheDocument();
   });
 });
 
 // ─── Action buttons ────────────────────────────────────────────────────────
 
-describe('BoardPage — action buttons', () => {
-  it('renders Validate and Preview Auto-fill buttons', async () => {
+describe("BoardPage — action buttons", () => {
+  it("renders Validate and Preview Auto-fill buttons", async () => {
     setupDefaultHandlers();
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
-    expect(screen.getByRole('button', { name: /validate/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /preview auto-fill/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /validate/i })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /preview auto-fill/i })
+    ).toBeInTheDocument();
   });
 
-  it('renders Buildings and Posts tab buttons', async () => {
+  it("renders Buildings and Posts tab buttons", async () => {
     setupDefaultHandlers();
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
-    expect(screen.getByRole('button', { name: /buildings/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /posts/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /buildings/i })
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /posts/i })).toBeInTheDocument();
   });
 
-  it('shows the Buildings tab content by default (Stronghold section header visible)', async () => {
+  it("shows the Buildings tab content by default (Stronghold section header visible)", async () => {
     const positions = [makePosition({ id: 1, position_number: 1 })];
     setupDefaultHandlers(makeBoard(positions));
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
     // BuildingTypeSection renders the type label via BUILDING_LABELS; CSS uppercase doesn't change DOM text
-    expect(screen.getByText('Stronghold')).toBeInTheDocument();
+    expect(screen.getByText("Stronghold")).toBeInTheDocument();
   });
 });
 
 // ─── Building section collapse ─────────────────────────────────────────────
 
-describe('BoardPage — building section collapse/expand', () => {
-  it('collapses a building section when its header is clicked', async () => {
+describe("BoardPage — building section collapse/expand", () => {
+  it("collapses a building section when its header is clicked", async () => {
     const user = userEvent.setup();
     const positions = [makePosition({ id: 1, position_number: 1 })];
     setupDefaultHandlers(makeBoard(positions));
     renderBoard();
-    await waitFor(() => expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
 
     // Position cell placeholder is visible in the expanded (default) state
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText("—")).toBeInTheDocument();
 
     // Click the section header to collapse
     const sectionHeader = screen
-      .getByText('Stronghold')
+      .getByText("Stronghold")
       .closest('div[class*="cursor-pointer"]')!;
     await user.click(sectionHeader);
 
     // After collapse the position placeholder should not be rendered
-    expect(screen.queryByText('—')).not.toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
   });
 });

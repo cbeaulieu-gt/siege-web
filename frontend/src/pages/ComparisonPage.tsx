@@ -1,36 +1,36 @@
-import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { getSieges, compareSieges, compareSiegesSpecific } from '../api/sieges';
-import type { PositionKey, MemberDiff } from '../api/types';
+import { useState } from "react";
+import { useParams, Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { getSieges, compareSieges, compareSiegesSpecific } from "../api/sieges";
+import type { PositionKey, MemberDiff } from "../api/types";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../components/ui/select';
-import { Label } from '../components/ui/label';
-import { ArrowLeft } from 'lucide-react';
-import { cn } from '../lib/utils';
+} from "../components/ui/select";
+import { Label } from "../components/ui/label";
+import { ArrowLeft } from "lucide-react";
+import { cn } from "../lib/utils";
 
 function formatPosition(pos: PositionKey): string {
-  return `${pos.building_type.replace(/_/g, ' ')} #${pos.building_number} G${pos.group_number} P${pos.position_number}`;
+  return `${pos.building_type.replace(/_/g, " ")} #${pos.building_number} G${pos.group_number} P${pos.position_number}`;
 }
 
 interface PositionTagProps {
   pos: PositionKey;
-  variant: 'added' | 'removed' | 'unchanged';
+  variant: "added" | "removed" | "unchanged";
 }
 
 function PositionTag({ pos, variant }: PositionTagProps) {
   return (
     <span
       className={cn(
-        'inline-block rounded px-1.5 py-0.5 text-xs font-medium capitalize',
-        variant === 'added' && 'bg-green-100 text-green-800',
-        variant === 'removed' && 'bg-red-100 text-red-800',
-        variant === 'unchanged' && 'bg-slate-100 text-slate-600',
+        "inline-block rounded px-1.5 py-0.5 text-xs font-medium capitalize",
+        variant === "added" && "bg-green-100 text-green-800",
+        variant === "removed" && "bg-red-100 text-red-800",
+        variant === "unchanged" && "bg-slate-100 text-slate-600"
       )}
     >
       {formatPosition(pos)}
@@ -67,17 +67,17 @@ function MemberNewPositionsCell({ diff }: { diff: MemberDiff }) {
 export default function ComparisonPage() {
   const { id } = useParams<{ id: string }>();
   const siegeId = Number(id);
-  const [compareToId, setCompareToId] = useState<string>('default');
+  const [compareToId, setCompareToId] = useState<string>("default");
   const [diffsOnly, setDiffsOnly] = useState(false);
 
   const { data: completedSieges } = useQuery({
-    queryKey: ['sieges', 'complete'],
-    queryFn: () => getSieges({ status: 'complete' }),
+    queryKey: ["sieges", "complete"],
+    queryFn: () => getSieges({ status: "complete" }),
   });
 
   const otherSieges = completedSieges?.filter((s) => s.id !== siegeId) ?? [];
 
-  const isSpecific = compareToId !== 'default';
+  const isSpecific = compareToId !== "default";
   const specificId = isSpecific ? Number(compareToId) : undefined;
 
   const {
@@ -85,7 +85,7 @@ export default function ComparisonPage() {
     isLoading,
     error,
   } = useQuery({
-    queryKey: ['comparison', siegeId, compareToId],
+    queryKey: ["comparison", siegeId, compareToId],
     queryFn: () =>
       isSpecific && specificId != null
         ? compareSiegesSpecific(siegeId, specificId)
@@ -94,10 +94,16 @@ export default function ComparisonPage() {
   });
 
   const membersWithChanges =
-    comparison?.members.filter((m) => m.added.length > 0 || m.removed.length > 0) ?? [];
-  const totalAdded = comparison?.members.reduce((acc, m) => acc + m.added.length, 0) ?? 0;
-  const totalRemoved = comparison?.members.reduce((acc, m) => acc + m.removed.length, 0) ?? 0;
-  const visibleMembers = diffsOnly ? membersWithChanges : (comparison?.members ?? []);
+    comparison?.members.filter(
+      (m) => m.added.length > 0 || m.removed.length > 0
+    ) ?? [];
+  const totalAdded =
+    comparison?.members.reduce((acc, m) => acc + m.added.length, 0) ?? 0;
+  const totalRemoved =
+    comparison?.members.reduce((acc, m) => acc + m.removed.length, 0) ?? 0;
+  const visibleMembers = diffsOnly
+    ? membersWithChanges
+    : (comparison?.members ?? []);
 
   return (
     <div className="max-w-5xl">
@@ -144,16 +150,17 @@ export default function ComparisonPage() {
       {comparison && (
         <div className="mb-4 flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
           <span>
-            <strong>{membersWithChanges.length}</strong> members with changes &bull;{' '}
+            <strong>{membersWithChanges.length}</strong> members with changes
+            &bull;{" "}
             <span className="text-green-700">
               <strong>{totalAdded}</strong> positions added
-            </span>{' '}
-            &bull;{' '}
+            </span>{" "}
+            &bull;{" "}
             <span className="text-red-700">
               <strong>{totalRemoved}</strong> positions removed
             </span>
           </span>
-          <label className="flex cursor-pointer items-center gap-2 select-none">
+          <label className="flex cursor-pointer select-none items-center gap-2">
             <input
               type="checkbox"
               checked={diffsOnly}
@@ -167,12 +174,14 @@ export default function ComparisonPage() {
 
       {/* Loading / error */}
       {isLoading && (
-        <div className="py-12 text-center text-slate-500">Loading comparison...</div>
+        <div className="py-12 text-center text-slate-500">
+          Loading comparison...
+        </div>
       )}
       {error && (
         <div className="rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
-          Failed to load comparison. The siege may not have a previous completed siege to compare
-          against.
+          Failed to load comparison. The siege may not have a previous completed
+          siege to compare against.
         </div>
       )}
 
@@ -182,7 +191,9 @@ export default function ComparisonPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-4 py-3 text-left font-semibold text-slate-700">Member</th>
+                <th className="px-4 py-3 text-left font-semibold text-slate-700">
+                  Member
+                </th>
                 <th className="px-4 py-3 text-left font-semibold text-slate-700">
                   Old Positions (Siege #{comparison.siege_a_id})
                 </th>
@@ -194,8 +205,13 @@ export default function ComparisonPage() {
             <tbody>
               {visibleMembers.length === 0 && (
                 <tr>
-                  <td colSpan={3} className="px-4 py-8 text-center text-slate-500">
-                    {diffsOnly ? 'No members with changes.' : 'No members to compare.'}
+                  <td
+                    colSpan={3}
+                    className="px-4 py-8 text-center text-slate-500"
+                  >
+                    {diffsOnly
+                      ? "No members with changes."
+                      : "No members to compare."}
                   </td>
                 </tr>
               )}
@@ -203,11 +219,14 @@ export default function ComparisonPage() {
                 <tr
                   key={diff.member_id}
                   className={cn(
-                    'border-b border-slate-100 last:border-0',
-                    (diff.added.length > 0 || diff.removed.length > 0) && 'bg-amber-50/40',
+                    "border-b border-slate-100 last:border-0",
+                    (diff.added.length > 0 || diff.removed.length > 0) &&
+                      "bg-amber-50/40"
                   )}
                 >
-                  <td className="px-4 py-3 font-medium text-slate-900">{diff.member_name}</td>
+                  <td className="px-4 py-3 font-medium text-slate-900">
+                    {diff.member_name}
+                  </td>
                   <td className="px-4 py-3">
                     <MemberPositionsCell diff={diff} />
                   </td>

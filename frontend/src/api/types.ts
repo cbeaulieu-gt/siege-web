@@ -1,12 +1,12 @@
 // Enums
-export type MemberRole = 'heavy_hitter' | 'advanced' | 'medium' | 'novice';
-export type SiegeStatus = 'planning' | 'active' | 'complete';
+export type MemberRole = "heavy_hitter" | "advanced" | "medium" | "novice";
+export type SiegeStatus = "planning" | "active" | "complete";
 export type BuildingType =
-  | 'stronghold'
-  | 'mana_shrine'
-  | 'magic_tower'
-  | 'defense_tower'
-  | 'post';
+  | "stronghold"
+  | "mana_shrine"
+  | "magic_tower"
+  | "defense_tower"
+  | "post";
 
 // Members
 export interface Member {
@@ -26,7 +26,7 @@ export interface SyncMatch {
   current_discord_username: string | null;
   proposed_discord_username: string;
   proposed_discord_id: string;
-  confidence: 'exact' | 'suggested' | 'ambiguous';
+  confidence: "exact" | "suggested" | "ambiguous";
 }
 
 export interface SyncPreviewResponse {
@@ -227,7 +227,7 @@ export interface NotifyResponse {
 // Images
 export interface GenerateImagesResponse {
   assignments_image: string; // base64
-  reserves_image: string;    // base64
+  reserves_image: string; // base64
 }
 
 // Version

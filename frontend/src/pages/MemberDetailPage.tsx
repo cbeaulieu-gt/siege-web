@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from "react";
+import { useNavigate, useParams, Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getMember,
   createMember,
@@ -8,19 +8,19 @@ import {
   getPostConditions,
   getMemberPreferences,
   updateMemberPreferences,
-} from '../api/members';
-import type { MemberRole, PostCondition } from '../api/types';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Checkbox } from '../components/ui/checkbox';
+} from "../api/members";
+import type { MemberRole, PostCondition } from "../api/types";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Checkbox } from "../components/ui/checkbox";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../components/ui/select';
+} from "../components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -28,15 +28,15 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '../components/ui/dialog';
-import { ArrowLeft } from 'lucide-react';
-import { isAxiosError } from 'axios';
+} from "../components/ui/dialog";
+import { ArrowLeft } from "lucide-react";
+import { isAxiosError } from "axios";
 
 const ROLE_OPTIONS: { value: MemberRole; label: string }[] = [
-  { value: 'heavy_hitter', label: 'Heavy Hitter' },
-  { value: 'advanced', label: 'Advanced' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'novice', label: 'Novice' },
+  { value: "heavy_hitter", label: "Heavy Hitter" },
+  { value: "advanced", label: "Advanced" },
+  { value: "medium", label: "Medium" },
+  { value: "novice", label: "Novice" },
 ];
 
 function groupByLevel(conditions: PostCondition[]) {
@@ -50,35 +50,37 @@ function groupByLevel(conditions: PostCondition[]) {
 
 export default function MemberDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const isNew = id === undefined || id === 'new';
+  const isNew = id === undefined || id === "new";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [name, setName] = useState('');
-  const [discord, setDiscord] = useState('');
-  const [role, setRole] = useState<MemberRole>('novice');
-  const [powerLevel, setPowerLevel] = useState<string>('');
+  const [name, setName] = useState("");
+  const [discord, setDiscord] = useState("");
+  const [role, setRole] = useState<MemberRole>("novice");
+  const [powerLevel, setPowerLevel] = useState<string>("");
   const [deactivateOpen, setDeactivateOpen] = useState(false);
-  const [selectedConditions, setSelectedConditions] = useState<Set<number>>(new Set());
-  const [prefFilter, setPrefFilter] = useState('');
-  const [saveError, setSaveError] = useState('');
+  const [selectedConditions, setSelectedConditions] = useState<Set<number>>(
+    new Set()
+  );
+  const [prefFilter, setPrefFilter] = useState("");
+  const [saveError, setSaveError] = useState("");
 
   const memberId = isNew ? null : Number(id);
 
   const { data: member, isLoading: memberLoading } = useQuery({
-    queryKey: ['member', memberId],
+    queryKey: ["member", memberId],
     queryFn: () => getMember(memberId!),
     enabled: memberId != null,
   });
 
   const { data: allConditions } = useQuery({
-    queryKey: ['postConditions'],
+    queryKey: ["postConditions"],
     queryFn: getPostConditions,
     enabled: !isNew,
   });
 
   const { data: preferences } = useQuery({
-    queryKey: ['memberPreferences', memberId],
+    queryKey: ["memberPreferences", memberId],
     queryFn: () => getMemberPreferences(memberId!),
     enabled: memberId != null,
   });
@@ -86,9 +88,9 @@ export default function MemberDetailPage() {
   useEffect(() => {
     if (member) {
       setName(member.name);
-      setDiscord(member.discord_username ?? '');
+      setDiscord(member.discord_username ?? "");
       setRole(member.role);
-      setPowerLevel(member.power_level ?? '');
+      setPowerLevel(member.power_level ?? "");
     }
   }, [member]);
 
@@ -107,11 +109,15 @@ export default function MemberDetailPage() {
         power_level: powerLevel || null,
       }),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['members'] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
       navigate(`/members/${data.id}`);
     },
     onError: (err) => {
-      setSaveError(isAxiosError(err) ? (err.response?.data?.detail ?? 'Save failed') : 'Save failed');
+      setSaveError(
+        isAxiosError(err)
+          ? (err.response?.data?.detail ?? "Save failed")
+          : "Save failed"
+      );
     },
   });
 
@@ -124,19 +130,23 @@ export default function MemberDetailPage() {
         power_level: powerLevel || null,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['members'] });
-      queryClient.invalidateQueries({ queryKey: ['member', memberId] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+      queryClient.invalidateQueries({ queryKey: ["member", memberId] });
     },
     onError: (err) => {
-      setSaveError(isAxiosError(err) ? (err.response?.data?.detail ?? 'Save failed') : 'Save failed');
+      setSaveError(
+        isAxiosError(err)
+          ? (err.response?.data?.detail ?? "Save failed")
+          : "Save failed"
+      );
     },
   });
 
   const deactivateMutation = useMutation({
     mutationFn: () => updateMember(memberId!, { is_active: false }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['members'] });
-      queryClient.invalidateQueries({ queryKey: ['member', memberId] });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+      queryClient.invalidateQueries({ queryKey: ["member", memberId] });
       setDeactivateOpen(false);
     },
   });
@@ -144,12 +154,14 @@ export default function MemberDetailPage() {
   const prefMutation = useMutation({
     mutationFn: (ids: number[]) => updateMemberPreferences(memberId!, ids),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['memberPreferences', memberId] });
+      queryClient.invalidateQueries({
+        queryKey: ["memberPreferences", memberId],
+      });
     },
   });
 
   function handleSave() {
-    setSaveError('');
+    setSaveError("");
     if (isNew) {
       createMutation.mutate();
     } else {
@@ -187,7 +199,7 @@ export default function MemberDetailPage() {
       </Link>
 
       <h1 className="mb-6 text-2xl font-bold text-slate-900">
-        {isNew ? 'Add Member' : member?.name ?? 'Edit Member'}
+        {isNew ? "Add Member" : (member?.name ?? "Edit Member")}
       </h1>
 
       <div className="rounded-lg border border-slate-200 bg-white p-6">
@@ -214,7 +226,10 @@ export default function MemberDetailPage() {
 
           <div className="space-y-1.5">
             <Label htmlFor="role">Role</Label>
-            <Select value={role} onValueChange={(v) => setRole(v as MemberRole)}>
+            <Select
+              value={role}
+              onValueChange={(v) => setRole(v as MemberRole)}
+            >
               <SelectTrigger id="role">
                 <SelectValue />
               </SelectTrigger>
@@ -244,16 +259,16 @@ export default function MemberDetailPage() {
             </Select>
           </div>
 
-          {saveError && (
-            <p className="text-sm text-red-600">{saveError}</p>
-          )}
+          {saveError && <p className="text-sm text-red-600">{saveError}</p>}
 
           <div className="flex gap-3 pt-2">
             <Button
               onClick={handleSave}
               disabled={createMutation.isPending || updateMutation.isPending}
             >
-              {createMutation.isPending || updateMutation.isPending ? 'Saving...' : 'Save'}
+              {createMutation.isPending || updateMutation.isPending
+                ? "Saving..."
+                : "Save"}
             </Button>
             {!isNew && member?.is_active && (
               <Button
@@ -270,7 +285,9 @@ export default function MemberDetailPage() {
       {/* Post Preferences (only for existing members) */}
       {!isNew && allConditions && (
         <div className="mt-6 rounded-lg border border-slate-200 bg-white p-6">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">Post Preferences</h2>
+          <h2 className="mb-4 text-lg font-semibold text-slate-900">
+            Post Preferences
+          </h2>
           <p className="mb-4 text-sm text-slate-500">
             Select the post conditions this member prefers to fill.
           </p>
@@ -286,7 +303,11 @@ export default function MemberDetailPage() {
             .sort(([a], [b]) => Number(a) - Number(b))
             .map(([level, conds]) => {
               const filtered = prefFilter
-                ? conds.filter((c) => c.description.toLowerCase().includes(prefFilter.toLowerCase()))
+                ? conds.filter((c) =>
+                    c.description
+                      .toLowerCase()
+                      .includes(prefFilter.toLowerCase())
+                  )
                 : conds;
               if (filtered.length === 0) return null;
               return (
@@ -317,7 +338,7 @@ export default function MemberDetailPage() {
             onClick={handleSavePreferences}
             disabled={prefMutation.isPending}
           >
-            {prefMutation.isPending ? 'Saving...' : 'Save Preferences'}
+            {prefMutation.isPending ? "Saving..." : "Save Preferences"}
           </Button>
           {prefMutation.isSuccess && (
             <p className="mt-2 text-sm text-green-600">Preferences saved.</p>
@@ -330,8 +351,8 @@ export default function MemberDetailPage() {
           <DialogHeader>
             <DialogTitle>Deactivate Member</DialogTitle>
             <DialogDescription>
-              Are you sure you want to deactivate {member?.name}? They will no longer appear
-              in active member lists.
+              Are you sure you want to deactivate {member?.name}? They will no
+              longer appear in active member lists.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

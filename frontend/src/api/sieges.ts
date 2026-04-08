@@ -1,4 +1,4 @@
-import apiClient from './client';
+import apiClient from "./client";
 import type {
   Siege,
   SiegeStatus,
@@ -13,10 +13,12 @@ import type {
   AttackDayPreviewResult,
   AttackDayApplyResult,
   ComparisonResult,
-} from './types';
+} from "./types";
 
-export async function getSieges(params?: { status?: SiegeStatus }): Promise<Siege[]> {
-  const res = await apiClient.get<Siege[]>('/api/sieges', { params });
+export async function getSieges(params?: {
+  status?: SiegeStatus;
+}): Promise<Siege[]> {
+  const res = await apiClient.get<Siege[]>("/api/sieges", { params });
   return res.data;
 }
 
@@ -25,16 +27,14 @@ export async function getSiege(id: number): Promise<Siege> {
   return res.data;
 }
 
-export async function createSiege(data: {
-  date?: string;
-}): Promise<Siege> {
-  const res = await apiClient.post<Siege>('/api/sieges', data);
+export async function createSiege(data: { date?: string }): Promise<Siege> {
+  const res = await apiClient.post<Siege>("/api/sieges", data);
   return res.data;
 }
 
 export async function updateSiege(
   id: number,
-  data: { date?: string | null },
+  data: { date?: string | null }
 ): Promise<Siege> {
   const res = await apiClient.put<Siege>(`/api/sieges/${id}`, data);
   return res.data;
@@ -65,65 +65,82 @@ export async function reopenSiege(id: number): Promise<Siege> {
 }
 
 export async function validateSiege(id: number): Promise<ValidationResult> {
-  const res = await apiClient.post<ValidationResult>(`/api/sieges/${id}/validate`);
+  const res = await apiClient.post<ValidationResult>(
+    `/api/sieges/${id}/validate`
+  );
   return res.data;
 }
 
 export async function getBuildings(siegeId: number): Promise<Building[]> {
-  const res = await apiClient.get<Building[]>(`/api/sieges/${siegeId}/buildings`);
+  const res = await apiClient.get<Building[]>(
+    `/api/sieges/${siegeId}/buildings`
+  );
   return res.data;
 }
 
 export async function createBuilding(
   siegeId: number,
-  data: { building_type: BuildingType; building_number: number },
+  data: { building_type: BuildingType; building_number: number }
 ): Promise<Building> {
-  const res = await apiClient.post<Building>(`/api/sieges/${siegeId}/buildings`, data);
+  const res = await apiClient.post<Building>(
+    `/api/sieges/${siegeId}/buildings`,
+    data
+  );
   return res.data;
 }
 
 export async function updateBuilding(
   siegeId: number,
   buildingId: number,
-  data: { level?: number; is_broken?: boolean },
+  data: { level?: number; is_broken?: boolean }
 ): Promise<Building> {
   const res = await apiClient.put<Building>(
     `/api/sieges/${siegeId}/buildings/${buildingId}`,
-    data,
+    data
   );
   return res.data;
 }
 
-export async function deleteBuilding(siegeId: number, buildingId: number): Promise<void> {
+export async function deleteBuilding(
+  siegeId: number,
+  buildingId: number
+): Promise<void> {
   await apiClient.delete(`/api/sieges/${siegeId}/buildings/${buildingId}`);
 }
 
 export async function getBuildingTypes(): Promise<BuildingTypeInfo[]> {
-  const res = await apiClient.get<BuildingTypeInfo[]>('/api/sieges/building-types');
+  const res = await apiClient.get<BuildingTypeInfo[]>(
+    "/api/sieges/building-types"
+  );
   return res.data;
 }
 
 export async function getSiegeMembers(siegeId: number): Promise<SiegeMember[]> {
-  const res = await apiClient.get<SiegeMember[]>(`/api/sieges/${siegeId}/members`);
+  const res = await apiClient.get<SiegeMember[]>(
+    `/api/sieges/${siegeId}/members`
+  );
   return res.data;
 }
 
 export async function getSiegeMemberPreferences(
-  siegeId: number,
+  siegeId: number
 ): Promise<MemberPreferenceSummary[]> {
   const res = await apiClient.get<MemberPreferenceSummary[]>(
-    `/api/sieges/${siegeId}/members/preferences`,
+    `/api/sieges/${siegeId}/members/preferences`
   );
   return res.data;
 }
 
 export async function addSiegeMember(
   siegeId: number,
-  memberId: number,
+  memberId: number
 ): Promise<SiegeMember> {
-  const res = await apiClient.post<SiegeMember>(`/api/sieges/${siegeId}/members`, {
-    member_id: memberId,
-  });
+  const res = await apiClient.post<SiegeMember>(
+    `/api/sieges/${siegeId}/members`,
+    {
+      member_id: memberId,
+    }
+  );
   return res.data;
 }
 
@@ -134,52 +151,66 @@ export async function updateSiegeMember(
     attack_day?: number | null;
     has_reserve_set?: boolean | null;
     attack_day_override?: boolean;
-  },
+  }
 ): Promise<SiegeMember> {
   const res = await apiClient.put<SiegeMember>(
     `/api/sieges/${siegeId}/members/${memberId}`,
-    data,
+    data
   );
   return res.data;
 }
 
-export async function previewAutofill(siegeId: number): Promise<AutofillPreviewResult> {
+export async function previewAutofill(
+  siegeId: number
+): Promise<AutofillPreviewResult> {
   const res = await apiClient.post<AutofillPreviewResult>(
-    `/api/sieges/${siegeId}/auto-fill`,
+    `/api/sieges/${siegeId}/auto-fill`
   );
   return res.data;
 }
 
-export async function applyAutofill(siegeId: number): Promise<AutofillApplyResult> {
+export async function applyAutofill(
+  siegeId: number
+): Promise<AutofillApplyResult> {
   const res = await apiClient.post<AutofillApplyResult>(
-    `/api/sieges/${siegeId}/auto-fill/apply`,
+    `/api/sieges/${siegeId}/auto-fill/apply`
   );
   return res.data;
 }
 
-export async function previewAttackDay(siegeId: number): Promise<AttackDayPreviewResult> {
+export async function previewAttackDay(
+  siegeId: number
+): Promise<AttackDayPreviewResult> {
   const res = await apiClient.post<AttackDayPreviewResult>(
-    `/api/sieges/${siegeId}/members/auto-assign-attack-day`,
+    `/api/sieges/${siegeId}/members/auto-assign-attack-day`
   );
   return res.data;
 }
 
-export async function applyAttackDay(siegeId: number): Promise<AttackDayApplyResult> {
+export async function applyAttackDay(
+  siegeId: number
+): Promise<AttackDayApplyResult> {
   const res = await apiClient.post<AttackDayApplyResult>(
-    `/api/sieges/${siegeId}/members/auto-assign-attack-day/apply`,
+    `/api/sieges/${siegeId}/members/auto-assign-attack-day/apply`
   );
   return res.data;
 }
 
-export async function compareSieges(siegeId: number): Promise<ComparisonResult> {
-  const res = await apiClient.get<ComparisonResult>(`/api/sieges/${siegeId}/compare`);
+export async function compareSieges(
+  siegeId: number
+): Promise<ComparisonResult> {
+  const res = await apiClient.get<ComparisonResult>(
+    `/api/sieges/${siegeId}/compare`
+  );
   return res.data;
 }
 
 export async function compareSiegesSpecific(
   siegeId: number,
-  otherId: number,
+  otherId: number
 ): Promise<ComparisonResult> {
-  const res = await apiClient.get<ComparisonResult>(`/api/sieges/${siegeId}/compare/${otherId}`);
+  const res = await apiClient.get<ComparisonResult>(
+    `/api/sieges/${siegeId}/compare/${otherId}`
+  );
   return res.data;
 }

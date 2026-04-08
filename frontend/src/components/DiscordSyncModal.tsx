@@ -1,15 +1,15 @@
-import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { RefreshCw } from 'lucide-react';
-import { previewDiscordSync, applyDiscordSync } from '../api/members';
-import type { SyncMatch, SyncApplyItem } from '../api/types';
+import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
+import { previewDiscordSync, applyDiscordSync } from "../api/members";
+import type { SyncMatch, SyncApplyItem } from "../api/types";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from './ui/dialog';
+} from "./ui/dialog";
 import {
   Table,
   TableBody,
@@ -17,10 +17,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from './ui/table';
-import { Button } from './ui/button';
-import { Badge } from './ui/badge';
-import { Checkbox } from './ui/checkbox';
+} from "./ui/table";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { Checkbox } from "./ui/checkbox";
 
 interface Props {
   open: boolean;
@@ -28,18 +28,18 @@ interface Props {
   onApplied: () => void;
 }
 
-type ConfidenceVariant = 'green' | 'yellow' | 'red';
+type ConfidenceVariant = "green" | "yellow" | "red";
 
-const CONFIDENCE_VARIANT: Record<SyncMatch['confidence'], ConfidenceVariant> = {
-  exact: 'green',
-  suggested: 'yellow',
-  ambiguous: 'red',
+const CONFIDENCE_VARIANT: Record<SyncMatch["confidence"], ConfidenceVariant> = {
+  exact: "green",
+  suggested: "yellow",
+  ambiguous: "red",
 };
 
-const CONFIDENCE_LABEL: Record<SyncMatch['confidence'], string> = {
-  exact: 'Exact',
-  suggested: 'Suggested',
-  ambiguous: 'Ambiguous',
+const CONFIDENCE_LABEL: Record<SyncMatch["confidence"], string> = {
+  exact: "Exact",
+  suggested: "Suggested",
+  ambiguous: "Ambiguous",
 };
 
 export default function DiscordSyncModal({ open, onClose, onApplied }: Props) {
@@ -65,24 +65,26 @@ export default function DiscordSyncModal({ open, onClose, onApplied }: Props) {
       // Default: check exact and suggested; leave ambiguous unchecked.
       const initial: Record<number, boolean> = {};
       for (const m of data.matches) {
-        initial[m.member_id] = m.confidence !== 'ambiguous';
+        initial[m.member_id] = m.confidence !== "ambiguous";
       }
       setChecked(initial);
     },
     onError: () => {
-      setErrorMessage('Failed to fetch sync preview. Is the bot reachable?');
+      setErrorMessage("Failed to fetch sync preview. Is the bot reachable?");
     },
   });
 
   const applyMutation = useMutation({
     mutationFn: (items: SyncApplyItem[]) => applyDiscordSync(items),
     onSuccess: (data) => {
-      setSuccessMessage(`Updated ${data.updated} member${data.updated !== 1 ? 's' : ''}.`);
+      setSuccessMessage(
+        `Updated ${data.updated} member${data.updated !== 1 ? "s" : ""}.`
+      );
       setErrorMessage(null);
       onApplied();
     },
     onError: () => {
-      setErrorMessage('Failed to apply sync changes.');
+      setErrorMessage("Failed to apply sync changes.");
     },
   });
 
@@ -113,7 +115,12 @@ export default function DiscordSyncModal({ open, onClose, onApplied }: Props) {
   const selectedCount = Object.values(checked).filter(Boolean).length;
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) handleClose();
+      }}
+    >
       <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle>Sync Discord Usernames</DialogTitle>
@@ -127,12 +134,15 @@ export default function DiscordSyncModal({ open, onClose, onApplied }: Props) {
               onClick={() => previewMutation.mutate()}
               disabled={previewMutation.isPending}
             >
-              <RefreshCw className={`h-4 w-4 ${previewMutation.isPending ? 'animate-spin' : ''}`} />
-              {previewMutation.isPending ? 'Loading...' : 'Fetch Preview'}
+              <RefreshCw
+                className={`h-4 w-4 ${previewMutation.isPending ? "animate-spin" : ""}`}
+              />
+              {previewMutation.isPending ? "Loading..." : "Fetch Preview"}
             </Button>
             {preview && (
               <span className="text-sm text-slate-500">
-                {preview.matches.length} match{preview.matches.length !== 1 ? 'es' : ''} found
+                {preview.matches.length} match
+                {preview.matches.length !== 1 ? "es" : ""} found
               </span>
             )}
           </div>
@@ -171,9 +181,13 @@ export default function DiscordSyncModal({ open, onClose, onApplied }: Props) {
                           onCheckedChange={() => toggleCheck(m.member_id)}
                         />
                       </TableCell>
-                      <TableCell className="font-medium">{m.member_name}</TableCell>
+                      <TableCell className="font-medium">
+                        {m.member_name}
+                      </TableCell>
                       <TableCell className="text-slate-500">
-                        {m.current_discord_username ?? <span className="italic text-slate-400">none</span>}
+                        {m.current_discord_username ?? (
+                          <span className="italic text-slate-400">none</span>
+                        )}
                       </TableCell>
                       <TableCell>{m.proposed_discord_username}</TableCell>
                       <TableCell>
@@ -193,20 +207,34 @@ export default function DiscordSyncModal({ open, onClose, onApplied }: Props) {
           )}
 
           {/* Unmatched counts */}
-          {preview && (preview.unmatched_guild_members.length > 0 || preview.unmatched_clan_members.length > 0) && (
-            <div className="rounded-md bg-slate-50 px-4 py-3 text-sm text-slate-600 space-y-1">
-              {preview.unmatched_guild_members.length > 0 && (
-                <div>
-                  <span className="font-medium">{preview.unmatched_guild_members.length}</span> guild member{preview.unmatched_guild_members.length !== 1 ? 's' : ''} not matched to any clan member
-                </div>
-              )}
-              {preview.unmatched_clan_members.length > 0 && (
-                <div>
-                  <span className="font-medium">{preview.unmatched_clan_members.length}</span> clan member{preview.unmatched_clan_members.length !== 1 ? 's' : ''} not matched to any guild member
-                </div>
-              )}
-            </div>
-          )}
+          {preview &&
+            (preview.unmatched_guild_members.length > 0 ||
+              preview.unmatched_clan_members.length > 0) && (
+              <div className="space-y-1 rounded-md bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                {preview.unmatched_guild_members.length > 0 && (
+                  <div>
+                    <span className="font-medium">
+                      {preview.unmatched_guild_members.length}
+                    </span>{" "}
+                    guild member
+                    {preview.unmatched_guild_members.length !== 1
+                      ? "s"
+                      : ""}{" "}
+                    not matched to any clan member
+                  </div>
+                )}
+                {preview.unmatched_clan_members.length > 0 && (
+                  <div>
+                    <span className="font-medium">
+                      {preview.unmatched_clan_members.length}
+                    </span>{" "}
+                    clan member
+                    {preview.unmatched_clan_members.length !== 1 ? "s" : ""} not
+                    matched to any guild member
+                  </div>
+                )}
+              </div>
+            )}
         </div>
 
         <DialogFooter>
@@ -218,7 +246,9 @@ export default function DiscordSyncModal({ open, onClose, onApplied }: Props) {
               onClick={handleApply}
               disabled={selectedCount === 0 || applyMutation.isPending}
             >
-              {applyMutation.isPending ? 'Applying...' : `Apply Selected (${selectedCount})`}
+              {applyMutation.isPending
+                ? "Applying..."
+                : `Apply Selected (${selectedCount})`}
             </Button>
           )}
         </DialogFooter>
