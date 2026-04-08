@@ -17,7 +17,6 @@ from pydantic import ValidationError
 # this module was imported, so `from app.config import settings` is safe here.
 from app.config import Settings
 
-
 # ---------------------------------------------------------------------------
 # Settings field defaults
 # ---------------------------------------------------------------------------
