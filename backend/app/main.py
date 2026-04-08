@@ -1,10 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.attack_day import router as attack_day_router
+from app.api.auth import router as auth_router
 from app.api.autofill import router as autofill_router
 from app.api.board import router as board_router
 from app.api.buildings import router as buildings_router
@@ -23,6 +24,7 @@ from app.api.sieges import router as sieges_router
 from app.api.validation import router as validation_router
 from app.api.version import router as version_router
 from app.config import settings
+from app.dependencies.auth import get_current_user
 from app.middleware import RequestLoggingMiddleware
 
 logging.basicConfig(
@@ -59,21 +61,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Public routes — no auth required
 app.include_router(health_router, prefix="/api")
-app.include_router(reference_router, prefix="/api")
-app.include_router(discord_sync_router, prefix="/api")
-app.include_router(members_router, prefix="/api")
-app.include_router(sieges_router, prefix="/api")
-app.include_router(buildings_router, prefix="/api")
-app.include_router(siege_members_router, prefix="/api")
-app.include_router(board_router, prefix="/api")
-app.include_router(lifecycle_router, prefix="/api")
-app.include_router(posts_router, prefix="/api")
-app.include_router(validation_router, prefix="/api")
-app.include_router(autofill_router, prefix="/api")
-app.include_router(comparison_router, prefix="/api")
-app.include_router(attack_day_router, prefix="/api")
-app.include_router(images_router, prefix="/api")
-app.include_router(notifications_router, prefix="/api")
-app.include_router(post_priority_config_router, prefix="/api")
 app.include_router(version_router, prefix="/api")
+app.include_router(auth_router, prefix="/api")
+
+# Protected routes — require authentication
+_auth_deps = [Depends(get_current_user)]
+app.include_router(reference_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(discord_sync_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(members_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(sieges_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(buildings_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(siege_members_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(board_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(lifecycle_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(posts_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(validation_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(autofill_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(comparison_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(attack_day_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(images_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(notifications_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(post_priority_config_router, prefix="/api", dependencies=_auth_deps)
