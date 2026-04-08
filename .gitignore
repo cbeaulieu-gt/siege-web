@@ -36,6 +36,7 @@ coverage.xml
 *.swo
 .DS_Store
 .claude/worktrees/
+.worktrees/
 
 # Docker
 .dockerignore
