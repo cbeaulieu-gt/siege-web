@@ -7,8 +7,6 @@ Covers:
   - auth_disabled guard: allowed in development, rejected elsewhere
 """
 
-import os
-
 import pytest
 from httpx import ASGITransport, AsyncClient
 from pydantic import ValidationError
@@ -144,7 +142,6 @@ class TestLifespanAuthGuard:
         """RuntimeError raised at startup when AUTH_DISABLED=true outside development."""
         import app.config as config_module
         import app.main as main_module
-
         from app.config import Settings
 
         prod_settings = Settings(
@@ -169,7 +166,6 @@ class TestLifespanAuthGuard:
         """RuntimeError raised when AUTH_DISABLED=true and environment is 'test'."""
         import app.config as config_module
         import app.main as main_module
-
         from app.config import Settings
 
         test_settings = Settings(
@@ -192,7 +188,6 @@ class TestLifespanAuthGuard:
         """No RuntimeError when auth_disabled=False regardless of environment."""
         import app.config as config_module
         import app.main as main_module
-
         from app.config import Settings
 
         prod_settings = Settings(
