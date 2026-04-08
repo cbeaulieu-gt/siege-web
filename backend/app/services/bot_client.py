@@ -68,5 +68,17 @@ class BotClient:
         except httpx.HTTPError:
             return []
 
+    async def get_member(self, discord_user_id: str) -> dict:
+        """
+        Check guild membership via bot sidecar.
+        Returns the member dict (including ``is_member`` boolean).
+        Raises ``httpx.HTTPError`` if the sidecar is unreachable or returns
+        a non-2xx status.
+        """
+        async with self._make_client() as client:
+            response = await client.get(f"/api/members/{discord_user_id}")
+            response.raise_for_status()
+            return response.json()
+
 
 bot_client = BotClient()
