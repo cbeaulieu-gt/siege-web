@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import apiClient from "../api/client";
 import { Shield } from "lucide-react";
@@ -11,10 +12,16 @@ const DEFAULT_ERROR = "You are not authorized to access this app.";
 export default function LoginPage() {
   const [searchParams] = useSearchParams();
   const error = searchParams.get("error");
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
-    const { data } = await apiClient.get("/api/auth/login");
-    window.location.href = data.url;
+    setIsLoading(true);
+    try {
+      const { data } = await apiClient.get("/api/auth/login");
+      window.location.href = data.url;
+    } catch {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -34,10 +41,11 @@ export default function LoginPage() {
         <div className="space-y-4">
           <button
             onClick={handleLogin}
-            className="flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium text-white transition-colors"
+            disabled={isLoading}
+            className="flex w-full items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium text-white transition-colors disabled:opacity-50"
             style={{ backgroundColor: "#5865F2" }}
           >
-            Sign in with Discord
+            {isLoading ? "Signing in..." : "Sign in with Discord"}
           </button>
           <p className="text-center text-xs text-slate-500">
             We only request access to your Discord username and avatar. Guild

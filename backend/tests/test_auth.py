@@ -330,7 +330,7 @@ async def test_callback_invalid_state_redirects(monkeypatch):
             "/api/auth/callback", params={"code": "auth-code", "state": "wrong-state"}
         )
 
-    assert response.status_code == 307
+    assert response.status_code == 302
     assert response.headers["location"] == "/login?error=invalid_state"
 
 
@@ -378,7 +378,7 @@ async def test_callback_happy_path(monkeypatch):
     finally:
         app.dependency_overrides.pop(get_db, None)
 
-    assert response.status_code == 307
+    assert response.status_code == 302
     assert response.headers["location"] == "/"
     assert "session" in response.cookies
 
@@ -412,7 +412,7 @@ async def test_callback_not_in_guild_redirects(monkeypatch):
                         params={"code": "auth-code", "state": state},
                     )
 
-    assert response.status_code == 307
+    assert response.status_code == 302
     assert response.headers["location"] == "/login?error=unauthorized"
 
 
@@ -445,7 +445,7 @@ async def test_callback_bot_unreachable_redirects_service_unavailable(monkeypatc
                         params={"code": "auth-code", "state": state},
                     )
 
-    assert response.status_code == 307
+    assert response.status_code == 302
     assert response.headers["location"] == "/login?error=service_unavailable"
 
 
@@ -490,7 +490,7 @@ async def test_callback_no_member_record_redirects(monkeypatch):
     finally:
         app.dependency_overrides.pop(get_db, None)
 
-    assert response.status_code == 307
+    assert response.status_code == 302
     assert response.headers["location"] == "/login?error=unauthorized"
 
 
@@ -557,3 +557,46 @@ async def test_me_without_auth_returns_401(monkeypatch):
         app.dependency_overrides.pop(get_db, None)
 
     assert response.status_code == 401
+
+
+# ===========================================================================
+# Startup validation tests
+# ===========================================================================
+
+
+class TestStartupValidation:
+
+    @pytest.mark.asyncio
+    async def test_startup_rejects_empty_session_secret(self, monkeypatch):
+        """Startup rejects empty SESSION_SECRET when auth is enabled."""
+        monkeypatch.setattr("app.config.settings.auth_disabled", False)
+        monkeypatch.setattr("app.config.settings.session_secret", "")
+        monkeypatch.setattr("app.config.settings.environment", "production")
+
+        with pytest.raises(RuntimeError, match="SESSION_SECRET must be set"):
+            async with app.router.lifespan_context(app):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_startup_rejects_missing_bot_service_token_in_production(self, monkeypatch):
+        """Startup rejects missing BOT_SERVICE_TOKEN in non-dev environments."""
+        monkeypatch.setattr("app.config.settings.auth_disabled", False)
+        monkeypatch.setattr("app.config.settings.session_secret", "valid-secret")
+        monkeypatch.setattr("app.config.settings.bot_service_token", "")
+        monkeypatch.setattr("app.config.settings.environment", "production")
+
+        with pytest.raises(RuntimeError, match="BOT_SERVICE_TOKEN must be set"):
+            async with app.router.lifespan_context(app):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_startup_allows_empty_bot_service_token_in_development(self, monkeypatch):
+        """Development environment allows empty BOT_SERVICE_TOKEN."""
+        monkeypatch.setattr("app.config.settings.auth_disabled", False)
+        monkeypatch.setattr("app.config.settings.session_secret", "valid-secret")
+        monkeypatch.setattr("app.config.settings.bot_service_token", "")
+        monkeypatch.setattr("app.config.settings.environment", "development")
+
+        # Should not raise
+        async with app.router.lifespan_context(app):
+            pass

@@ -13,7 +13,7 @@ apiClient.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       !window.location.pathname.startsWith("/login") &&
-      !error.config?.url?.includes("/api/auth/me")
+      !error.config?.url?.includes("/api/auth/")
     ) {
       window.location.href = "/login";
     }

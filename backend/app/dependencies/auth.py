@@ -14,7 +14,7 @@ import jwt
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
+from app.config import JWT_ALGORITHM, settings
 from app.db.session import get_db
 from app.models.member import Member
 
@@ -53,7 +53,7 @@ async def get_current_user(
     session_token = request.cookies.get("session")
     if session_token:
         try:
-            payload = jwt.decode(session_token, settings.session_secret, algorithms=["HS256"])
+            payload = jwt.decode(session_token, settings.session_secret, algorithms=[JWT_ALGORITHM])
             member = await db.get(Member, int(payload["sub"]))
             if member:
                 return AuthenticatedUser(member_id=member.id, name=member.name, is_service=False)

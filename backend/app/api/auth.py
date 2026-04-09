@@ -12,7 +12,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
+from app.config import JWT_ALGORITHM, settings
 from app.db.session import get_db
 from app.dependencies.auth import AuthenticatedUser, get_current_user
 from app.models.member import Member
@@ -151,10 +151,10 @@ async def callback(
         "iat": now,
         "exp": now + timedelta(hours=24),
     }
-    token = jwt.encode(token_payload, settings.session_secret, algorithm="HS256")
+    token = jwt.encode(token_payload, settings.session_secret, algorithm=JWT_ALGORITHM)
 
     # 7. Set session cookie and redirect to app root
-    redirect = RedirectResponse(url="/", status_code=307)
+    redirect = RedirectResponse(url="/", status_code=302)
     redirect.set_cookie(
         key="session",
         value=token,
@@ -197,4 +197,4 @@ async def me(
 
 def _error_redirect(error: str) -> RedirectResponse:
     """Return a redirect to the login page with an error query parameter."""
-    return RedirectResponse(url=f"/login?error={error}", status_code=307)
+    return RedirectResponse(url=f"/login?error={error}", status_code=302)

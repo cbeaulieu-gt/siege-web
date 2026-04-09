@@ -41,6 +41,17 @@ async def lifespan(app: FastAPI):
             "AUTH_DISABLED=true is not permitted outside development. "
             f"Current environment: {settings.environment}"
         )
+    if not settings.auth_disabled:
+        if not settings.session_secret:
+            raise RuntimeError(
+                "SESSION_SECRET must be set when auth is enabled. "
+                f"Current environment: {settings.environment}"
+            )
+        if settings.environment != "development" and not settings.bot_service_token:
+            raise RuntimeError(
+                "BOT_SERVICE_TOKEN must be set in non-development environments. "
+                f"Current environment: {settings.environment}"
+            )
     yield
 
 
