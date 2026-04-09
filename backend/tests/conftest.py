@@ -11,6 +11,8 @@ a sensible default or is already present in the developer's .env file.
 
 import os
 
+import pytest
+
 # Ensure ENVIRONMENT is always set — Settings has no default for this field so
 # that production deployments fail fast if it is missing.  Tests run as "test".
 os.environ.setdefault("ENVIRONMENT", "test")
@@ -22,3 +24,15 @@ os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://test:test@localhost/
 os.environ.setdefault("DISCORD_BOT_API_URL", "http://localhost:8001")
 os.environ.setdefault("DISCORD_BOT_API_KEY", "test-key")
 os.environ.setdefault("DISCORD_GUILD_ID", "123456789")
+
+
+@pytest.fixture(autouse=True)
+def disable_auth_for_tests(monkeypatch):
+    """Bypass auth middleware for all tests by default.
+
+    Individual tests that exercise auth behaviour override this by calling
+    ``monkeypatch.setattr("app.config.settings.auth_disabled", False)``
+    explicitly, which takes precedence because monkeypatch patches are applied
+    in order within the same test.
+    """
+    monkeypatch.setattr("app.config.settings.auth_disabled", True)

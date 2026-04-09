@@ -1,19 +1,19 @@
-import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { createSiege, cloneSiege, getSieges } from '../api/sieges';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
+import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createSiege, cloneSiege, getSieges } from "../api/sieges";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../components/ui/select';
-import { ArrowLeft } from 'lucide-react';
-import { isAxiosError } from 'axios';
+} from "../components/ui/select";
+import { ArrowLeft } from "lucide-react";
+import { isAxiosError } from "axios";
 
 /** Returns the next Tuesday that is at least `daysAhead` days from today (local time). */
 function nextTuesdayFrom(from: Date): Date {
@@ -26,15 +26,15 @@ function nextTuesdayFrom(from: Date): Date {
 
 function formatDateLocal(d: Date): string {
   const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
 
 function suggestNextSiegeDate(recentDate: string | null): string {
   if (recentDate) {
     // Parse the ISO date string as local date to avoid UTC offset shifting the day
-    const [y, m, day] = recentDate.split('-').map(Number);
+    const [y, m, day] = recentDate.split("-").map(Number);
     const last = new Date(y, m - 1, day);
     const twoWeeksLater = new Date(last);
     twoWeeksLater.setDate(last.getDate() + 14);
@@ -46,22 +46,23 @@ function suggestNextSiegeDate(recentDate: string | null): string {
 export default function SiegeCreatePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [cloneFromId, setCloneFromId] = useState<string>('none');
+  const [cloneFromId, setCloneFromId] = useState<string>("none");
 
   const { data: sieges } = useQuery({
-    queryKey: ['sieges'],
+    queryKey: ["sieges"],
     queryFn: () => getSieges(),
   });
 
   // Derive the suggested date once sieges have loaded; fall back to '' while loading
-  const mostRecentDate = sieges && sieges.length > 0 ? (sieges[0].date ?? null) : null;
+  const mostRecentDate =
+    sieges && sieges.length > 0 ? (sieges[0].date ?? null) : null;
   const suggestedDate =
-    sieges !== undefined ? suggestNextSiegeDate(mostRecentDate) : '';
+    sieges !== undefined ? suggestNextSiegeDate(mostRecentDate) : "";
 
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState("");
   // Once the suggestion is ready and the user hasn't typed yet, apply it
   const effectiveDate = date || suggestedDate;
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -69,31 +70,39 @@ export default function SiegeCreatePage() {
         date: effectiveDate || undefined,
       }),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['sieges'] });
+      queryClient.invalidateQueries({ queryKey: ["sieges"] });
       navigate(`/sieges/${data.id}`);
     },
     onError: (err) => {
-      setError(isAxiosError(err) ? (err.response?.data?.detail ?? 'Failed to create siege') : 'Failed to create siege');
+      setError(
+        isAxiosError(err)
+          ? (err.response?.data?.detail ?? "Failed to create siege")
+          : "Failed to create siege"
+      );
     },
   });
 
   const cloneMutation = useMutation({
     mutationFn: (sourceId: number) => cloneSiege(sourceId),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['sieges'] });
+      queryClient.invalidateQueries({ queryKey: ["sieges"] });
       navigate(`/sieges/${data.id}`);
     },
     onError: (err) => {
-      setError(isAxiosError(err) ? (err.response?.data?.detail ?? 'Failed to clone siege') : 'Failed to clone siege');
+      setError(
+        isAxiosError(err)
+          ? (err.response?.data?.detail ?? "Failed to clone siege")
+          : "Failed to clone siege"
+      );
     },
   });
 
-  const isCloning = cloneFromId !== 'none';
+  const isCloning = cloneFromId !== "none";
   const isPending = createMutation.isPending || cloneMutation.isPending;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError('');
+    setError("");
     if (isCloning) {
       cloneMutation.mutate(Number(cloneFromId));
     } else {
@@ -116,7 +125,9 @@ export default function SiegeCreatePage() {
       <div className="rounded-lg border border-slate-200 bg-white p-6">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="clone-from">Clone from existing siege (optional)</Label>
+            <Label htmlFor="clone-from">
+              Clone from existing siege (optional)
+            </Label>
             <Select value={cloneFromId} onValueChange={setCloneFromId}>
               <SelectTrigger id="clone-from">
                 <SelectValue placeholder="No — create blank siege" />
@@ -132,7 +143,8 @@ export default function SiegeCreatePage() {
             </Select>
             {isCloning && (
               <p className="text-xs text-slate-500">
-                Buildings and member assignments will be copied from the selected siege. Date and status will be reset to planning.
+                Buildings and member assignments will be copied from the
+                selected siege. Date and status will be reset to planning.
               </p>
             )}
           </div>
@@ -148,7 +160,6 @@ export default function SiegeCreatePage() {
                   onChange={(e) => setDate(e.target.value)}
                 />
               </div>
-
             </>
           )}
 
@@ -157,13 +168,17 @@ export default function SiegeCreatePage() {
           <div className="flex gap-3 pt-2">
             <Button type="submit" disabled={isPending}>
               {isPending
-                ? isCloning ? 'Cloning...' : 'Creating...'
-                : isCloning ? 'Clone Siege' : 'Create Siege'}
+                ? isCloning
+                  ? "Cloning..."
+                  : "Creating..."
+                : isCloning
+                  ? "Clone Siege"
+                  : "Create Siege"}
             </Button>
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/sieges')}
+              onClick={() => navigate("/sieges")}
             >
               Cancel
             </Button>

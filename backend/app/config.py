@@ -30,3 +30,5 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+JWT_ALGORITHM = "HS256"

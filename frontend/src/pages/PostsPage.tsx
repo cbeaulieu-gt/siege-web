@@ -1,19 +1,24 @@
-import { useState } from 'react';
-import { useParams, Link, useSearchParams } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPosts, setPostConditions } from '../api/posts';
-import { getPostConditions } from '../api/members';
-import { getSiege } from '../api/sieges';
-import { getBoard } from '../api/board';
-import type { Post, PostConditionRef, BuildingResponse } from '../api/types';
-import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { Label } from '../components/ui/label';
-import { Checkbox } from '../components/ui/checkbox';
-import { Badge } from '../components/ui/badge';
-import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState } from "react";
+import { useParams, Link, useSearchParams } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { getPosts, setPostConditions } from "../api/posts";
+import { getPostConditions } from "../api/members";
+import { getSiege } from "../api/sieges";
+import { getBoard } from "../api/board";
+import type { Post, PostConditionRef, BuildingResponse } from "../api/types";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Checkbox } from "../components/ui/checkbox";
+import { Badge } from "../components/ui/badge";
+import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
 
-const PRIORITY_LABELS: Record<number, string> = { 0: 'Unset', 1: 'Low', 2: 'Medium', 3: 'High' };
+const PRIORITY_LABELS: Record<number, string> = {
+  0: "Unset",
+  1: "Low",
+  2: "Medium",
+  3: "High",
+};
 
 function groupConditionsByLevel(conditions: PostConditionRef[]) {
   const groups: Record<number, PostConditionRef[]> = {};
@@ -39,21 +44,22 @@ function PostRow({
 }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(initialExpanded);
-  const [condFilter, setCondFilter] = useState('');
+  const [condFilter, setCondFilter] = useState("");
   const [selectedConditions, setSelectedConditions] = useState<Set<number>>(
-    new Set(post.active_conditions.map((c) => c.id)),
+    new Set(post.active_conditions.map((c) => c.id))
   );
 
   const { data: allConditions } = useQuery({
-    queryKey: ['postConditions'],
+    queryKey: ["postConditions"],
     queryFn: getPostConditions,
     enabled: expanded,
   });
 
   const condMutation = useMutation({
-    mutationFn: () => setPostConditions(siegeId, post.id, Array.from(selectedConditions)),
+    mutationFn: () =>
+      setPostConditions(siegeId, post.id, Array.from(selectedConditions)),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts', siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["posts", siegeId] });
     },
   });
 
@@ -81,7 +87,9 @@ function PostRow({
 
   const matchedCondition =
     assignedPosition && assignedPosition.matched_condition_id !== null
-      ? post.active_conditions.find((c) => c.id === assignedPosition.matched_condition_id)
+      ? post.active_conditions.find(
+          (c) => c.id === assignedPosition.matched_condition_id
+        )
       : undefined;
 
   // matchBadge is the element to render, or null when no member is assigned
@@ -89,14 +97,14 @@ function PostRow({
     assignedPosition == null ? null : matchedCondition != null ? (
       <Badge
         variant="default"
-        className="shrink-0 text-xs bg-green-100 text-green-800 border border-green-200 hover:bg-green-100"
+        className="shrink-0 border border-green-200 bg-green-100 text-xs text-green-800 hover:bg-green-100"
       >
         ✓ {matchedCondition.description}
       </Badge>
     ) : (
       <Badge
         variant="secondary"
-        className="shrink-0 text-xs bg-amber-50 text-amber-700 border border-amber-200"
+        className="shrink-0 border border-amber-200 bg-amber-50 text-xs text-amber-700"
       >
         No condition match
       </Badge>
@@ -108,10 +116,14 @@ function PostRow({
         <span className="text-sm font-semibold text-slate-900">
           Post {post.building_number}
         </span>
-        <span className="text-sm text-slate-500">Priority: {PRIORITY_LABELS[post.priority] ?? post.priority}</span>
+        <span className="text-sm text-slate-500">
+          Priority: {PRIORITY_LABELS[post.priority] ?? post.priority}
+        </span>
         {matchBadge}
         {post.description && (
-          <span className="text-sm text-slate-600 truncate">{post.description}</span>
+          <span className="truncate text-sm text-slate-600">
+            {post.description}
+          </span>
         )}
         <div className="ml-auto flex items-center gap-2">
           {post.active_conditions.map((c) => (
@@ -135,7 +147,7 @@ function PostRow({
       </div>
 
       {expanded && !isLocked && (
-        <div className="border-t border-slate-100 px-4 py-4 space-y-4">
+        <div className="space-y-4 border-t border-slate-100 px-4 py-4">
           <div>
             <h4 className="mb-2 text-sm font-medium text-slate-700">
               Conditions (max 3)
@@ -150,7 +162,11 @@ function PostRow({
               .sort(([a], [b]) => Number(a) - Number(b))
               .map(([level, conds]) => {
                 const filtered = condFilter
-                  ? conds.filter((c) => c.description.toLowerCase().includes(condFilter.toLowerCase()))
+                  ? conds.filter((c) =>
+                      c.description
+                        .toLowerCase()
+                        .includes(condFilter.toLowerCase())
+                    )
                   : conds;
                 if (filtered.length === 0) return null;
                 return (
@@ -161,7 +177,8 @@ function PostRow({
                     <div className="grid grid-cols-2 gap-1.5">
                       {filtered.map((c) => {
                         const checked = selectedConditions.has(c.id);
-                        const disabled = !checked && selectedConditions.size >= 3;
+                        const disabled =
+                          !checked && selectedConditions.size >= 3;
                         return (
                           <div key={c.id} className="flex items-center gap-2">
                             <Checkbox
@@ -202,20 +219,26 @@ export default function PostsPage() {
   const { id } = useParams<{ id: string }>();
   const siegeId = Number(id);
   const [searchParams] = useSearchParams();
-  const expandPostNumber = searchParams.get('post') ? Number(searchParams.get('post')) : null;
+  const expandPostNumber = searchParams.get("post")
+    ? Number(searchParams.get("post"))
+    : null;
 
   const { data: siege } = useQuery({
-    queryKey: ['siege', siegeId],
+    queryKey: ["siege", siegeId],
     queryFn: () => getSiege(siegeId),
   });
 
-  const { data: posts, isLoading, error } = useQuery({
-    queryKey: ['posts', siegeId],
+  const {
+    data: posts,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["posts", siegeId],
     queryFn: () => getPosts(siegeId),
   });
 
   const { data: board } = useQuery({
-    queryKey: ['board', siegeId],
+    queryKey: ["board", siegeId],
     queryFn: () => getBoard(siegeId),
   });
 
@@ -231,7 +254,9 @@ export default function PostsPage() {
           <ArrowLeft className="h-4 w-4" />
           Back to Sieges
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900">Posts — Siege #{siegeId}</h1>
+        <h1 className="text-2xl font-bold text-slate-900">
+          Posts — Siege #{siegeId}
+        </h1>
         <p className="mt-1 text-sm text-slate-500">
           Set post conditions for each post in this siege.
         </p>
@@ -256,7 +281,7 @@ export default function PostsPage() {
               key={post.id}
               post={post}
               siegeId={siegeId}
-              isLocked={siege?.status === 'complete'}
+              isLocked={siege?.status === "complete"}
               initialExpanded={expandPostNumber === post.building_number}
               building={board?.buildings.find((b) => b.id === post.building_id)}
             />

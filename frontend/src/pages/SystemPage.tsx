@@ -1,14 +1,14 @@
-import { cn } from '../lib/utils';
-import { useVersion } from '../api/version';
+import { cn } from "../lib/utils";
+import { useVersion } from "../api/version";
 
 // ── Static UI library manifest ──────────────────────────────────────────────
 
 const UI_LIBRARIES = [
-  { label: 'React', value: '18', detail: '^18.3.1' },
-  { label: 'React Router', value: 'v6', detail: '^6.28.0' },
-  { label: 'React Query', value: 'v5', detail: '^5.62.7' },
-  { label: 'Tailwind CSS', value: 'v3', detail: '^3.4.16' },
-  { label: 'shadcn/ui', value: '—', detail: 'component library' },
+  { label: "React", value: "18", detail: "^18.3.1" },
+  { label: "React Router", value: "v6", detail: "^6.28.0" },
+  { label: "React Query", value: "v5", detail: "^5.62.7" },
+  { label: "Tailwind CSS", value: "v3", detail: "^3.4.16" },
+  { label: "shadcn/ui", value: "—", detail: "component library" },
 ] as const;
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -25,11 +25,16 @@ function SectionPanel({
   return (
     <div
       className={cn(
-        'rounded-lg border border-slate-200 bg-white overflow-hidden',
+        "overflow-hidden rounded-lg border border-slate-200 bg-white"
       )}
     >
       {/* Header bar with left accent stripe */}
-      <div className={cn('flex items-center gap-3 border-b border-slate-200 px-6 py-4', accent)}>
+      <div
+        className={cn(
+          "flex items-center gap-3 border-b border-slate-200 px-6 py-4",
+          accent
+        )}
+      >
         <h2 className="text-sm font-semibold uppercase tracking-widest text-slate-500">
           {title}
         </h2>
@@ -53,19 +58,19 @@ function DataRow({
   skeleton?: boolean;
 }) {
   return (
-    <div className="flex items-center px-6 py-3.5 gap-4">
+    <div className="flex items-center gap-4 px-6 py-3.5">
       <span className="w-44 shrink-0 text-sm text-slate-500">{label}</span>
       {skeleton ? (
         <div className="h-4 w-32 animate-pulse rounded bg-slate-100" />
       ) : (
         <span
           className={cn(
-            'text-sm',
-            mono && 'font-mono',
-            muted ? 'text-slate-400 italic' : 'text-slate-900',
+            "text-sm",
+            mono && "font-mono",
+            muted ? "italic text-slate-400" : "text-slate-900"
           )}
         >
-          {value ?? <span className="text-slate-300 italic">unavailable</span>}
+          {value ?? <span className="italic text-slate-300">unavailable</span>}
         </span>
       )}
     </div>
@@ -82,7 +87,7 @@ function LibraryRow({
   detail: string;
 }) {
   return (
-    <div className="flex items-center px-6 py-3.5 gap-4">
+    <div className="flex items-center gap-4 px-6 py-3.5">
       <span className="w-44 shrink-0 text-sm text-slate-500">{label}</span>
       <span className="font-mono text-sm text-slate-900">{value}</span>
       <span className="ml-2 text-xs text-slate-400">{detail}</span>
@@ -97,7 +102,9 @@ export default function SystemPage() {
 
   // Resolve frontend version: prefer API response, fall back to build-time inject.
   const frontendVersion =
-    data?.frontend_version ?? (import.meta.env.VITE_APP_VERSION as string | undefined) ?? null;
+    data?.frontend_version ??
+    (import.meta.env.VITE_APP_VERSION as string | undefined) ??
+    null;
 
   const gitSha = data?.git_sha ? data.git_sha.slice(0, 8) : null;
 
@@ -112,7 +119,8 @@ export default function SystemPage() {
 
       {error && (
         <div className="mb-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-700">
-          Could not reach the version endpoint. Component versions may be incomplete.
+          Could not reach the version endpoint. Component versions may be
+          incomplete.
         </div>
       )}
 
@@ -149,7 +157,12 @@ export default function SystemPage() {
         {/* ── UI Libraries ── */}
         <SectionPanel title="UI Libraries" accent="bg-white">
           {UI_LIBRARIES.map((lib) => (
-            <LibraryRow key={lib.label} label={lib.label} value={lib.value} detail={lib.detail} />
+            <LibraryRow
+              key={lib.label}
+              label={lib.label}
+              value={lib.value}
+              detail={lib.detail}
+            />
           ))}
         </SectionPanel>
       </div>

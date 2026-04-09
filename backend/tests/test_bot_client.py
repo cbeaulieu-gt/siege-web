@@ -90,3 +90,57 @@ async def test_notify_returns_true_on_success():
     with patch.object(BotClient, "_make_client", return_value=client_mock):
         result = await BotClient().notify("alice", "siege activated")
     assert result is True
+
+
+# ---------------------------------------------------------------------------
+# get_member tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_member_returns_member_dict():
+    """get_member() returns the member dict when sidecar responds 200."""
+    member_data = {"discord_user_id": "123456789", "is_member": True, "username": "alice"}
+    response = _make_ok_response(status_code=200, json_data=member_data)
+    client_mock = _async_client_that_returns(response)
+    with patch.object(BotClient, "_make_client", return_value=client_mock):
+        result = await BotClient().get_member("123456789")
+    assert result == member_data
+
+
+@pytest.mark.asyncio
+async def test_get_member_returns_not_member():
+    """get_member() returns the dict as-is when sidecar responds with is_member=False."""
+    not_member_data = {"is_member": False}
+    response = _make_ok_response(status_code=200, json_data=not_member_data)
+    client_mock = _async_client_that_returns(response)
+    with patch.object(BotClient, "_make_client", return_value=client_mock):
+        result = await BotClient().get_member("999999999")
+    assert result == not_member_data
+
+
+@pytest.mark.asyncio
+async def test_get_member_raises_on_connection_error():
+    """get_member() raises httpx.HTTPError when the sidecar is unreachable."""
+    client_mock = _async_client_that_raises(httpx.ConnectError("unreachable"))
+    with patch.object(BotClient, "_make_client", return_value=client_mock):
+        with pytest.raises(httpx.HTTPError):
+            await BotClient().get_member("123456789")
+
+
+@pytest.mark.asyncio
+async def test_get_member_raises_on_503():
+    """get_member() raises httpx.HTTPStatusError when sidecar returns 503."""
+    response = MagicMock(spec=httpx.Response)
+    response.status_code = 503
+    response.raise_for_status = MagicMock(
+        side_effect=httpx.HTTPStatusError(
+            "503 Service Unavailable",
+            request=MagicMock(),
+            response=response,
+        )
+    )
+    client_mock = _async_client_that_returns(response)
+    with patch.object(BotClient, "_make_client", return_value=client_mock):
+        with pytest.raises(httpx.HTTPStatusError):
+            await BotClient().get_member("123456789")

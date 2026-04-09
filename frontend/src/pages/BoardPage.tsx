@@ -1,6 +1,6 @@
-import { useState, useMemo, type ReactNode } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo, type ReactNode } from "react";
+import { useParams, Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   DndContext,
   DragOverlay,
@@ -11,12 +11,18 @@ import {
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
-} from '@dnd-kit/core';
-import { CSS } from '@dnd-kit/utilities';
-import { getBoard, updatePosition } from '../api/board';
-import { getSiege, getSiegeMembers, previewAutofill, applyAutofill, validateSiege } from '../api/sieges';
-import { getPostPriorities } from '../api/posts';
-import { PostsTab } from '../components/PostsTab';
+} from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
+import { getBoard, updatePosition } from "../api/board";
+import {
+  getSiege,
+  getSiegeMembers,
+  previewAutofill,
+  applyAutofill,
+  validateSiege,
+} from "../api/sieges";
+import { getPostPriorities } from "../api/posts";
+import { PostsTab } from "../components/PostsTab";
 import type {
   BuildingType,
   BuildingResponse,
@@ -25,10 +31,10 @@ import type {
   SiegeMember,
   AutofillPreviewResult,
   ValidationResult,
-} from '../api/types';
-import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
-import { Input } from '../components/ui/input';
+} from "../api/types";
+import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
+import { Input } from "../components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -36,7 +42,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
-} from '../components/ui/dialog';
+} from "../components/ui/dialog";
 import {
   ArrowLeft,
   ChevronDown,
@@ -44,16 +50,16 @@ import {
   LayoutGrid,
   MessageSquare,
   Search,
-} from 'lucide-react';
-import { BUILDING_COLORS, BUILDING_LABELS } from '../lib/buildingColors';
+} from "lucide-react";
+import { BUILDING_COLORS, BUILDING_LABELS } from "../lib/buildingColors";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const ROLE_LABELS: Record<string, string> = {
-  heavy_hitter: 'HH',
-  advanced: 'Adv',
-  medium: 'Med',
-  novice: 'Nov',
+  heavy_hitter: "HH",
+  advanced: "Adv",
+  medium: "Med",
+  novice: "Nov",
 };
 
 const ROLE_PRIORITY: Record<string, number> = {
@@ -64,41 +70,41 @@ const ROLE_PRIORITY: Record<string, number> = {
 };
 
 const ROLE_COLORS: Record<string, string> = {
-  heavy_hitter: 'border-red-500 bg-red-50',
-  advanced: 'border-amber-500 bg-amber-50',
-  medium: 'border-green-500 bg-green-50',
-  novice: 'border-blue-400 bg-blue-50',
+  heavy_hitter: "border-red-500 bg-red-50",
+  advanced: "border-amber-500 bg-amber-50",
+  medium: "border-green-500 bg-green-50",
+  novice: "border-blue-400 bg-blue-50",
 };
 
 const ROLE_BADGE_COLORS: Record<string, string> = {
-  heavy_hitter: 'bg-red-100 text-red-700',
-  advanced: 'bg-amber-100 text-amber-700',
-  medium: 'bg-green-100 text-green-700',
-  novice: 'bg-blue-100 text-blue-700',
+  heavy_hitter: "bg-red-100 text-red-700",
+  advanced: "bg-amber-100 text-amber-700",
+  medium: "bg-green-100 text-green-700",
+  novice: "bg-blue-100 text-blue-700",
 };
 
 // Role-colored chip for member name inside a position cell
 const ROLE_CHIP_COLORS: Record<string, string> = {
-  heavy_hitter: 'bg-red-100 text-red-800',
-  advanced: 'bg-amber-100 text-amber-800',
-  medium: 'bg-green-100 text-green-800',
-  novice: 'bg-blue-100 text-blue-800',
+  heavy_hitter: "bg-red-100 text-red-800",
+  advanced: "bg-amber-100 text-amber-800",
+  medium: "bg-green-100 text-green-800",
+  novice: "bg-blue-100 text-blue-800",
 };
 
 const POWER_LABELS: Record<string, string> = {
-  lt_10m: '<10M',
-  '10_15m': '10-15M',
-  '16_20m': '16-20M',
-  '21_25m': '21-25M',
-  gt_25m: '>25M',
+  lt_10m: "<10M",
+  "10_15m": "10-15M",
+  "16_20m": "16-20M",
+  "21_25m": "21-25M",
+  gt_25m: ">25M",
 };
 
 // Canonical sort order for building sections
 const BUILDING_TYPE_ORDER: BuildingType[] = [
-  'stronghold',
-  'mana_shrine',
-  'magic_tower',
-  'defense_tower',
+  "stronghold",
+  "mana_shrine",
+  "magic_tower",
+  "defense_tower",
 ];
 
 // ─── PositionCell ──────────────────────────────────────────────────────────────
@@ -132,28 +138,39 @@ function PositionCell({
       has_no_assignment?: boolean;
     }) => updatePosition(siegeId, position.id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['board', siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
       onUpdate();
       setMenuOpen(false);
     },
   });
 
-  const role = position.member_id != null ? memberRoleMap[position.member_id] : undefined;
-  const chipColor = role ? ROLE_CHIP_COLORS[role] ?? 'bg-slate-100 text-slate-700' : '';
+  const role =
+    position.member_id != null ? memberRoleMap[position.member_id] : undefined;
+  const chipColor = role
+    ? (ROLE_CHIP_COLORS[role] ?? "bg-slate-100 text-slate-700")
+    : "";
 
   function cellContent() {
     if (position.is_disabled) {
-      return <span className="text-xs text-slate-400 line-through">DISABLED</span>;
+      return (
+        <span className="text-xs text-slate-400 line-through">DISABLED</span>
+      );
     }
     if (position.is_reserve) {
-      return <Badge variant="yellow" className="text-xs px-1 py-0">RESERVE</Badge>;
+      return (
+        <Badge variant="yellow" className="px-1 py-0 text-xs">
+          RESERVE
+        </Badge>
+      );
     }
     if (position.has_no_assignment) {
       return <span className="text-xs text-slate-400">N/A</span>;
     }
     if (position.member_id != null) {
       return (
-        <span className={`truncate rounded px-1 text-xs font-medium ${chipColor}`}>
+        <span
+          className={`truncate rounded px-1 text-xs font-medium ${chipColor}`}
+        >
           {position.member_name}
         </span>
       );
@@ -161,15 +178,15 @@ function PositionCell({
     return <span className="text-xs text-slate-300">—</span>;
   }
 
-  const cellBg = position.is_disabled ? 'bg-slate-100' : 'bg-white';
+  const cellBg = position.is_disabled ? "bg-slate-100" : "bg-white";
 
   const borderStyle = isOver
-    ? 'border-violet-400 ring-2 ring-violet-400'
+    ? "border-violet-400 ring-2 ring-violet-400"
     : position.is_disabled
-      ? 'border-slate-200'
+      ? "border-slate-200"
       : position.member_id != null
-        ? 'border-slate-200'
-        : 'border-dashed border-slate-200';
+        ? "border-slate-200"
+        : "border-dashed border-slate-200";
 
   return (
     <>
@@ -177,8 +194,12 @@ function PositionCell({
         ref={setNodeRef}
         className={`group relative flex min-h-[28px] items-center justify-between rounded border px-1.5 py-0.5 ${cellBg} ${borderStyle} cursor-default`}
       >
-        <span className="mr-1 shrink-0 text-xs text-slate-400">{position.position_number}.</span>
-        <div className="flex min-w-0 flex-1 items-center overflow-hidden">{cellContent()}</div>
+        <span className="mr-1 shrink-0 text-xs text-slate-400">
+          {position.position_number}.
+        </span>
+        <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+          {cellContent()}
+        </div>
         {!position.is_disabled && !isLocked && (
           <button
             className="ml-0.5 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
@@ -194,14 +215,20 @@ function PositionCell({
           <DialogHeader>
             <DialogTitle>Position {position.position_number}</DialogTitle>
             <DialogDescription>
-              {position.member_name ?? 'Unassigned'}
+              {position.member_name ?? "Unassigned"}
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => mutation.mutate({ is_reserve: true, has_no_assignment: false, member_id: null })}
+              onClick={() =>
+                mutation.mutate({
+                  is_reserve: true,
+                  has_no_assignment: false,
+                  member_id: null,
+                })
+              }
               disabled={mutation.isPending}
             >
               Mark RESERVE
@@ -209,7 +236,13 @@ function PositionCell({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => mutation.mutate({ has_no_assignment: true, is_reserve: false, member_id: null })}
+              onClick={() =>
+                mutation.mutate({
+                  has_no_assignment: true,
+                  is_reserve: false,
+                  member_id: null,
+                })
+              }
               disabled={mutation.isPending}
             >
               Mark No Assignment
@@ -217,7 +250,13 @@ function PositionCell({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => mutation.mutate({ member_id: null, is_reserve: false, has_no_assignment: false })}
+              onClick={() =>
+                mutation.mutate({
+                  member_id: null,
+                  is_reserve: false,
+                  has_no_assignment: false,
+                })
+              }
               disabled={mutation.isPending}
             >
               Clear
@@ -242,16 +281,21 @@ function DraggableMemberRow({
   scrollLimit: number;
   isLocked: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: `member-${member.member_id}`,
-    disabled: isLocked,
-  });
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({
+      id: `member-${member.member_id}`,
+      disabled: isLocked,
+    });
 
-  const style = transform ? { transform: CSS.Translate.toString(transform) } : undefined;
+  const style = transform
+    ? { transform: CSS.Translate.toString(transform) }
+    : undefined;
 
   const overLimit = scrollLimit > 0 && count > scrollLimit;
-  const roleColor = ROLE_COLORS[member.member_role] ?? 'border-slate-300 bg-white';
-  const badgeColor = ROLE_BADGE_COLORS[member.member_role] ?? 'bg-slate-100 text-slate-600';
+  const roleColor =
+    ROLE_COLORS[member.member_role] ?? "border-slate-300 bg-white";
+  const badgeColor =
+    ROLE_BADGE_COLORS[member.member_role] ?? "bg-slate-100 text-slate-600";
   const tooltip = [
     member.member_power_level
       ? (POWER_LABELS[member.member_power_level] ?? member.member_power_level)
@@ -259,28 +303,30 @@ function DraggableMemberRow({
     member.attack_day ? `Day ${member.attack_day}` : null,
   ]
     .filter(Boolean)
-    .join(' · ');
+    .join(" · ");
 
   return (
     <div
       ref={setNodeRef}
       style={style}
       title={tooltip || undefined}
-      className={`flex items-center gap-1.5 border-l-4 px-2 py-1.5 ${overLimit ? 'bg-red-50 border-red-300' : roleColor} ${
-        isDragging ? 'opacity-40' : ''
-      } ${!isLocked ? 'cursor-grab active:cursor-grabbing' : ''}`}
+      className={`flex items-center gap-1.5 border-l-4 px-2 py-1.5 ${overLimit ? "border-red-300 bg-red-50" : roleColor} ${
+        isDragging ? "opacity-40" : ""
+      } ${!isLocked ? "cursor-grab active:cursor-grabbing" : ""}`}
       {...listeners}
       {...attributes}
     >
       <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-800">
         {member.member_name}
       </span>
-      <span className={`shrink-0 rounded px-1 py-0.5 text-xs font-medium ${badgeColor}`}>
+      <span
+        className={`shrink-0 rounded px-1 py-0.5 text-xs font-medium ${badgeColor}`}
+      >
         {ROLE_LABELS[member.member_role] ?? member.member_role}
       </span>
       <span
         className={`shrink-0 rounded-full px-1.5 py-0 text-xs font-semibold tabular-nums ${
-          overLimit ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'
+          overLimit ? "bg-red-100 text-red-700" : "bg-slate-100 text-slate-600"
         }`}
       >
         {count}
@@ -293,18 +339,22 @@ function DraggableMemberRow({
 // Floating chip rendered by DragOverlay while a member is being dragged.
 
 function MemberDragOverlay({ member }: { member: SiegeMember }) {
-  const roleColor = ROLE_COLORS[member.member_role] ?? 'border-slate-300 bg-white';
-  const badgeColor = ROLE_BADGE_COLORS[member.member_role] ?? 'bg-slate-100 text-slate-600';
+  const roleColor =
+    ROLE_COLORS[member.member_role] ?? "border-slate-300 bg-white";
+  const badgeColor =
+    ROLE_BADGE_COLORS[member.member_role] ?? "bg-slate-100 text-slate-600";
 
   return (
     <div
       className={`flex items-center gap-1.5 rounded border-l-4 bg-white px-2 py-1.5 shadow-lg ${roleColor}`}
-      style={{ width: '13rem' }}
+      style={{ width: "13rem" }}
     >
       <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-800">
         {member.member_name}
       </span>
-      <span className={`shrink-0 rounded px-1 py-0.5 text-xs font-medium ${badgeColor}`}>
+      <span
+        className={`shrink-0 rounded px-1 py-0.5 text-xs font-medium ${badgeColor}`}
+      >
         {ROLE_LABELS[member.member_role] ?? member.member_role}
       </span>
     </div>
@@ -313,14 +363,14 @@ function MemberDragOverlay({ member }: { member: SiegeMember }) {
 
 // ─── MemberBucket ──────────────────────────────────────────────────────────────
 
-type RoleFilter = 'all' | 'heavy_hitter' | 'advanced' | 'medium' | 'novice';
+type RoleFilter = "all" | "heavy_hitter" | "advanced" | "medium" | "novice";
 
 const ROLE_FILTER_OPTIONS: { value: RoleFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'heavy_hitter', label: 'Heavy Hitter' },
-  { value: 'advanced', label: 'Advanced' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'novice', label: 'Novice' },
+  { value: "all", label: "All" },
+  { value: "heavy_hitter", label: "Heavy Hitter" },
+  { value: "advanced", label: "Advanced" },
+  { value: "medium", label: "Medium" },
+  { value: "novice", label: "Novice" },
 ];
 
 function MemberBucket({
@@ -334,19 +384,23 @@ function MemberBucket({
   scrollLimit: number;
   isLocked: boolean;
 }) {
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all');
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
     return siegeMembers
       .filter((m) => !q || m.member_name.toLowerCase().includes(q))
-      .filter((m) => roleFilter === 'all' || m.member_role === roleFilter)
+      .filter((m) => roleFilter === "all" || m.member_role === roleFilter)
       .slice()
       .sort((a, b) => {
-        const roleDiff = (ROLE_PRIORITY[a.member_role] ?? 99) - (ROLE_PRIORITY[b.member_role] ?? 99);
+        const roleDiff =
+          (ROLE_PRIORITY[a.member_role] ?? 99) -
+          (ROLE_PRIORITY[b.member_role] ?? 99);
         if (roleDiff !== 0) return roleDiff;
-        const countDiff = (memberAssignments[a.member_id] ?? 0) - (memberAssignments[b.member_id] ?? 0);
+        const countDiff =
+          (memberAssignments[a.member_id] ?? 0) -
+          (memberAssignments[b.member_id] ?? 0);
         if (countDiff !== 0) return countDiff;
         return a.member_name.localeCompare(b.member_name);
       });
@@ -355,7 +409,12 @@ function MemberBucket({
   return (
     <div
       className="flex w-52 shrink-0 flex-col"
-      style={{ height: 'calc(100vh - 200px)', position: 'sticky', top: '16px', alignSelf: 'flex-start' }}
+      style={{
+        height: "calc(100vh - 200px)",
+        position: "sticky",
+        top: "16px",
+        alignSelf: "flex-start",
+      }}
     >
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -388,7 +447,9 @@ function MemberBucket({
 
       <div className="flex-1 overflow-y-auto rounded-lg border border-slate-200 bg-white">
         {filtered.length === 0 ? (
-          <p className="px-3 py-4 text-center text-xs text-slate-400">No members</p>
+          <p className="px-3 py-4 text-center text-xs text-slate-400">
+            No members
+          </p>
         ) : (
           <div className="divide-y divide-slate-100">
             {filtered.map((m) => (
@@ -435,7 +496,11 @@ function BuildingTableRow({
 
   const allPositions = building.groups.flatMap((g) => g.positions);
   const filledCount = allPositions.filter(
-    (p) => !p.is_disabled && !p.is_reserve && !p.has_no_assignment && p.member_id != null,
+    (p) =>
+      !p.is_disabled &&
+      !p.is_reserve &&
+      !p.has_no_assignment &&
+      p.member_id != null
   ).length;
   const activeCount = allPositions.filter((p) => !p.is_disabled).length;
 
@@ -450,7 +515,7 @@ function BuildingTableRow({
         </p>
         <p className="mt-0.5 text-xs opacity-75">
           Lv {building.level}
-          {building.is_broken ? ' · Broken' : ''}
+          {building.is_broken ? " · Broken" : ""}
         </p>
         <p className="mt-0.5 text-xs opacity-75">
           {filledCount}/{activeCount} filled
@@ -462,7 +527,7 @@ function BuildingTableRow({
         {groupChunks.map((chunk, chunkIdx) => (
           <div
             key={chunkIdx}
-            className={`flex flex-1 ${chunkIdx > 0 ? `border-t ${colors.border}` : ''}`}
+            className={`flex flex-1 ${chunkIdx > 0 ? `border-t ${colors.border}` : ""}`}
           >
             {chunk.map((group) => (
               <div
@@ -488,9 +553,14 @@ function BuildingTableRow({
             ))}
             {/* Pad empty columns so rows are uniform width when fewer than max groups */}
             {chunk.length < MAX_GROUPS_PER_ROW &&
-              Array.from({ length: MAX_GROUPS_PER_ROW - chunk.length }).map((_, i) => (
-                <div key={`pad-${i}`} className="flex-1 border-l border-transparent" />
-              ))}
+              Array.from({ length: MAX_GROUPS_PER_ROW - chunk.length }).map(
+                (_, i) => (
+                  <div
+                    key={`pad-${i}`}
+                    className="flex-1 border-l border-transparent"
+                  />
+                )
+              )}
           </div>
         ))}
       </div>
@@ -573,18 +643,18 @@ function BuildingsTab({
   onUpdate: () => void;
   isLocked?: boolean;
 }) {
-  const nonPostBuildings = buildings.filter((b) => b.building_type !== 'post');
+  const nonPostBuildings = buildings.filter((b) => b.building_type !== "post");
 
   if (nonPostBuildings.length === 0) {
     return (
       <div className="py-12 text-center text-slate-500">
-        No buildings configured.{' '}
+        No buildings configured.{" "}
         <Link
           to={`/sieges/${siegeId}`}
           className="text-violet-600 hover:underline"
         >
           Add buildings
-        </Link>{' '}
+        </Link>{" "}
         in siege settings.
       </div>
     );
@@ -604,7 +674,9 @@ function BuildingsTab({
 
   return (
     <div>
-      {BUILDING_TYPE_ORDER.filter((t) => grouped[t] && grouped[t]!.length > 0).map((type) => (
+      {BUILDING_TYPE_ORDER.filter(
+        (t) => grouped[t] && grouped[t]!.length > 0
+      ).map((type) => (
         <BuildingTypeSection
           key={type}
           type={type}
@@ -656,37 +728,38 @@ function ConditionalDndContext({
 
 // ─── BoardPage ─────────────────────────────────────────────────────────────────
 
-type ActiveTab = 'buildings' | 'posts';
+type ActiveTab = "buildings" | "posts";
 
 export default function BoardPage() {
   const { id } = useParams<{ id: string }>();
   const siegeId = Number(id);
   const queryClient = useQueryClient();
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('buildings');
-  const [autofillPreview, setAutofillPreview] = useState<AutofillPreviewResult | null>(null);
+  const [activeTab, setActiveTab] = useState<ActiveTab>("buildings");
+  const [autofillPreview, setAutofillPreview] =
+    useState<AutofillPreviewResult | null>(null);
   const [autofillOpen, setAutofillOpen] = useState(false);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [validationOpen, setValidationOpen] = useState(false);
   const [activeMemberId, setActiveMemberId] = useState<number | null>(null);
 
   const { data: board, isLoading: boardLoading } = useQuery({
-    queryKey: ['board', siegeId],
+    queryKey: ["board", siegeId],
     queryFn: () => getBoard(siegeId),
   });
 
   const { data: siegeMembers } = useQuery({
-    queryKey: ['siegeMembers', siegeId],
+    queryKey: ["siegeMembers", siegeId],
     queryFn: () => getSiegeMembers(siegeId),
   });
 
   const { data: siege } = useQuery({
-    queryKey: ['siege', siegeId],
+    queryKey: ["siege", siegeId],
     queryFn: () => getSiege(siegeId),
   });
 
   const { data: postPriorities } = useQuery({
-    queryKey: ['postPriorities'],
+    queryKey: ["postPriorities"],
     queryFn: getPostPriorities,
   });
 
@@ -704,7 +777,7 @@ export default function BoardPage() {
   const applyMutation = useMutation({
     mutationFn: () => applyAutofill(siegeId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['board', siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
       setAutofillOpen(false);
       setAutofillPreview(null);
     },
@@ -721,18 +794,28 @@ export default function BoardPage() {
   // ── Derived stats ────────────────────────────────────────────────────────────
 
   const allPositions = useMemo(
-    () => board?.buildings.flatMap((b) => b.groups.flatMap((g) => g.positions)) ?? [],
-    [board],
+    () =>
+      board?.buildings.flatMap((b) => b.groups.flatMap((g) => g.positions)) ??
+      [],
+    [board]
   );
 
   const totalSlots = allPositions.length;
   const assignedCount = allPositions.filter(
-    (p) => !p.is_disabled && !p.is_reserve && !p.has_no_assignment && p.member_id != null,
+    (p) =>
+      !p.is_disabled &&
+      !p.is_reserve &&
+      !p.has_no_assignment &&
+      p.member_id != null
   ).length;
   const reserveCount = allPositions.filter((p) => p.is_reserve).length;
   const noAssignCount = allPositions.filter((p) => p.has_no_assignment).length;
   const emptyCount = allPositions.filter(
-    (p) => !p.is_disabled && !p.is_reserve && !p.has_no_assignment && p.member_id == null,
+    (p) =>
+      !p.is_disabled &&
+      !p.is_reserve &&
+      !p.has_no_assignment &&
+      p.member_id == null
   ).length;
   const disabledCount = allPositions.filter((p) => p.is_disabled).length;
 
@@ -770,21 +853,25 @@ export default function BoardPage() {
   }, [siegeMembers]);
 
   const sortedSiegeMembers = useMemo(
-    () => (siegeMembers ?? []).slice().sort((a, b) => a.member_name.localeCompare(b.member_name)),
-    [siegeMembers],
+    () =>
+      (siegeMembers ?? [])
+        .slice()
+        .sort((a, b) => a.member_name.localeCompare(b.member_name)),
+    [siegeMembers]
   );
 
   const totalScrolls = siege?.computed_scroll_count ?? 0;
   const scrollsPerMember = totalScrolls < 90 ? 3 : 4;
-  const isLocked = siege?.status === 'complete';
+  const isLocked = siege?.status === "complete";
 
   // The member currently being dragged (for the DragOverlay chip)
   const activeMember = useMemo(
     () =>
       activeMemberId != null
-        ? (sortedSiegeMembers.find((m) => m.member_id === activeMemberId) ?? null)
+        ? (sortedSiegeMembers.find((m) => m.member_id === activeMemberId) ??
+          null)
         : null,
-    [activeMemberId, sortedSiegeMembers],
+    [activeMemberId, sortedSiegeMembers]
   );
 
   // ── DnD ──────────────────────────────────────────────────────────────────────
@@ -793,19 +880,19 @@ export default function BoardPage() {
     useSensor(PointerSensor, {
       // Short distance before activation so chevron button clicks still work
       activationConstraint: { distance: 6 },
-    }),
+    })
   );
 
   function handleDragStart(event: DragStartEvent) {
-    document.body.style.overflowX = 'hidden';
+    document.body.style.overflowX = "hidden";
     const activeId = String(event.active.id);
-    if (activeId.startsWith('member-')) {
-      setActiveMemberId(Number(activeId.replace('member-', '')));
+    if (activeId.startsWith("member-")) {
+      setActiveMemberId(Number(activeId.replace("member-", "")));
     }
   }
 
   function handleDragEnd(event: DragEndEvent) {
-    document.body.style.overflowX = '';
+    document.body.style.overflowX = "";
     setActiveMemberId(null);
     const { active, over } = event;
     if (!over) return;
@@ -813,10 +900,11 @@ export default function BoardPage() {
     const activeId = String(active.id);
     const overId = String(over.id);
 
-    if (!activeId.startsWith('member-') || !overId.startsWith('position-')) return;
+    if (!activeId.startsWith("member-") || !overId.startsWith("position-"))
+      return;
 
-    const memberId = Number(activeId.replace('member-', ''));
-    const positionId = Number(overId.replace('position-', ''));
+    const memberId = Number(activeId.replace("member-", ""));
+    const positionId = Number(overId.replace("position-", ""));
     if (!memberId || !positionId) return;
 
     updatePosition(siegeId, positionId, {
@@ -824,7 +912,7 @@ export default function BoardPage() {
       is_reserve: false,
       has_no_assignment: false,
     }).then(() => {
-      queryClient.invalidateQueries({ queryKey: ['board', siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
     });
   }
 
@@ -835,7 +923,9 @@ export default function BoardPage() {
   // ── Render ───────────────────────────────────────────────────────────────────
 
   if (boardLoading) {
-    return <div className="py-12 text-center text-slate-500">Loading board...</div>;
+    return (
+      <div className="py-12 text-center text-slate-500">Loading board...</div>
+    );
   }
 
   return (
@@ -863,14 +953,14 @@ export default function BoardPage() {
             onClick={() => validateMutation.mutate()}
             disabled={validateMutation.isPending}
           >
-            {validateMutation.isPending ? 'Validating...' : 'Validate'}
+            {validateMutation.isPending ? "Validating..." : "Validate"}
           </Button>
           <Button
             size="sm"
             onClick={() => previewMutation.mutate()}
             disabled={previewMutation.isPending || isLocked}
           >
-            {previewMutation.isPending ? 'Loading...' : 'Preview Auto-fill'}
+            {previewMutation.isPending ? "Loading..." : "Preview Auto-fill"}
           </Button>
         </div>
       </div>
@@ -878,28 +968,44 @@ export default function BoardPage() {
       {/* ── Summary bar ── */}
       <div className="mb-4 flex flex-wrap gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5">
         <span className="text-sm text-slate-600">
-          <span className="font-semibold text-slate-900">{totalSlots}</span> total
+          <span className="font-semibold text-slate-900">{totalSlots}</span>{" "}
+          total
         </span>
         <span className="text-sm text-slate-600">
-          <span className="font-semibold text-green-700">{assignedCount}</span> assigned
+          <span className="font-semibold text-green-700">{assignedCount}</span>{" "}
+          assigned
         </span>
         <span className="text-sm text-slate-600">
-          <span className="font-semibold text-amber-600">{reserveCount}</span> reserve
+          <span className="font-semibold text-amber-600">{reserveCount}</span>{" "}
+          reserve
         </span>
         <span className="text-sm text-slate-600">
-          <span className="font-semibold text-slate-500">{noAssignCount}</span> N/A
+          <span className="font-semibold text-slate-500">{noAssignCount}</span>{" "}
+          N/A
         </span>
         <span className="text-sm text-slate-600">
-          <span className="font-semibold text-orange-600">{emptyCount}</span> empty
+          <span className="font-semibold text-orange-600">{emptyCount}</span>{" "}
+          empty
         </span>
         <span className="text-sm text-slate-600">
-          <span className="font-semibold text-slate-400">{disabledCount}</span> disabled
+          <span className="font-semibold text-slate-400">{disabledCount}</span>{" "}
+          disabled
         </span>
         {totalScrolls > 0 && (
           <span className="text-sm text-slate-600">
-            <span className="font-semibold text-violet-700">{totalScrolls}</span> scrolls
+            <span className="font-semibold text-violet-700">
+              {totalScrolls}
+            </span>{" "}
+            scrolls
             {scrollsPerMember > 0 && (
-              <> · <span className="font-semibold text-violet-700">{scrollsPerMember}</span>/member</>
+              <>
+                {" "}
+                ·{" "}
+                <span className="font-semibold text-violet-700">
+                  {scrollsPerMember}
+                </span>
+                /member
+              </>
             )}
           </span>
         )}
@@ -911,8 +1017,13 @@ export default function BoardPage() {
         sensors={sensors}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
-        onDragCancel={() => { document.body.style.overflowX = ''; setActiveMemberId(null); }}
-        overlay={activeMember ? <MemberDragOverlay member={activeMember} /> : null}
+        onDragCancel={() => {
+          document.body.style.overflowX = "";
+          setActiveMemberId(null);
+        }}
+        overlay={
+          activeMember ? <MemberDragOverlay member={activeMember} /> : null
+        }
       >
         <div className="flex items-start gap-4">
           {/* Left: Member Bucket */}
@@ -929,22 +1040,22 @@ export default function BoardPage() {
             <div className="mb-3 flex border-b border-slate-200">
               <button
                 className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === 'buildings'
-                    ? 'border-violet-600 text-violet-700'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                  activeTab === "buildings"
+                    ? "border-violet-600 text-violet-700"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
                 }`}
-                onClick={() => setActiveTab('buildings')}
+                onClick={() => setActiveTab("buildings")}
               >
                 <LayoutGrid className="h-4 w-4" />
                 Buildings
               </button>
               <button
                 className={`flex items-center gap-1.5 border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-                  activeTab === 'posts'
-                    ? 'border-violet-600 text-violet-700'
-                    : 'border-transparent text-slate-500 hover:text-slate-700'
+                  activeTab === "posts"
+                    ? "border-violet-600 text-violet-700"
+                    : "border-transparent text-slate-500 hover:text-slate-700"
                 }`}
-                onClick={() => setActiveTab('posts')}
+                onClick={() => setActiveTab("posts")}
               >
                 <MessageSquare className="h-4 w-4" />
                 Posts
@@ -952,7 +1063,7 @@ export default function BoardPage() {
             </div>
 
             {/* Tab content */}
-            {activeTab === 'buildings' && (
+            {activeTab === "buildings" && (
               <BuildingsTab
                 buildings={board?.buildings ?? []}
                 siegeId={siegeId}
@@ -961,7 +1072,7 @@ export default function BoardPage() {
                 isLocked={isLocked}
               />
             )}
-            {activeTab === 'posts' && (
+            {activeTab === "posts" && (
               <PostsTab
                 buildings={board?.buildings ?? []}
                 siegeId={siegeId}
@@ -985,7 +1096,8 @@ export default function BoardPage() {
           </DialogHeader>
           <div className="space-y-1">
             {autofillPreview?.assignments.map((a) => {
-              const member = a.member_id != null ? memberLookup[a.member_id] : null;
+              const member =
+                a.member_id != null ? memberLookup[a.member_id] : null;
               const pos = positionLookup[a.position_id];
               return (
                 <div
@@ -1012,8 +1124,11 @@ export default function BoardPage() {
             <Button variant="outline" onClick={() => setAutofillOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={() => applyMutation.mutate()} disabled={applyMutation.isPending}>
-              {applyMutation.isPending ? 'Applying...' : 'Apply'}
+            <Button
+              onClick={() => applyMutation.mutate()}
+              disabled={applyMutation.isPending}
+            >
+              {applyMutation.isPending ? "Applying..." : "Apply"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1027,11 +1142,15 @@ export default function BoardPage() {
           </DialogHeader>
           {validation && (
             <div className="space-y-2">
-              {validation.errors.length === 0 && validation.warnings.length === 0 && (
-                <p className="text-sm text-green-600">No issues found.</p>
-              )}
+              {validation.errors.length === 0 &&
+                validation.warnings.length === 0 && (
+                  <p className="text-sm text-green-600">No issues found.</p>
+                )}
               {validation.errors.map((e, i) => (
-                <div key={i} className="flex items-start gap-2 rounded-md bg-red-50 px-3 py-2">
+                <div
+                  key={i}
+                  className="flex items-start gap-2 rounded-md bg-red-50 px-3 py-2"
+                >
                   <Badge variant="destructive" className="mt-0.5 shrink-0">
                     Error {e.rule}
                   </Badge>

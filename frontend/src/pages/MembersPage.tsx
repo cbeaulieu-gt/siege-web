@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate, Link } from 'react-router-dom';
-import { getMembers } from '../api/members';
-import type { MemberRole } from '../api/types';
+import { useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, Link } from "react-router-dom";
+import { getMembers } from "../api/members";
+import type { MemberRole } from "../api/types";
 import {
   Table,
   TableBody,
@@ -10,59 +10,63 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../components/ui/table';
-import { Button } from '../components/ui/button';
-import { Badge } from '../components/ui/badge';
+} from "../components/ui/table";
+import { Button } from "../components/ui/button";
+import { Badge } from "../components/ui/badge";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../components/ui/select';
-import { Checkbox } from '../components/ui/checkbox';
-import { Label } from '../components/ui/label';
-import { UserPlus, ChevronRight, RefreshCw } from 'lucide-react';
-import DiscordSyncModal from '../components/DiscordSyncModal';
+} from "../components/ui/select";
+import { Checkbox } from "../components/ui/checkbox";
+import { Label } from "../components/ui/label";
+import { UserPlus, ChevronRight, RefreshCw } from "lucide-react";
+import DiscordSyncModal from "../components/DiscordSyncModal";
 
 const POWER_LABELS: Record<string, string> = {
-  lt_10m: '< 10M',
-  '10_15m': '10-15M',
-  '16_20m': '16-20M',
-  '21_25m': '21-25M',
-  gt_25m: '> 25M',
+  lt_10m: "< 10M",
+  "10_15m": "10-15M",
+  "16_20m": "16-20M",
+  "21_25m": "21-25M",
+  gt_25m: "> 25M",
 };
 
 const ROLE_LABELS: Record<MemberRole, string> = {
-  heavy_hitter: 'Heavy Hitter',
-  advanced: 'Advanced',
-  medium: 'Medium',
-  novice: 'Novice',
+  heavy_hitter: "Heavy Hitter",
+  advanced: "Advanced",
+  medium: "Medium",
+  novice: "Novice",
 };
 
-type RoleBadgeVariant = 'red' | 'orange' | 'blue' | 'gray';
+type RoleBadgeVariant = "red" | "orange" | "blue" | "gray";
 
 const ROLE_VARIANTS: Record<MemberRole, RoleBadgeVariant> = {
-  heavy_hitter: 'red',
-  advanced: 'orange',
-  medium: 'blue',
-  novice: 'gray',
+  heavy_hitter: "red",
+  advanced: "orange",
+  medium: "blue",
+  novice: "gray",
 };
 
 export default function MembersPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [roleFilter, setRoleFilter] = useState<string>("all");
   const [activeOnly, setActiveOnly] = useState(true);
   const [syncOpen, setSyncOpen] = useState(false);
 
-  const { data: members, isLoading, error } = useQuery({
-    queryKey: ['members', activeOnly],
+  const {
+    data: members,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["members", activeOnly],
     queryFn: () => getMembers({ is_active: activeOnly ? true : undefined }),
   });
 
   const filtered = members
-    ?.filter((m) => roleFilter !== 'all' ? m.role === roleFilter : true)
+    ?.filter((m) => (roleFilter !== "all" ? m.role === roleFilter : true))
     .sort((a, b) => a.name.localeCompare(b.name));
 
   return (
@@ -74,7 +78,7 @@ export default function MembersPage() {
             <RefreshCw className="h-4 w-4" />
             Sync Discord
           </Button>
-          <Button onClick={() => navigate('/members/new')}>
+          <Button onClick={() => navigate("/members/new")}>
             <UserPlus className="h-4 w-4" />
             Add Member
           </Button>
@@ -86,7 +90,7 @@ export default function MembersPage() {
         onClose={() => setSyncOpen(false)}
         onApplied={() => {
           setSyncOpen(false);
-          queryClient.invalidateQueries({ queryKey: ['members'] });
+          queryClient.invalidateQueries({ queryKey: ["members"] });
         }}
       />
 
@@ -138,7 +142,10 @@ export default function MembersPage() {
             <TableBody>
               {filtered?.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="py-8 text-center text-slate-500">
+                  <TableCell
+                    colSpan={5}
+                    className="py-8 text-center text-slate-500"
+                  >
                     No members found.
                   </TableCell>
                 </TableRow>
@@ -156,11 +163,13 @@ export default function MembersPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {m.power_level ? POWER_LABELS[m.power_level] ?? m.power_level : '-'}
+                    {m.power_level
+                      ? (POWER_LABELS[m.power_level] ?? m.power_level)
+                      : "-"}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={m.is_active ? 'green' : 'gray'}>
-                      {m.is_active ? 'Active' : 'Inactive'}
+                    <Badge variant={m.is_active ? "green" : "gray"}>
+                      {m.is_active ? "Active" : "Inactive"}
                     </Badge>
                   </TableCell>
                   <TableCell>

@@ -1,15 +1,16 @@
-import { type ReactNode } from 'react';
-import { render, type RenderOptions } from '@testing-library/react';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, type MemoryRouterProps } from 'react-router-dom';
+import { type ReactNode } from "react";
+import { render, type RenderOptions } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter, type MemoryRouterProps } from "react-router-dom";
+import { AuthProvider } from "../context/AuthContext";
 
-interface TestRenderOptions extends Omit<RenderOptions, 'wrapper'> {
-  initialEntries?: MemoryRouterProps['initialEntries'];
+interface TestRenderOptions extends Omit<RenderOptions, "wrapper"> {
+  initialEntries?: MemoryRouterProps["initialEntries"];
 }
 
 export function renderWithProviders(
   ui: ReactNode,
-  { initialEntries = ['/'], ...renderOptions }: TestRenderOptions = {},
+  { initialEntries = ["/"], ...renderOptions }: TestRenderOptions = {}
 ) {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -23,7 +24,9 @@ export function renderWithProviders(
   function Wrapper({ children }: { children: ReactNode }) {
     return (
       <MemoryRouter initialEntries={initialEntries}>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>{children}</AuthProvider>
+        </QueryClientProvider>
       </MemoryRouter>
     );
   }
@@ -31,4 +34,4 @@ export function renderWithProviders(
   return render(ui, { wrapper: Wrapper, ...renderOptions });
 }
 
-export * from '@testing-library/react';
+export * from "@testing-library/react";

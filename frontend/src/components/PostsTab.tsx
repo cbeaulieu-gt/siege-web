@@ -1,20 +1,31 @@
-import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronDown, ChevronRight, AlertTriangle, Check, ExternalLink, BookmarkCheck } from 'lucide-react';
-import { getPosts } from '../api/posts';
-import { getSiegeMemberPreferences } from '../api/sieges';
-import { updatePosition } from '../api/board';
-import type { BuildingResponse, SiegeMember, PostConditionRef } from '../api/types';
-import { Button } from './ui/button';
+import { useState, useMemo } from "react";
+import { Link } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  ChevronDown,
+  ChevronRight,
+  AlertTriangle,
+  Check,
+  ExternalLink,
+  BookmarkCheck,
+} from "lucide-react";
+import { getPosts } from "../api/posts";
+import { getSiegeMemberPreferences } from "../api/sieges";
+import { updatePosition } from "../api/board";
+import type {
+  BuildingResponse,
+  SiegeMember,
+  PostConditionRef,
+} from "../api/types";
+import { Button } from "./ui/button";
 
 // ─── Constants (duplicated from BoardPage to keep this file self-contained) ───
 
 const ROLE_LABELS: Record<string, string> = {
-  heavy_hitter: 'HH',
-  advanced: 'Adv',
-  medium: 'Med',
-  novice: 'Nov',
+  heavy_hitter: "HH",
+  advanced: "Adv",
+  medium: "Med",
+  novice: "Nov",
 };
 
 const ROLE_PRIORITY: Record<string, number> = {
@@ -25,32 +36,32 @@ const ROLE_PRIORITY: Record<string, number> = {
 };
 
 const ROLE_BADGE_COLORS: Record<string, string> = {
-  heavy_hitter: 'bg-red-100 text-red-700',
-  advanced: 'bg-amber-100 text-amber-700',
-  medium: 'bg-green-100 text-green-700',
-  novice: 'bg-blue-100 text-blue-700',
+  heavy_hitter: "bg-red-100 text-red-700",
+  advanced: "bg-amber-100 text-amber-700",
+  medium: "bg-green-100 text-green-700",
+  novice: "bg-blue-100 text-blue-700",
 };
 
 const POWER_LABELS: Record<string, string> = {
-  lt_10m: '<10M',
-  '10_15m': '10-15M',
-  '16_20m': '16-20M',
-  '21_25m': '21-25M',
-  gt_25m: '>25M',
+  lt_10m: "<10M",
+  "10_15m": "10-15M",
+  "16_20m": "16-20M",
+  "21_25m": "21-25M",
+  gt_25m: ">25M",
 };
 
 const PRIORITY_LABELS: Record<number, string> = {
-  0: 'Unset',
-  1: 'Low',
-  2: 'Medium',
-  3: 'High',
+  0: "Unset",
+  1: "Low",
+  2: "Medium",
+  3: "High",
 };
 
 const PRIORITY_BADGE_COLORS: Record<number, string> = {
-  0: 'bg-slate-100 text-slate-400',
-  1: 'bg-slate-100 text-slate-600',
-  2: 'bg-amber-100 text-amber-700',
-  3: 'bg-red-100 text-red-700',
+  0: "bg-slate-100 text-slate-400",
+  1: "bg-slate-100 text-slate-600",
+  2: "bg-amber-100 text-amber-700",
+  3: "bg-red-100 text-red-700",
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -66,7 +77,9 @@ type DuplicateConditionMap = Map<string, number>;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function buildDuplicateConditionMap(postBuildings: BuildingResponse[]): DuplicateConditionMap {
+function buildDuplicateConditionMap(
+  postBuildings: BuildingResponse[]
+): DuplicateConditionMap {
   const map: DuplicateConditionMap = new Map();
   for (const building of postBuildings) {
     for (const group of building.groups) {
@@ -81,7 +94,9 @@ function buildDuplicateConditionMap(postBuildings: BuildingResponse[]): Duplicat
   return map;
 }
 
-function findPostPosition(building: BuildingResponse): { positionId: number } | null {
+function findPostPosition(
+  building: BuildingResponse
+): { positionId: number } | null {
   for (const group of building.groups) {
     for (const pos of group.positions) {
       if (!pos.is_disabled) {
@@ -118,12 +133,15 @@ function MemberAssignRow({
 
   // Which condition is selected for the match radio
   const [selectedConditionId, setSelectedConditionId] = useState<number | null>(
-    matchedConditions.length > 0 ? matchedConditions[0].id : null,
+    matchedConditions.length > 0 ? matchedConditions[0].id : null
   );
   const [confirmPending, setConfirmPending] = useState(false);
 
   const mutation = useMutation({
-    mutationFn: (data: { member_id: number; matched_condition_id: number | null }) =>
+    mutationFn: (data: {
+      member_id: number;
+      matched_condition_id: number | null;
+    }) =>
       updatePosition(siegeId, positionId, {
         member_id: data.member_id,
         is_reserve: false,
@@ -131,7 +149,7 @@ function MemberAssignRow({
         matched_condition_id: data.matched_condition_id,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['board', siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
       setConfirmPending(false);
       onAssigned();
     },
@@ -157,7 +175,7 @@ function MemberAssignRow({
   }
 
   const role = member.member_role;
-  const badgeColor = ROLE_BADGE_COLORS[role] ?? 'bg-slate-100 text-slate-600';
+  const badgeColor = ROLE_BADGE_COLORS[role] ?? "bg-slate-100 text-slate-600";
   const powerLabel = member.member_power_level
     ? (POWER_LABELS[member.member_power_level] ?? member.member_power_level)
     : null;
@@ -180,15 +198,21 @@ function MemberAssignRow({
         {/* Member info */}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-slate-800">{member.member_name}</span>
-            <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${badgeColor}`}>
+            <span className="text-sm font-medium text-slate-800">
+              {member.member_name}
+            </span>
+            <span
+              className={`rounded px-1.5 py-0.5 text-xs font-medium ${badgeColor}`}
+            >
               {ROLE_LABELS[role] ?? role}
             </span>
             {powerLabel && (
               <span className="text-xs text-slate-500">{powerLabel}</span>
             )}
             {member.attack_day && (
-              <span className="text-xs text-slate-500">Day {member.attack_day}</span>
+              <span className="text-xs text-slate-500">
+                Day {member.attack_day}
+              </span>
             )}
           </div>
 
@@ -196,7 +220,10 @@ function MemberAssignRow({
           {hasConditions && matchedConditions.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-2">
               {matchedConditions.map((c) => (
-                <label key={c.id} className="flex cursor-pointer items-center gap-1.5">
+                <label
+                  key={c.id}
+                  className="flex cursor-pointer items-center gap-1.5"
+                >
                   <input
                     type="radio"
                     name={`condition-${member.member_id}-${postNumber}`}
@@ -222,7 +249,7 @@ function MemberAssignRow({
             <div className="mt-1.5 flex items-center gap-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
               <span>
-                Already matched on "{selectedCondition.description}" at Post{' '}
+                Already matched on "{selectedCondition.description}" at Post{" "}
                 {duplicatePostNumber}
               </span>
             </div>
@@ -259,7 +286,7 @@ function MemberAssignRow({
                 onClick={handleAssignClick}
                 disabled={mutation.isPending}
               >
-                {mutation.isPending ? 'Assigning...' : 'Assign'}
+                {mutation.isPending ? "Assigning..." : "Assign"}
               </Button>
             )}
           </div>
@@ -311,9 +338,11 @@ function PostRow({
   const matchedCondition = useMemo(
     () =>
       !isReserve && assignedPosition?.matched_condition_id
-        ? (activeConditions.find((c) => c.id === assignedPosition.matched_condition_id) ?? null)
+        ? (activeConditions.find(
+            (c) => c.id === assignedPosition.matched_condition_id
+          ) ?? null)
         : null,
-    [isReserve, assignedPosition?.matched_condition_id, activeConditions],
+    [isReserve, assignedPosition?.matched_condition_id, activeConditions]
   );
 
   const reserveMutation = useMutation({
@@ -325,7 +354,7 @@ function PostRow({
         matched_condition_id: null,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['board', siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
     },
   });
 
@@ -339,7 +368,9 @@ function PostRow({
     for (const member of siegeMembers) {
       const memberCondIds = preferenceMap.get(member.member_id) ?? [];
       if (hasConditions) {
-        const matchedConditions = activeConditions.filter((c) => memberCondIds.includes(c.id));
+        const matchedConditions = activeConditions.filter((c) =>
+          memberCondIds.includes(c.id)
+        );
         if (matchedConditions.length > 0) {
           matchedList.push({
             member,
@@ -378,7 +409,8 @@ function PostRow({
   }, [siegeMembers, preferenceMap, activeConditions, hasConditions]);
 
   const priorityLabel = PRIORITY_LABELS[priority] ?? String(priority);
-  const priorityBadgeColor = PRIORITY_BADGE_COLORS[priority] ?? 'bg-slate-100 text-slate-600';
+  const priorityBadgeColor =
+    PRIORITY_BADGE_COLORS[priority] ?? "bg-slate-100 text-slate-600";
 
   return (
     <div className="rounded border border-slate-200 bg-white">
@@ -401,7 +433,9 @@ function PostRow({
         </span>
 
         {/* Priority badge */}
-        <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${priorityBadgeColor}`}>
+        <span
+          className={`shrink-0 rounded px-1.5 py-0.5 text-xs font-medium ${priorityBadgeColor}`}
+        >
           {priorityLabel}
         </span>
 
@@ -416,7 +450,8 @@ function PostRow({
         {/* Condition count */}
         {activeConditions.length > 0 ? (
           <span className="shrink-0 rounded bg-violet-100 px-1.5 py-0.5 text-xs font-medium text-violet-700">
-            {activeConditions.length} {activeConditions.length === 1 ? 'condition' : 'conditions'}
+            {activeConditions.length}{" "}
+            {activeConditions.length === 1 ? "condition" : "conditions"}
           </span>
         ) : (
           <span className="shrink-0 text-xs text-slate-400">No conditions</span>
@@ -439,10 +474,12 @@ function PostRow({
           <span className="ml-2 shrink-0">
             <span
               className={`text-sm ${
-                assignedMemberName ? 'font-medium text-slate-800' : 'text-slate-400'
+                assignedMemberName
+                  ? "font-medium text-slate-800"
+                  : "text-slate-400"
               }`}
             >
-              {assignedMemberName ?? 'Unassigned'}
+              {assignedMemberName ?? "Unassigned"}
             </span>
           </span>
         )}
@@ -481,7 +518,9 @@ function PostRow({
           </div>
 
           {positionId == null ? (
-            <p className="text-sm text-slate-400">No active position for this post.</p>
+            <p className="text-sm text-slate-400">
+              No active position for this post.
+            </p>
           ) : (
             <>
               {/* Mark RESERVE action */}
@@ -495,7 +534,11 @@ function PostRow({
                     disabled={reserveMutation.isPending || isReserve}
                   >
                     <BookmarkCheck className="h-3.5 w-3.5" />
-                    {isReserve ? 'Marked RESERVE' : reserveMutation.isPending ? 'Saving...' : 'Mark RESERVE'}
+                    {isReserve
+                      ? "Marked RESERVE"
+                      : reserveMutation.isPending
+                        ? "Saving..."
+                        : "Mark RESERVE"}
                   </Button>
                   {isReserve && (
                     <span className="text-xs text-slate-400">
@@ -555,7 +598,9 @@ function PostRow({
               )}
 
               {matched.length === 0 && unmatched.length === 0 && (
-                <p className="text-sm text-slate-400">No members in this siege.</p>
+                <p className="text-sm text-slate-400">
+                  No members in this siege.
+                </p>
               )}
             </>
           )}
@@ -580,12 +625,16 @@ export function PostsTab({
   memberRoleMap?: Record<number, string>; // accepted for API compatibility, used by callers
 }) {
   const { data: preferences, isLoading: prefLoading } = useQuery({
-    queryKey: ['memberPreferences', siegeId],
+    queryKey: ["memberPreferences", siegeId],
     queryFn: () => getSiegeMemberPreferences(siegeId),
   });
 
-  const { data: posts, isLoading: postsLoading, isError: postsError } = useQuery({
-    queryKey: ['posts', siegeId],
+  const {
+    data: posts,
+    isLoading: postsLoading,
+    isError: postsError,
+  } = useQuery({
+    queryKey: ["posts", siegeId],
     queryFn: () => getPosts(siegeId),
   });
 
@@ -595,7 +644,7 @@ export function PostsTab({
     for (const p of preferences ?? []) {
       map.set(
         p.member_id,
-        p.preferences.map((c) => c.id),
+        p.preferences.map((c) => c.id)
       );
     }
     return map;
@@ -603,13 +652,13 @@ export function PostsTab({
 
   // Build duplicate condition map from post buildings
   const postBuildings = useMemo(
-    () => buildings.filter((b) => b.building_type === 'post'),
-    [buildings],
+    () => buildings.filter((b) => b.building_type === "post"),
+    [buildings]
   );
 
   const duplicateMap = useMemo(
     () => buildDuplicateConditionMap(postBuildings),
-    [postBuildings],
+    [postBuildings]
   );
 
   // Build a map from building_number → Post (for priority/description/conditions)
@@ -624,12 +673,17 @@ export function PostsTab({
 
   // Sort post buildings by building_number
   const sortedPostBuildings = useMemo(
-    () => [...postBuildings].sort((a, b) => a.building_number - b.building_number),
-    [postBuildings],
+    () =>
+      [...postBuildings].sort((a, b) => a.building_number - b.building_number),
+    [postBuildings]
   );
 
   if (prefLoading || postsLoading) {
-    return <div className="py-12 text-center text-sm text-slate-500">Loading posts...</div>;
+    return (
+      <div className="py-12 text-center text-sm text-slate-500">
+        Loading posts...
+      </div>
+    );
   }
 
   if (postsError) {
@@ -643,10 +697,13 @@ export function PostsTab({
   if (sortedPostBuildings.length === 0) {
     return (
       <div className="py-12 text-center text-slate-500">
-        No posts configured.{' '}
-        <Link to={`/sieges/${siegeId}`} className="text-violet-600 hover:underline">
+        No posts configured.{" "}
+        <Link
+          to={`/sieges/${siegeId}`}
+          className="text-violet-600 hover:underline"
+        >
           Add buildings
-        </Link>{' '}
+        </Link>{" "}
         in siege settings.
       </div>
     );
