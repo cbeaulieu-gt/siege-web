@@ -53,14 +53,10 @@ async def get_current_user(
     session_token = request.cookies.get("session")
     if session_token:
         try:
-            payload = jwt.decode(
-                session_token, settings.session_secret, algorithms=["HS256"]
-            )
+            payload = jwt.decode(session_token, settings.session_secret, algorithms=["HS256"])
             member = await db.get(Member, int(payload["sub"]))
             if member:
-                return AuthenticatedUser(
-                    member_id=member.id, name=member.name, is_service=False
-                )
+                return AuthenticatedUser(member_id=member.id, name=member.name, is_service=False)
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError, KeyError, ValueError):
             pass
 

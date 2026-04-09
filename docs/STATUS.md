@@ -26,9 +26,11 @@ that depend on the production environment being stood up.
 | 7 — Frontend Discord/Compare | Complete | Comparison view, DM notification panel, channel post action, image preview/download |
 | 8 — Excel Import | Complete | One-time CLI script using openpyxl; imports historical .xlsm siege files |
 | 9 — Hardening/Launch | In Progress | E2E tests, Bicep IaC, Vitest, RUNBOOK.md done; prod provisioning + CD pipeline + launch steps remaining |
+| 10 — Auth | Complete | Discord OAuth2 authentication: JWT session cookies, RequireAuth routing, `/api/auth/*` endpoints |
 
 ## What's Working
 
+- Discord OAuth2 authentication: login/callback/logout endpoints, JWT session cookies (24h expiry), guild membership enforcement, `RequireAuth` frontend wrapper, per-route auth bypass for `/api/auth/*`, `/api/health`, and `/api/version`
 - Full siege lifecycle: create → configure buildings → assign members → validate → activate → complete
 - Assignment board with per-position state (assigned / RESERVE / No Assignment / empty / disabled)
 - Auto-fill: Fisher-Yates shuffle respecting defense_scroll_count; preview → apply flow
@@ -40,6 +42,16 @@ that depend on the production environment being stood up.
 - Excel import: historical .xlsm files imported as completed siege records
 - 3500+ backend tests covering all routes, business logic, and constraint enforcement
 - CI pipeline: black, ruff, pytest (backend) + ESLint, build (frontend) on every PR
+
+## Phase 10 — Auth (Complete)
+
+Discord OAuth2 authentication is fully implemented:
+- Backend: `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout`, `/api/auth/me` endpoints
+- JWT session cookies (HS256, 24-hour expiry) issued after successful OAuth2 callback
+- Guild membership enforced via bot's `get_member()` lookup — non-members redirected to `/login?error=unauthorized`
+- `get_current_user` dependency applied globally (excludes public routes); `auth_disabled` flag for local dev
+- Frontend: `AuthContext` + `useAuth` hook; `RequireAuth` wrapper on all protected routes; `LoginPage` with Discord button; 401 interceptor redirects to login
+- 19 backend auth tests; 6 frontend auth tests (LoginPage + AuthContext)
 
 ## Phase 9 — In Progress
 

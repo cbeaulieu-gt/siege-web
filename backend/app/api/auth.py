@@ -2,7 +2,7 @@
 
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
 
 import httpx
@@ -129,9 +129,7 @@ async def callback(
     try:
         guild_check = await _check_guild_membership(discord_id)
     except httpx.HTTPError:
-        logger.error(
-            "auth_guild_check_failed", extra={"discord_id": discord_id}, exc_info=True
-        )
+        logger.error("auth_guild_check_failed", extra={"discord_id": discord_id}, exc_info=True)
         return _error_redirect("service_unavailable")
 
     if not guild_check.get("is_member"):
@@ -146,7 +144,7 @@ async def callback(
         return _error_redirect("unauthorized")
 
     # 6. Issue JWT — 24-hour expiry
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     token_payload = {
         "sub": str(member.id),
         "name": member.name,

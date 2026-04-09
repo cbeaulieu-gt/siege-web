@@ -1,7 +1,7 @@
 """Tests for Discord OAuth2 auth middleware and endpoints."""
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -11,7 +11,6 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.db.session import get_db
-from app.dependencies.auth import get_current_user
 from app.main import app
 from app.models.enums import MemberRole
 
@@ -30,8 +29,8 @@ def _make_jwt(
     payload = {
         "sub": str(member_id),
         "name": "TestUser",
-        "iat": datetime.now(timezone.utc),
-        "exp": datetime.now(timezone.utc) + timedelta(hours=exp_hours),
+        "iat": datetime.now(UTC),
+        "exp": datetime.now(UTC) + timedelta(hours=exp_hours),
     }
     return jwt.encode(payload, secret, algorithm="HS256")
 
@@ -40,8 +39,8 @@ def _make_expired_jwt(member_id: int, secret: str = TEST_SESSION_SECRET) -> str:
     payload = {
         "sub": str(member_id),
         "name": "TestUser",
-        "iat": datetime.now(timezone.utc) - timedelta(hours=48),
-        "exp": datetime.now(timezone.utc) - timedelta(hours=24),
+        "iat": datetime.now(UTC) - timedelta(hours=48),
+        "exp": datetime.now(UTC) - timedelta(hours=24),
     }
     return jwt.encode(payload, secret, algorithm="HS256")
 
@@ -154,9 +153,7 @@ async def test_invalid_service_token_returns_401(monkeypatch):
 
     app.dependency_overrides[get_db] = override_get_db
     try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(
                 PROTECTED_URL, headers={"Authorization": "Bearer wrong-token"}
             )
@@ -208,9 +205,7 @@ async def test_expired_jwt_returns_401(monkeypatch):
     app.dependency_overrides[get_db] = override_get_db
     expired_token = _make_expired_jwt(member_id=1)
     try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             client.cookies.set("session", expired_token)
             response = await client.get(PROTECTED_URL)
     finally:
@@ -235,9 +230,7 @@ async def test_jwt_with_deleted_member_returns_401(monkeypatch):
     app.dependency_overrides[get_db] = override_get_db
     token = _make_jwt(member_id=99)
     try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             client.cookies.set("session", token)
             response = await client.get(PROTECTED_URL)
     finally:
@@ -258,9 +251,7 @@ async def test_no_auth_returns_401(monkeypatch):
 
     app.dependency_overrides[get_db] = override_get_db
     try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get(PROTECTED_URL)
     finally:
         app.dependency_overrides.pop(get_db, None)
@@ -279,9 +270,7 @@ async def test_health_no_auth_required(monkeypatch):
 
     app.dependency_overrides[get_db] = override_get_db
     try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/health")
     finally:
         app.dependency_overrides.pop(get_db, None)
@@ -296,9 +285,7 @@ async def test_version_no_auth_required(monkeypatch):
     monkeypatch.setattr("app.config.settings.bot_service_token", "")
 
     with patch("app.api.version._fetch_bot_version", new=AsyncMock(return_value=None)):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/version")
 
     assert response.status_code == 200
@@ -318,9 +305,7 @@ async def test_login_returns_discord_url_and_state_cookie(monkeypatch):
     )
     monkeypatch.setattr("app.config.settings.environment", "development")
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/api/auth/login")
 
     assert response.status_code == 200
@@ -512,9 +497,7 @@ async def test_callback_no_member_record_redirects(monkeypatch):
 @pytest.mark.asyncio
 async def test_logout_clears_session_cookie():
     """POST /api/auth/logout clears the session cookie."""
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         client.cookies.set("session", "some-token")
         response = await client.post("/api/auth/logout")
 
@@ -531,7 +514,9 @@ async def test_me_with_valid_session(monkeypatch):
     monkeypatch.setattr("app.config.settings.bot_service_token", "")
     monkeypatch.setattr("app.config.settings.session_secret", TEST_SESSION_SECRET)
 
-    member = _make_member(id=5, name="Alice", discord_id="discord-555", role=MemberRole.heavy_hitter)
+    member = _make_member(
+        id=5, name="Alice", discord_id="discord-555", role=MemberRole.heavy_hitter
+    )
     mock_db = _make_mock_db(member=member)
 
     async def override_get_db():
@@ -540,9 +525,7 @@ async def test_me_with_valid_session(monkeypatch):
     app.dependency_overrides[get_db] = override_get_db
     token = _make_jwt(member_id=5)
     try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             client.cookies.set("session", token)
             response = await client.get("/api/auth/me")
     finally:
@@ -568,9 +551,7 @@ async def test_me_without_auth_returns_401(monkeypatch):
 
     app.dependency_overrides[get_db] = override_get_db
     try:
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             response = await client.get("/api/auth/me")
     finally:
         app.dependency_overrides.pop(get_db, None)
