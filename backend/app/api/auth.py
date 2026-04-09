@@ -22,6 +22,15 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
+class AuthError:
+    """Error codes returned in login redirect query parameters."""
+
+    INVALID_STATE = "invalid_state"
+    SERVICE_UNAVAILABLE = "service_unavailable"
+    UNAUTHORIZED = "unauthorized"
+
+
 DISCORD_API_BASE = "https://discord.com/api/v10"
 DISCORD_OAUTH_AUTHORIZE = "https://discord.com/oauth2/authorize"
 DISCORD_OAUTH_TOKEN = f"{DISCORD_API_BASE}/oauth2/token"
@@ -107,21 +116,21 @@ async def callback(
     stored_state = request.cookies.get("oauth_state", "")
     if not stored_state or not secrets.compare_digest(stored_state, state):
         logger.warning("auth_invalid_state")
-        return _error_redirect("invalid_state")
+        return _error_redirect(AuthError.INVALID_STATE)
 
     # 2. Exchange code for access token
     try:
         access_token = await _exchange_code_for_token(code)
     except httpx.HTTPError:
         logger.error("auth_token_exchange_failed", exc_info=True)
-        return _error_redirect("service_unavailable")
+        return _error_redirect(AuthError.SERVICE_UNAVAILABLE)
 
     # 3. Get Discord user profile
     try:
         discord_user = await _get_discord_user(access_token)
     except httpx.HTTPError:
         logger.error("auth_discord_user_fetch_failed", exc_info=True)
-        return _error_redirect("service_unavailable")
+        return _error_redirect(AuthError.SERVICE_UNAVAILABLE)
 
     discord_id = discord_user["id"]
 
@@ -130,18 +139,18 @@ async def callback(
         guild_check = await _check_guild_membership(discord_id)
     except httpx.HTTPError:
         logger.error("auth_guild_check_failed", extra={"discord_id": discord_id}, exc_info=True)
-        return _error_redirect("service_unavailable")
+        return _error_redirect(AuthError.SERVICE_UNAVAILABLE)
 
     if not guild_check.get("is_member"):
         logger.warning("auth_guild_check_rejected", extra={"discord_id": discord_id})
-        return _error_redirect("unauthorized")
+        return _error_redirect(AuthError.UNAUTHORIZED)
 
     # 5. Match member by discord_id only — no username fallback
     result = await db.execute(select(Member).where(Member.discord_id == discord_id))
     member = result.scalar_one_or_none()
     if not member:
         logger.warning("auth_member_not_found", extra={"discord_id": discord_id})
-        return _error_redirect("unauthorized")
+        return _error_redirect(AuthError.UNAUTHORIZED)
 
     # 6. Issue JWT — 24-hour expiry
     now = datetime.now(UTC)
@@ -159,7 +168,7 @@ async def callback(
         key="session",
         value=token,
         httponly=True,
-        max_age=86400,
+        max_age=82800,  # 23h — safety margin so cookie expires before JWT
         samesite="lax",
         secure=settings.environment != "development",
     )
@@ -177,21 +186,13 @@ async def logout(response: Response) -> dict:
 @router.get("/me")
 async def me(
     current_user: AuthenticatedUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Return identity information for the currently authenticated caller."""
-    role = None
-    discord_id = None
-    if current_user.member_id:
-        member = await db.get(Member, current_user.member_id)
-        if member:
-            role = member.role.value if member.role else None
-            discord_id = member.discord_id
     return {
         "member_id": current_user.member_id,
         "name": current_user.name,
-        "role": role,
-        "discord_id": discord_id,
+        "role": current_user.role,
+        "discord_id": current_user.discord_id,
     }
 
 

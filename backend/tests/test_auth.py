@@ -215,6 +215,29 @@ async def test_expired_jwt_returns_401(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_jwt_with_wrong_secret_returns_401(monkeypatch):
+    """A JWT signed with a different secret is rejected with 401."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", "")
+    monkeypatch.setattr("app.config.settings.session_secret", TEST_SESSION_SECRET)
+
+    async def override_get_db():
+        yield _make_mock_db()
+
+    app.dependency_overrides[get_db] = override_get_db
+    # Sign with a completely different secret
+    wrong_secret_token = _make_jwt(member_id=1, secret="wrong-secret-entirely")
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            client.cookies.set("session", wrong_secret_token)
+            response = await client.get(PROTECTED_URL)
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_jwt_with_deleted_member_returns_401(monkeypatch):
     """A valid JWT whose member no longer exists in the DB returns 401."""
     monkeypatch.setattr("app.config.settings.auth_disabled", False)

@@ -26,6 +26,8 @@ class AuthenticatedUser:
     member_id: int | None
     name: str
     is_service: bool
+    role: str | None = None
+    discord_id: str | None = None
 
 
 async def get_current_user(
@@ -56,7 +58,13 @@ async def get_current_user(
             payload = jwt.decode(session_token, settings.session_secret, algorithms=[JWT_ALGORITHM])
             member = await db.get(Member, int(payload["sub"]))
             if member:
-                return AuthenticatedUser(member_id=member.id, name=member.name, is_service=False)
+                return AuthenticatedUser(
+                    member_id=member.id,
+                    name=member.name,
+                    is_service=False,
+                    role=member.role.value if member.role else None,
+                    discord_id=member.discord_id,
+                )
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError, KeyError, ValueError):
             pass
 
