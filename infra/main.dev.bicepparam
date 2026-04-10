@@ -16,7 +16,7 @@ using 'main.bicep'
 //     --parameters sessionSecret="$SESSION_SECRET" \
 //     --parameters discordClientId="$DISCORD_CLIENT_ID" \
 //     --parameters discordClientSecret="$DISCORD_CLIENT_SECRET"
-//     --parameters discordRedirectUri="https://dev.example.com/api/auth/callback"  # plain config, not a secret
+//     --parameters discordRedirectUri="$DISCORD_REDIRECT_URI"
 //
 // NEVER commit real secrets here. All @secure() params must be supplied at
 // deploy time via environment variables or CLI --parameters flags.
@@ -74,7 +74,7 @@ param discordClientSecret = ''
 // ── OAuth2 config (non-secret) ────────────────────────────────────────────────
 // The redirect URI is a public URL (visible in the browser address bar during
 // the OAuth flow). It is config, not a secret — supply inline or via vars.*.
-param discordRedirectUri = 'https://siegeweb-dev.example.com/api/auth/callback'
+param discordRedirectUri = ''
 
 // ── Key Vault ─────────────────────────────────────────────────────────────────
 // 7-day soft-delete retention is the minimum allowed by Azure and enables fast
