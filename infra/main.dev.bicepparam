@@ -12,7 +12,11 @@ using 'main.bicep'
 //     --parameters discordToken="$DISCORD_TOKEN" \
 //     --parameters discordBotApiKey="$DISCORD_BOT_API_KEY" \
 //     --parameters botApiKey="$BOT_API_KEY" \
-//     --parameters discordGuildId="$DISCORD_GUILD_ID"
+//     --parameters discordGuildId="$DISCORD_GUILD_ID" \
+//     --parameters sessionSecret="$SESSION_SECRET" \
+//     --parameters discordClientId="$DISCORD_CLIENT_ID" \
+//     --parameters discordClientSecret="$DISCORD_CLIENT_SECRET" \
+//     --parameters discordRedirectUri="$DISCORD_REDIRECT_URI"
 //
 // NEVER commit real secrets here. All @secure() params must be supplied at
 // deploy time via environment variables or CLI --parameters flags.
@@ -60,6 +64,13 @@ param discordGuildId = '' // Your Discord server ID (non-secret; ok to fill in)
 param discordToken = ''
 param discordBotApiKey = ''
 param botApiKey = ''
+
+// ── OAuth2 secrets ────────────────────────────────────────────────────────────
+// Supply at deploy time:
+param sessionSecret = ''
+param discordClientId = ''
+param discordClientSecret = ''
+param discordRedirectUri = ''
 
 // ── Key Vault ─────────────────────────────────────────────────────────────────
 // 7-day soft-delete retention is the minimum allowed by Azure and enables fast

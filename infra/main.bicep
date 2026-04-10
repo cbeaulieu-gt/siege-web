@@ -39,6 +39,20 @@ param discordBotApiKey string
 @secure()
 param botApiKey string
 
+@description('Secret key for signing JWT session cookies')
+@secure()
+param sessionSecret string
+
+@description('Discord OAuth2 application client ID')
+param discordClientId string
+
+@description('Discord OAuth2 application client secret')
+@secure()
+param discordClientSecret string
+
+@description('Discord OAuth2 redirect URI (full callback URL)')
+param discordRedirectUri string
+
 @description('Enable geo-redundant PostgreSQL backup (set true for prod)')
 param postgresGeoRedundantBackup bool = false
 
@@ -161,6 +175,10 @@ module keyVault 'modules/keyvault.bicep' = {
     discordGuildId: discordGuildId
     discordBotApiKey: discordBotApiKey
     botApiKey: botApiKey
+    sessionSecret: sessionSecret
+    discordClientId: discordClientId
+    discordClientSecret: discordClientSecret
+    discordRedirectUri: discordRedirectUri
     softDeleteRetentionDays: kvSoftDeleteRetentionDays
   }
 }
