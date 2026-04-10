@@ -44,6 +44,7 @@ param botApiKey string
 param sessionSecret string
 
 @description('Discord OAuth2 application client ID')
+@secure()
 param discordClientId string
 
 @description('Discord OAuth2 application client secret')
