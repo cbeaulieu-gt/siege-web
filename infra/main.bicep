@@ -179,7 +179,6 @@ module keyVault 'modules/keyvault.bicep' = {
     sessionSecret: sessionSecret
     discordClientId: discordClientId
     discordClientSecret: discordClientSecret
-    discordRedirectUri: discordRedirectUri
     softDeleteRetentionDays: kvSoftDeleteRetentionDays
   }
 }
@@ -220,6 +219,7 @@ module containerApps 'modules/container-apps.bicep' = {
     imageTag: imageTag
     keyVaultUri: keyVault.outputs.vaultUri
     discordGuildId: discordGuildId
+    discordRedirectUri: discordRedirectUri
     acrUsername: registry.outputs.acrUsername
     acrPassword: registry.outputs.acrPassword
     appInsightsConnectionString: appInsights.outputs.connectionString

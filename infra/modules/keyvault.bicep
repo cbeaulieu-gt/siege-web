@@ -38,9 +38,6 @@ param discordClientId string
 @secure()
 param discordClientSecret string
 
-@description('Discord OAuth2 redirect URI')
-param discordRedirectUri string
-
 // Soft-delete retention: minimum is 7 days; Azure default (and recommended for
 // prod) is 90 days. This means a deleted vault or secret can be recovered for
 // up to retentionDays before it is permanently purged. Use 7 for dev (fast
@@ -120,12 +117,6 @@ resource secretDiscordClientSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01
   parent: keyVault
   name: 'discord-client-secret'
   properties: { value: discordClientSecret }
-}
-
-resource secretDiscordRedirectUri 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  parent: keyVault
-  name: 'discord-redirect-uri'
-  properties: { value: discordRedirectUri }
 }
 
 output vaultId string = keyVault.id
