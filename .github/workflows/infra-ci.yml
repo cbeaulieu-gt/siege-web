@@ -161,7 +161,11 @@ jobs:
             --parameters discordToken="ci-placeholder-value" \
             --parameters discordBotApiKey="ci-placeholder-value" \
             --parameters botApiKey="ci-placeholder-value" \
-            --parameters discordGuildId="000000000000000000"
+            --parameters discordGuildId="000000000000000000" \
+            --parameters sessionSecret="ci-placeholder-value" \
+            --parameters discordClientId="ci-placeholder-value" \
+            --parameters discordClientSecret="ci-placeholder-value" \
+            --parameters discordRedirectUri="https://placeholder.example.com/api/auth/callback"
 
       - name: Post failure comment
         if: failure() && github.event_name == 'pull_request'
@@ -214,6 +218,10 @@ jobs:
             --parameters discordBotApiKey="ci-placeholder-value" \
             --parameters botApiKey="ci-placeholder-value" \
             --parameters discordGuildId="000000000000000000" \
+            --parameters sessionSecret="ci-placeholder-value" \
+            --parameters discordClientId="ci-placeholder-value" \
+            --parameters discordClientSecret="ci-placeholder-value" \
+            --parameters discordRedirectUri="https://placeholder.example.com/api/auth/callback" \
             --result-format ResourceIdOnly \
             2>&1 | tee /tmp/what-if.txt; exit ${PIPESTATUS[0]}
 

@@ -123,6 +123,26 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
           keyVaultUrl: '${keyVaultUri}secrets/discord-bot-api-key'
           identity: 'system'
         }
+        {
+          name: 'session-secret'
+          keyVaultUrl: '${keyVaultUri}secrets/session-secret'
+          identity: 'system'
+        }
+        {
+          name: 'discord-client-id'
+          keyVaultUrl: '${keyVaultUri}secrets/discord-client-id'
+          identity: 'system'
+        }
+        {
+          name: 'discord-client-secret'
+          keyVaultUrl: '${keyVaultUri}secrets/discord-client-secret'
+          identity: 'system'
+        }
+        {
+          name: 'discord-redirect-uri'
+          keyVaultUrl: '${keyVaultUri}secrets/discord-redirect-uri'
+          identity: 'system'
+        }
       ]
     }
     template: {
@@ -141,6 +161,11 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
               { name: 'DISCORD_BOT_API_URL', value: 'http://${botAppName}' }
               { name: 'DISCORD_GUILD_ID', value: discordGuildId }
               { name: 'ENVIRONMENT', value: environment }
+              { name: 'SESSION_SECRET', secretRef: 'session-secret' }
+              { name: 'DISCORD_CLIENT_ID', secretRef: 'discord-client-id' }
+              { name: 'DISCORD_CLIENT_SECRET', secretRef: 'discord-client-secret' }
+              { name: 'DISCORD_REDIRECT_URI', secretRef: 'discord-redirect-uri' }
+              { name: 'BOT_SERVICE_TOKEN', secretRef: 'discord-bot-api-key' }
             ],
             // Only inject the Application Insights connection string when one
             // has been provided — keeps dev deployments lightweight.

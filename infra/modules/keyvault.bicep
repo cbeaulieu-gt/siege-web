@@ -26,6 +26,21 @@ param discordBotApiKey string
 @secure()
 param botApiKey string
 
+@description('Secret key for signing JWT session cookies')
+@secure()
+param sessionSecret string
+
+@description('Discord OAuth2 application client ID')
+@secure()
+param discordClientId string
+
+@description('Discord OAuth2 application client secret')
+@secure()
+param discordClientSecret string
+
+@description('Discord OAuth2 redirect URI')
+param discordRedirectUri string
+
 // Soft-delete retention: minimum is 7 days; Azure default (and recommended for
 // prod) is 90 days. This means a deleted vault or secret can be recovered for
 // up to retentionDays before it is permanently purged. Use 7 for dev (fast
@@ -87,6 +102,30 @@ resource secretBotApiKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'bot-api-key'
   properties: { value: botApiKey }
+}
+
+resource secretSessionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'session-secret'
+  properties: { value: sessionSecret }
+}
+
+resource secretDiscordClientId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'discord-client-id'
+  properties: { value: discordClientId }
+}
+
+resource secretDiscordClientSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'discord-client-secret'
+  properties: { value: discordClientSecret }
+}
+
+resource secretDiscordRedirectUri 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'discord-redirect-uri'
+  properties: { value: discordRedirectUri }
 }
 
 output vaultId string = keyVault.id
