@@ -22,6 +22,9 @@ param keyVaultUri string
 @description('Discord guild ID (non-secret)')
 param discordGuildId string
 
+@description('Discord OAuth2 redirect URI (non-secret; public URL visible in browser address bar)')
+param discordRedirectUri string
+
 @description('ACR admin username for image pull authentication')
 param acrUsername string
 
@@ -138,11 +141,6 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
           keyVaultUrl: '${keyVaultUri}secrets/discord-client-secret'
           identity: 'system'
         }
-        {
-          name: 'discord-redirect-uri'
-          keyVaultUrl: '${keyVaultUri}secrets/discord-redirect-uri'
-          identity: 'system'
-        }
       ]
     }
     template: {
@@ -164,7 +162,7 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
               { name: 'SESSION_SECRET', secretRef: 'session-secret' }
               { name: 'DISCORD_CLIENT_ID', secretRef: 'discord-client-id' }
               { name: 'DISCORD_CLIENT_SECRET', secretRef: 'discord-client-secret' }
-              { name: 'DISCORD_REDIRECT_URI', secretRef: 'discord-redirect-uri' }
+              { name: 'DISCORD_REDIRECT_URI', value: discordRedirectUri }
               { name: 'BOT_SERVICE_TOKEN', secretRef: 'discord-bot-api-key' }
             ],
             // Only inject the Application Insights connection string when one
