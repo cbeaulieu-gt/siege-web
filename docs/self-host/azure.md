@@ -122,7 +122,7 @@ The Bicep template accepts secrets as parameters at deploy time — they are wri
 
 | Parameter | What it is | How to get it |
 |---|---|---|
-| `postgresAdminPassword` | PostgreSQL `siegeadmin` user password | Generate: `[Convert]::ToBase64String((1..32 \| ForEach-Object { Get-Random -Maximum 256 }))` |
+| `postgresAdminPassword` | PostgreSQL `siegeadmin` user password | Generate using the PowerShell snippet below |
 | `discordToken` | Discord bot token | Discord Developer Portal → your app → Bot → Reset Token |
 | `discordGuildId` | Discord server ID | Right-click your server → Copy Server ID (requires Developer Mode) |
 | `discordBotApiKey` | Shared key: backend → bot HTTP calls | Generate same as above |
@@ -131,6 +131,12 @@ The Bicep template accepts secrets as parameters at deploy time — they are wri
 | `discordClientId` | Discord OAuth2 app client ID | Discord Developer Portal → your app → OAuth2 |
 | `discordClientSecret` | Discord OAuth2 app client secret | Discord Developer Portal → your app → OAuth2 |
 | `discordRedirectUri` | Full OAuth2 callback URL | `https://<frontend-fqdn>/api/auth/callback` — use a placeholder on first deploy, update after you have the FQDN |
+
+To generate a random secret for `postgresAdminPassword`, `discordBotApiKey`, `botApiKey`, and `sessionSecret`:
+
+```powershell
+[Convert]::ToBase64String((1..32 | ForEach-Object { Get-Random -Maximum 256 }))
+```
 
 > **`discordBotApiKey` and `botApiKey` must always hold the same value.** They are two names for the same shared secret: the backend uses `discordBotApiKey` (stored as `discord-bot-api-key` in Key Vault) to authenticate requests it sends to the bot; the bot uses `botApiKey` (stored as `bot-api-key`) to validate those requests on arrival. If they diverge, every backend → bot call returns 401.
 
@@ -274,6 +280,8 @@ az ad sp create-for-rbac `
     --scopes "/subscriptions/<subscription-id>/resourceGroups/siege-rg-prod" `
     --sdk-auth
 ```
+
+> **Note:** `--sdk-auth` is deprecated in favor of [workload identity federation](https://learn.microsoft.com/azure/developer/github/connect-from-azure-openid-connect) for production deployments, but remains functional and is simpler for initial setup. Consider migrating once your deployment is stable.
 
 Copy the full JSON output — that's the value of `AZURE_CREDENTIALS`.
 
