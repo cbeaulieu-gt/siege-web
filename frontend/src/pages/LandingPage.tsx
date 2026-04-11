@@ -404,7 +404,7 @@ export default function LandingPage() {
                   containers. No cloud bill.
                 </p>
                 <a
-                  href="https://github.com/cbeaulieu-gt/siege-web/blob/main/docs/self-host/anywhere.md"
+                  href="https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Any-VPS"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block rounded-md border border-violet-400 px-4 py-2 text-center text-sm font-medium text-violet-700 transition-colors hover:bg-violet-50"
@@ -428,7 +428,7 @@ export default function LandingPage() {
                   hands-off infrastructure.
                 </p>
                 <a
-                  href="https://github.com/cbeaulieu-gt/siege-web/blob/main/docs/self-host/azure.md"
+                  href="https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Azure"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block rounded-md border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"

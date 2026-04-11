@@ -111,11 +111,11 @@ describe("LandingPage (anonymous user)", () => {
     await waitFor(() => {
       expect(screen.getByTestId("self-host-anywhere-link")).toHaveAttribute(
         "href",
-        "https://github.com/cbeaulieu-gt/siege-web/blob/main/docs/self-host/anywhere.md",
+        "https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Any-VPS",
       );
       expect(screen.getByTestId("self-host-azure-link")).toHaveAttribute(
         "href",
-        "https://github.com/cbeaulieu-gt/siege-web/blob/main/docs/self-host/azure.md",
+        "https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Azure",
       );
     });
   });
