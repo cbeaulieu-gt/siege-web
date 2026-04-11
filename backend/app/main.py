@@ -26,6 +26,9 @@ from app.api.version import router as version_router
 from app.config import settings
 from app.dependencies.auth import get_current_user
 from app.middleware import RequestLoggingMiddleware
+from app.telemetry import configure_telemetry
+
+configure_telemetry()
 
 logging.basicConfig(
     level=logging.INFO,
