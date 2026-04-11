@@ -9,7 +9,7 @@ All open questions from the initial planning session have been resolved. These d
 | Database | Azure Database for PostgreSQL (Flexible Server) |
 | Hosting | Azure Container Apps + Azure Container Registry (ACR) |
 | CI/CD | GitHub Actions → Docker build → push to ACR → deploy to Container Apps |
-| Authentication | Azure Easy Auth (Azure AD) — no custom auth code |
+| Authentication | Discord OAuth2 with JWT session cookies — guild membership is the authorization boundary (see `docs/superpowers/plans/discord-auth-plan.md`) |
 | Discord Bot | Full rewrite: discord.py + FastAPI HTTP sidecar, deployed as its own container |
 | Board API response shape | Nested hierarchy (buildings → groups → positions) |
 | Validation Rule 10 (RESERVE balance) | Warn on any slot that is empty, not disabled, and not marked RESERVE |
@@ -82,7 +82,7 @@ Phase 8 (Excel Import Script) ── can run any time after Phase 3; defer post-
    - Azure Container Apps environment
    - Azure Database for PostgreSQL Flexible Server (dev instance)
    - Azure Key Vault for secrets
-10. Configure Azure Easy Auth on the Container Apps environment (Azure AD)
+10. Configure Discord OAuth2 app credentials and JWT session cookie settings (see `docs/superpowers/plans/discord-auth-plan.md`)
 11. Write a minimal FastAPI app with `GET /health` that confirms DB connectivity
 12. Write a minimal React app that fetches and displays the health endpoint
 13. Validate the full local stack starts with one command (`docker compose up`)
@@ -485,8 +485,8 @@ Three containers, each deployed as a separate Azure Container App:
 
 | Container | Contents | Exposes |
 |---|---|---|
-| `siege-api` | FastAPI backend, Playwright (for image gen) | Port 8000 (internal + Easy Auth) |
-| `siege-frontend` | React SPA served by Nginx | Port 80 (public via Easy Auth) |
+| `siege-api` | FastAPI backend, Playwright (for image gen) | Port 8000 (internal) |
+| `siege-frontend` | React SPA served by Nginx | Port 80 (public) |
 | `siege-bot` | discord.py + FastAPI HTTP sidecar | Port 8001 (internal only) |
 
 The frontend container's Nginx config proxies `/api/*` to the `siege-api` container. The bot container is only reachable from `siege-api` — it is not exposed publicly.
@@ -504,7 +504,7 @@ The frontend container's Nginx config proxies `/api/*` to the `siege-api` contai
 | Image Generation | Playwright (headless Chromium) |
 | Hosting | Azure Container Apps |
 | Container Registry | Azure Container Registry (ACR) |
-| Authentication | Azure Easy Auth (Azure AD) |
+| Authentication | Discord OAuth2 with JWT session cookies |
 | Secrets | Azure Key Vault |
 | Monitoring | Azure Application Insights |
 | CI/CD | GitHub Actions |

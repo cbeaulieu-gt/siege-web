@@ -14,7 +14,7 @@ Monorepo with three independently containerized services:
 - **`frontend/`** — React 18 + TypeScript, Vite, React Router v6, React Query, Tailwind CSS, shadcn/ui
 - **`bot/`** — discord.py client + FastAPI HTTP sidecar (port 8001); backend calls the bot's HTTP API to send DMs / post images
 
-Data flow: Azure AD → Easy Auth → frontend (Nginx) → `/api/*` proxy → backend → PostgreSQL. Backend calls bot HTTP API for Discord notifications. Backend generates images via Playwright (headless HTML/CSS → PNG); the bot receives the finished PNG and posts it.
+Data flow: user hits frontend → unauthenticated users redirected to `/login` → `/api/auth/login` → Discord OAuth2 → `/api/auth/callback` → JWT session cookie → frontend calls `/api/*` with cookie → backend validates via `get_current_user` dependency → PostgreSQL. Backend calls bot HTTP API for Discord notifications. Backend generates images via Playwright (headless HTML/CSS → PNG); the bot receives the finished PNG and posts it. See `docs/superpowers/plans/discord-auth-plan.md` for the canonical auth spec.
 
  - Keep `docs/STATUS.md` with a high level summary of the state of the project and the anticipated next steps. Frequently update it.
 
