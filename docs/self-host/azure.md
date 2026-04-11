@@ -1,6 +1,6 @@
 # Deploying to Azure
 
-This is the managed, hands-off path. Azure handles TLS, scaling, secret rotation, automated backups, and container orchestration for you. If you don't want an Azure subscription, see [anywhere.md](./anywhere.md) instead (coming soon — covers any VPS via Docker Compose + Caddy).
+This is the managed, hands-off path. Azure handles TLS, scaling, secret rotation, automated backups, and container orchestration for you. If you don't want an Azure subscription, see [anywhere.md](./anywhere.md) for the portable path — any VPS or Docker host via Docker Compose + Caddy, no Azure account required.
 
 **What you'll end up with after following this guide:**
 
