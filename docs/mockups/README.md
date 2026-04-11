@@ -1,0 +1,1 @@
+Throwaway mockups for the public-launch landing page and login polish. Open either HTML file directly in a browser. No build step required. These are not production artifacts and should be deleted once the real React components land.
