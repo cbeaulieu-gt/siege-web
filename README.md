@@ -123,8 +123,12 @@ cd frontend && npm run lint
 
 ## Run it yourself
 
-- **Azure (managed path)** — Container Apps + Key Vault + PostgreSQL Flexible Server. See [docs/self-host/azure.md](docs/self-host/azure.md).
-- **Any VPS / Docker Compose** — any Linux host that runs Docker, with Caddy for free TLS and optional Cloudflare Tunnel if you can't open ports. See [docs/self-host/anywhere.md](docs/self-host/anywhere.md).
+Full self-host guides live in the [project wiki](https://github.com/cbeaulieu-gt/siege-web/wiki):
+
+- **[Self-Host on Any VPS](https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Any-VPS)** — any Linux host that runs Docker, with Caddy for free TLS and an optional Cloudflare Tunnel path if you can't open ports. The portable path — no cloud account required.
+- **[Self-Host on Azure](https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Azure)** — Container Apps + Key Vault + PostgreSQL Flexible Server, with a GitHub Actions deploy pipeline. The managed, hands-off path.
+
+New to the project? Start at **[Getting Started](https://github.com/cbeaulieu-gt/siege-web/wiki/Getting-Started)** in the wiki.
 
 ## Deploy Environments
 
