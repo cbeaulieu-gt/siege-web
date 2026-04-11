@@ -1,6 +1,8 @@
 # Discord OAuth2 Authentication — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **Status: COMPLETED (2026-03)** — Discord OAuth2 is shipped and live. This file is a historical record of the implementation plan. For the canonical ongoing spec, see [`discord-auth-plan.md`](./discord-auth-plan.md). For current project status, see [`docs/STATUS.md`](../../STATUS.md).
+
+> ~~**For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.~~ *(Historical — this plan is complete; do not re-execute.)*
 
 **Goal:** Add Discord OAuth2 login so only verified guild members can access the app — replacing the current zero-auth state.
 
@@ -53,7 +55,7 @@
 
 ---
 
-## Task 1: BotClient.get_member() method
+## Task 1 — Completed: BotClient.get_member() method
 
 **Files:**
 - Modify: `backend/app/services/bot_client.py:61-72`
@@ -161,7 +163,7 @@ Refs discord-auth-plan.md Phase A0"
 
 ---
 
-## Task 2: Auth middleware — `get_current_user` dependency
+## Task 2 — Completed: Auth middleware — `get_current_user` dependency
 
 **Files:**
 - Create: `backend/app/dependencies/__init__.py`
@@ -546,7 +548,7 @@ Refs discord-auth-plan.md Phase A2"
 
 ---
 
-## Task 3: Backend auth endpoints (login, callback, logout, me)
+## Task 3 — Completed: Backend auth endpoints (login, callback, logout, me)
 
 **Files:**
 - Create: `backend/app/api/auth.py`
@@ -1076,7 +1078,7 @@ Refs discord-auth-plan.md Phase A1"
 
 ---
 
-## Task 4: Frontend AuthContext and 401 interceptor
+## Task 4 — Completed: Frontend AuthContext and 401 interceptor
 
 **Files:**
 - Create: `frontend/src/context/AuthContext.tsx`
@@ -1341,7 +1343,7 @@ Refs discord-auth-plan.md Phase B1"
 
 ---
 
-## Task 5: LoginPage
+## Task 5 — Completed: LoginPage
 
 **Files:**
 - Create: `frontend/src/pages/LoginPage.tsx`
@@ -1500,7 +1502,7 @@ Refs discord-auth-plan.md Phase B2"
 
 ---
 
-## Task 6: RequireAuth wrapper and route wiring
+## Task 6 — Completed: RequireAuth wrapper and route wiring
 
 **Files:**
 - Create: `frontend/src/components/RequireAuth.tsx`
@@ -1698,7 +1700,7 @@ Refs discord-auth-plan.md Phase B3"
 
 ---
 
-## Task 7: Fix existing frontend tests for auth
+## Task 7 — Completed: Fix existing frontend tests for auth
 
 **Files:**
 - Modify: `frontend/src/test/handlers.ts`
@@ -1755,7 +1757,7 @@ Refs discord-auth-plan.md Phase B4"
 
 ---
 
-## Task 8: Final verification and documentation
+## Task 8 — Completed: Final verification and documentation
 
 **Files:**
 - Modify: `docs/STATUS.md`

@@ -1,5 +1,19 @@
 # v1.0 Release Candidate Plan
 
+## Completion Status
+
+| Phase | Status | Notes |
+|---|---|---|
+| A — Authentication (Backend) | Complete | `/api/auth/login`, `/api/auth/callback`, `/api/auth/logout`, `/api/auth/me` endpoints live; 19 backend auth tests passing |
+| B — Authentication (Frontend) | Complete | `AuthContext`, `RequireAuth`, `LoginPage`, 401 interceptor shipped; 6 frontend auth tests passing |
+| C — Infrastructure | Complete | Bicep IaC complete for dev + prod; Discord OAuth params in Key Vault; PR #124 merged; Discord OAuth2 app registered |
+| D — Observability | In Progress | Application Insights SDK integration (backend + bot) remaining |
+| E — Validation & Launch | In Progress | Performance validation, prod deploy + smoke test (#173), planner walkthrough (#174), 48-hour monitoring (#175), STATUS.md v1.0 update (#176) remaining |
+
+For real-time status, see [STATUS.md](../../STATUS.md).
+
+---
+
 ## Overview
 
 This plan defines the scope, sequencing, and issue breakdown for the siege-web v1.0 release candidate. It covers everything required to go from the current state (feature-complete, no auth, no production deployment) to a production-ready application with Discord OAuth2 authentication.
@@ -122,10 +136,10 @@ Issues in this phase prepare the production environment and update IaC for auth.
 | # | Title | Description | Labels | Size | Dependencies |
 |---|---|---|---|---|---|
 | E1 | Performance validation | Measure board load time (target < 2s) and image generation time (target < 5s) against the dev environment. Document results. If targets are missed, create follow-up issues for optimization. | `testing`, `v1.0` | M | D1 |
-| E2 | Deploy to production and smoke test | Tag a v1.0-rc release to trigger prod deployment. Run smoke tests: health endpoint, login flow, create siege, assign members, generate image, send DM notification. Document results in the issue. | `infra`, `testing`, `v1.0` | M | C3, all A/B issues |
-| E3 | Planner sign-off walkthrough | Schedule and conduct a walkthrough with the siege planner. Walk through the full lifecycle: login, create siege, configure buildings, assign members, validate, auto-fill, compare, send notifications, generate image, post to Discord. Record any critical feedback as new issues. | `v1.0` | M | E2 |
-| E4 | 48-hour post-launch monitoring | Monitor Application Insights for errors, latency spikes, and failed requests for 48 hours after production deploy. Follow RUNBOOK.md Section 6 checklist. Close this issue when the monitoring window passes clean. | `v1.0`, `observability` | S | E2 |
-| E5 | Update STATUS.md for v1.0 release | Mark Phase 9 complete. Update "Current State" and "Next Steps" sections. | `docs`, `v1.0` | S | E4 |
+| E2 | Deploy to production and smoke test (**#173**) | Tag a v1.0-rc release to trigger prod deployment. Run smoke tests: health endpoint, login flow, create siege, assign members, generate image, send DM notification. Document results in the issue. | `infra`, `testing`, `v1.0` | M | C3, all A/B issues |
+| E3 | Planner sign-off walkthrough (**#174**) | Schedule and conduct a walkthrough with the siege planner. Walk through the full lifecycle: login, create siege, configure buildings, assign members, validate, auto-fill, compare, send notifications, generate image, post to Discord. Record any critical feedback as new issues. | `v1.0` | M | E2 |
+| E4 | 48-hour post-launch monitoring (**#175**) | Monitor Application Insights for errors, latency spikes, and failed requests for 48 hours after production deploy. Follow RUNBOOK.md Section 6 checklist. Close this issue when the monitoring window passes clean. | `v1.0`, `observability` | S | E2 |
+| E5 | Update STATUS.md for v1.0 release (**#176**) | Mark Phase 9 complete. Update "Current State" and "Next Steps" sections. | `docs`, `v1.0` | S | E4 |
 
 ---
 

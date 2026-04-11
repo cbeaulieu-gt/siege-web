@@ -1,20 +1,22 @@
 # Public launch: self-hostable + landing page
 
 **Milestone:** `Public launch: self-hostable + landing page`
-**Status:** Planning — not yet filed as issues
+**Status:** In Progress — Issues 1 and 4 shipped; Issues 2, 3, and 5 not yet started
 **Supersedes:** The previously-planned `UX Polish` milestone. The scope grew beyond polish once the three-audience framing landed, so the milestone is being renamed rather than UX-polish work being added onto an existing milestone. No other plan docs conflict with this one.
 
 ---
 
-## Pre-flight findings (read these first)
+## Pre-flight findings (updated to reflect current state)
 
-A quick sweep of the repo surfaced a few things worth calling out before the work starts:
+A quick sweep of the repo surfaced a few things worth calling out before the work starts. **Several of the original findings have since shipped as part of the v1.0 RC work** — those are noted below.
 
-- **`frontend/src/pages/HomePage.tsx` is confirmed dead code.** It's only referenced by its own file — nothing in `App.tsx` imports it. The current `/` route is a `<Navigate to="/sieges" replace />` living *inside* the `RequireAuth` layout, which means an unauthenticated visitor to `/` is bounced to `/login`, not to a landing page. Issue 4 needs to move `/` *out* of `RequireAuth` so the public landing page can live at `/`, and the authenticated-user redirect to `/sieges` needs to be re-homed (easiest: do it inside the landing page component if `user` is present, or keep a separate authenticated-only redirect route).
-- **`.env.example` has `AUTH_DISABLED=true` commented out at the bottom with a scary warning.** It is not the "happy path" the README implies. It also has `SESSION_SECRET=changeme-...` sitting in the middle of the file with no indication that the backend won't start without it, and no grouping that distinguishes "required for any run" from "required only for real OAuth" from "Azure-only." Issue 1 fixes all three of these at once.
-- **There is no seed script anywhere in `backend/`.** A fresh clone + `docker-compose up` produces an empty database and a UI with nothing to click, which silently undermines the "clone it and see what it does" portfolio story. Issue 1 must introduce seed data.
-- **`docs/plans/` did not exist before this doc.** I created it as part of writing this.
-- **No existing competing plan.** `docs/IMPLEMENTATION_PLAN.md` covers the original app build (phases 0–9) and does not speak to public launch. `docs/STATUS.md` is a running status file, not a plan. Nothing needs to be superseded other than the `UX Polish` milestone rename.
+- **~~`frontend/src/pages/HomePage.tsx` is confirmed dead code.~~** *(Shipped — Issue 4 is complete.)* `frontend/src/pages/LandingPage.tsx` now exists and is live at `/`. The `LandingOrSieges` component in `App.tsx` handles the authenticated-user redirect to `/sieges`. The original dead `HomePage.tsx` has been removed. No remaining action needed for the routing concern.
+- **~~`.env.example` has `AUTH_DISABLED=true` commented out at the bottom with a scary warning.~~** *(Shipped — Issue 1 is complete.)* `.env.example` is now organized into three clearly-labeled tiers. `AUTH_DISABLED=true` is uncommented and is the dev default, with an inline comment explaining demo/dev mode. `SESSION_SECRET` has an inline comment stating the backend refuses to start without it. The three-tier grouping (required for any run / real OAuth only / Azure-only) is in place.
+- **~~There is no seed script anywhere in `backend/`.~~** *(Shipped — Issue 1 is complete.)* `backend/scripts/seed_demo.py` exists and can be run on boot to populate demo data.
+- **`docs/plans/` did not exist before this doc.** I created it as part of writing this. *(Still true — `docs/plans/` now exists and this file is in it.)*
+- **No existing competing plan.** `docs/IMPLEMENTATION_PLAN.md` covers the original app build (phases 0–9) and does not speak to public launch. `docs/STATUS.md` is a running status file, not a plan. Nothing needs to be superseded other than the `UX Polish` milestone rename. *(Still accurate.)*
+
+**Remaining open issues for this milestone:** Issues 2, 3, and 5 are not yet started. Issue 4 (landing page) and Issue 1 (local dev onboarding) are shipped.
 
 ---
 
@@ -41,7 +43,7 @@ This initiative turns Siege Assignments from "higgsbp's clan's internal tool tha
 
 ## 4. Work breakdown
 
-### Issue 1 — Local dev onboarding polish
+### Issue 1 — Local dev onboarding polish ✓ SHIPPED
 
 **Summary.** Make `git clone && cp .env.example .env && docker-compose up` produce a working, populated demo UI inside five minutes with zero Discord setup. This is the foundation for every other issue in the milestone — the landing page, the self-host docs, and the login polish all assume a dev can get to a running instance fast.
 
@@ -111,7 +113,7 @@ This initiative turns Siege Assignments from "higgsbp's clan's internal tool tha
 
 ---
 
-### Issue 4 — Public landing page at `/`
+### Issue 4 — Public landing page at `/` ✓ SHIPPED
 
 **Summary.** Ship a public marketing page at `/` that sells the project to three audiences (recruiters, clan leaders, curious developers) and routes each one where they need to go. Delete the orphaned `HomePage.tsx`. Keep `/sieges` as the destination for authenticated users.
 
