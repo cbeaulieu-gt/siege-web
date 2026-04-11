@@ -185,7 +185,7 @@ These do not need to be resolved in this plan doc, but they must be resolved bef
 
 ### Decision 6.1 — SEO rendering approach
 
-**Context.** The app is a React Router SPA served by Vite + Nginx behind Azure Easy Auth. The landing page needs to be crawlable by Google, with correct `<title>`, meta description, and OG tags present in the initial HTML response (not only after hydration) for reliable indexing.
+**Context.** The app is a React Router SPA served by Vite + Nginx with Discord OAuth2 authentication. The landing page needs to be crawlable by Google, with correct `<title>`, meta description, and OG tags present in the initial HTML response (not only after hydration) for reliable indexing.
 
 **Options.**
 1. **`vite-plugin-react-ssg` (prerender plugin).** Build-time prerender for a specific list of routes. Uses `@unhead/react` hooks (`useSeoMeta`, `useHead`) inside the page components for per-page meta tags. Non-prerendered routes fall back to normal CSR automatically. Minimal configuration, no change to the dev server workflow, no impact on authenticated routes.
