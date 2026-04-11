@@ -40,8 +40,8 @@ A read-only sweep of the repo surfaced a few things the plan has to account for:
 - **Neither self-host doc references any images.** `grep` for `![`, `.png`, `.jpg`, `.svg`, `.gif`, and `docs/assets` under `docs/self-host/` returned no matches. This removes an entire class of migration work — no image relocation, no `raw.githubusercontent.com` rewrites. Section 10 still documents the policy for future pages.
 
 - **Neither `CLAUDE.md` references any wiki-bound doc.** Verified both files:
-  - User global `C:\Users\chris\.claude\CLAUDE.md`: no references to `docs/self-host`, no references to the wiki, no references to any of the five page targets. It is entirely generic workflow guidance. **Verified clean.**
-  - Project-local `I:\games\raid\siege-web\CLAUDE.md`: references `docs/IMPLEMENTATION_PLAN.md`, `docs/WEB_DESIGN_DOCUMENT.md`, `docs/STATUS.md`, `docs/superpowers/plans/discord-auth-plan.md`, and memory files. **None** of these are in wiki scope. **Verified clean.**
+  - User global `user-global CLAUDE.md`: no references to `docs/self-host`, no references to the wiki, no references to any of the five page targets. It is entirely generic workflow guidance. **Verified clean.**
+  - `project-local CLAUDE.md at repository root`: references `docs/IMPLEMENTATION_PLAN.md`, `docs/WEB_DESIGN_DOCUMENT.md`, `docs/STATUS.md`, `docs/superpowers/plans/discord-auth-plan.md`, and memory files. **None** of these are in wiki scope. **Verified clean.**
 
   Record these two verification results in the PR description so the `CLAUDE.md` acceptance criterion from #189 is traceable.
 
@@ -89,7 +89,7 @@ A read-only sweep of the repo surfaced a few things the plan has to account for:
 **PAT vs `GITHUB_TOKEN` — this is non-obvious and must be locked:**
 `GITHUB_TOKEN` **cannot** push to `<repo>.wiki.git`. GitHub scopes `GITHUB_TOKEN` to the repository it runs in, and the wiki git repo is technically a sibling repository that `GITHUB_TOKEN` has no write permission for. Every wiki-push Action requires either a classic PAT with `repo` scope, a fine-grained PAT with `Contents: Write` on the target repo (fine-grained PATs do grant this to the associated wiki), or a GitHub App installation token.
 
-**Pick (DECIDED 2026-04-11): classic PAT** with `repo` scope, stored as the repository secret `WIKI_PAT`. Rationale: simpler to provision than a GitHub App, fine-grained PAT coverage for wiki writes has rough edges in the GitHub Actions runner environment, and a classic PAT on an owner-restricted repo is an acceptable trust level for a docs-only secret. Create the PAT under the `@cbeaulieu-gt` account (not a bot account) with no expiry, and **rotate it** if the owner ever revokes ownership of the repo — document this in the plan's section 12 manual-steps checklist. Classic PAT is accepted tech debt; a future hardening pass may swap it for a GitHub App installation token once `Andrew-Chen-Wang/github-wiki-action` documents stable support for that path. File a follow-up issue at execution time: *"Migrate wiki-publish auth from classic PAT to GitHub App."*
+**Pick (DECIDED 2026-04-11): classic PAT** with `repo` scope, stored as the repository secret `WIKI_PAT`. Rationale: simpler to provision than a GitHub App, fine-grained PAT coverage for wiki writes has rough edges in the GitHub Actions runner environment, and a classic PAT on an owner-restricted repo is an acceptable trust level for a docs-only secret. Create the PAT under the `@cbeaulieu-gt` account (not a bot account) with either no expiry (accepted tech debt, see Risk 1 in section 14) or a 1-year expiry with calendar-based renewal (more conservative; preferred if ops capacity allows). **If repository ownership ever transfers:** the new owner must generate a new PAT under their own account and update the `WIKI_PAT` secret. The original PAT cannot be "rotated" by the old owner after ownership transfers — it will simply stop working when their write access is revoked. Classic PAT is accepted tech debt; a future hardening pass may swap it for a GitHub App installation token once `Andrew-Chen-Wang/github-wiki-action` documents stable support for that path. File a follow-up issue at execution time: *"Migrate wiki-publish auth from classic PAT to GitHub App."*
 
 ### Workflow file — `.github/workflows/wiki-publish.yml`
 
@@ -115,27 +115,9 @@ permissions:
   contents: read
 
 jobs:
-  backend-ci:
-    name: Backend Lint & Test (gate)
-    uses: ./.github/workflows/ci.yml
-
-  frontend-ci:
-    name: Frontend Lint & Build (gate)
-    uses: ./.github/workflows/ci.yml
-
-  bot-ci:
-    name: Bot Lint & Test (gate)
-    uses: ./.github/workflows/ci.yml
-
   publish:
     name: Mirror wiki/ to siege-web.wiki.git
     runs-on: ubuntu-latest
-    # DECIDED 2026-04-11: strict CI gate. wiki-publish fires only on push to
-    # main AND only after the full CI pipeline is green on the same commit.
-    # The `needs:` chain here references the three CI jobs defined in this
-    # workflow; together with the `paths: wiki/**` trigger filter they ensure
-    # wiki content is never published from a broken build.
-    needs: [backend-ci, frontend-ci, bot-ci]
     steps:
       - name: Checkout main repo
         uses: actions/checkout@v4
@@ -153,7 +135,12 @@ jobs:
 
 **Notes the executor must not second-guess:**
 
-- **CI gate is load-bearing (DECIDED 2026-04-11).** The `needs: [backend-ci, frontend-ci, bot-ci]` chain in the `publish` job is the primary gate — the wiki-publish step will not run unless the full CI pipeline passes on the same commit. The `paths: wiki/**` trigger filter is an *additional* optimization to avoid unnecessary runs when only non-wiki files change, but the `needs:` chain is the correctness guarantee. Job names `backend-ci`, `frontend-ci`, `bot-ci` match the actual job names in `.github/workflows/ci.yml` (verified at plan-write time).
+- **CI gating (DECIDED 2026-04-11 — Option B):** This workflow intentionally has no in-workflow CI gate. The gate is enforced upstream by branch protection on `main`, which requires `backend-ci`, `frontend-ci`, `bot-ci`, and `review / review` to pass (and blocks force pushes) before any merge to `main`. Because the workflow only fires on `push: main` — and the only path to `main` is through a protected PR — the merge itself is the gate. Running an in-workflow `needs:` chain would re-execute the same CI checks that already ran on the PR, which is wasted work.
+
+  If branch protection is ever relaxed on `main` (e.g., allowing direct push without required checks), this workflow's assumptions break and the gate must be re-added. Track branch protection posture as a standing invariant.
+
+  The `paths: wiki/**` filter is an additional optimization to skip workflow runs when no wiki content changed. It is not the gate.
+
 - `permissions: contents: read` is the only permission needed on the main repo — the wiki write is authenticated by `WIKI_PAT`, not by `GITHUB_TOKEN`.
 - Pin the action to `@v4` (not `@main`), so a breaking change to the action cannot silently break the wiki publish. Bump the version in a follow-up PR when needed.
 - Do not add a `schedule:` trigger. The wiki should only ever update from `main` branch pushes, so a drift between the repo `wiki/` folder and the actual wiki is always self-healing.
@@ -332,7 +319,7 @@ GitHub does not create `siege-web.wiki.git` until the Wiki feature is enabled **
 
 1. Go to `https://github.com/cbeaulieu-gt/siege-web` → **Settings** → **General** → scroll to **Features** → ensure **Wikis** is checked. *(Confirm also that "Restrict editing to collaborators only" is checked — this should be the default for private-ish project wikis and matches the #189 direction.)*
 2. Back on the main repo page, click the **Wiki** tab → click **Create the first page** → title it **Home** → paste any placeholder content (literally "bootstrap" is fine — it will be overwritten on the first Action run) → click **Save Page**. This is the step that actually creates `siege-web.wiki.git` under the hood.
-3. Generate the `WIKI_PAT` classic PAT: `https://github.com/settings/tokens` → **Generate new token (classic)** → scopes `repo` (full) → no expiry → copy the token.
+3. Generate the `WIKI_PAT` classic PAT: `https://github.com/settings/tokens` → **Generate new token (classic)** → scopes `repo` (full) → set expiry to either no expiry (accepted tech debt, see Risk 1 in section 14) or 1 year with a calendar reminder to renew (preferred if ops capacity allows) → copy the token.
 4. In the repo: **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → name `WIKI_PAT` → value: the token from step 3.
 
 **What the Action handles automatically once bootstrapped:**
@@ -533,7 +520,7 @@ The executor confirms these before starting and stops if any are unsatisfied.
 - [ ] Create `wiki/Getting-Started.md` using the skeleton from section 10. Expand to ~200 words.
 - [ ] Create `wiki/FAQ.md` using the skeleton from section 10 verbatim. Do not invent FAQ questions.
 - [ ] Create `wiki/_Sidebar.md` using the content from section 5 verbatim.
-- [ ] `git add wiki/` and `git commit -m "docs(wiki): add canonical wiki content in wiki/"`
+- [ ] `git add wiki/` and `git commit -m "docs: add canonical wiki content in wiki/"`
 
 **Step 3 — add the publish workflow:**
 
@@ -655,7 +642,7 @@ All five open questions from the original draft have been answered by the owner.
 
 > *Original question:* Is the `paths: wiki/**` trigger filter a sufficient gate, or does the executor want the strict `needs:` chain that #189 called out?
 
-**DECIDED: strict CI gate.** The `wiki-publish` job must run only on push to `main` AND must chain behind the full CI pipeline via `needs: [backend-ci, frontend-ci, bot-ci]` (the actual job names from `.github/workflows/ci.yml`, verified at plan-write time). A `paths: wiki/**` filter is also applied to reduce unnecessary runs, but the `needs:` chain is the load-bearing gate. See section 4 for the updated workflow YAML.
+**DECIDED (updated 2026-04-11 — Option B): rely on branch protection.** The workflow has no in-workflow CI gate. Branch protection on `main` already requires `backend-ci`, `frontend-ci`, `bot-ci`, and `review / review` to pass (and blocks force pushes) before any merge. Because the workflow only fires on `push: main` and the only path to `main` is a protected PR, the merge is the gate. Adding a `needs:` chain would re-run the same CI that already passed on the PR — wasted work. The `paths: wiki/**` filter is applied to skip runs when no wiki content changed; it is not the gate. See section 4 for the workflow YAML and the full rationale.
 
 ---
 
@@ -686,6 +673,8 @@ All five open questions from the original draft have been answered by the owner.
 **Standing risks (informational — not re-opened)**
 
 **Risk 1 — classic PAT lifecycle.** Classic PATs with `repo` scope are long-lived, unscoped secrets tied to the owner's account. If the owner's account is compromised or the PAT is leaked, the blast radius is "everything in every repo the owner has write access to," not just the wiki. Q1 above accepted this as tech debt; the mitigation path is the follow-up GitHub App issue.
+
+**Expiry posture (added per review):** GitHub's current security guidance discourages no-expiry PATs. A more conservative path is to set a 1-year expiry and maintain a calendar reminder to renew the secret. This trades some operational burden for a reduced long-term exposure window. The mitigation chosen here (no expiry) is documented as tech debt; if operational capacity allows, switch to a 1-year-expiry PAT with a renewal reminder as part of the follow-up hardening issue.
 
 **Risk 2 — `_Sidebar.md` relative wiki links are GitHub-wiki-specific syntax.** Previewing `wiki/_Sidebar.md` in the main repo (via the GitHub file viewer or a local markdown preview) will render the link as broken. That is expected — the file is authored for the wiki rendering context. Do not "fix" this by converting to absolute URLs.
 
