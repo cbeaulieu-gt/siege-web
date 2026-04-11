@@ -119,6 +119,7 @@ Copy `.env.example` to `.env`. Required:
 | `DISCORD_SIEGE_CHANNEL` | backend (channel to post images) |
 | `DISCORD_SIEGE_IMAGES_CHANNEL` | backend (channel to post image CDN links) |
 | `ENVIRONMENT` | all (controls debug/docs) |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | backend, bot (optional; telemetry no-op when unset) |
 
 ## Domain Reference
 

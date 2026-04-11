@@ -10,6 +10,7 @@ from app.config import settings
 from app.discord_client import SiegeBot
 from app.http_api import app as http_app
 from app.http_api import set_bot
+from app.telemetry import configure_telemetry
 
 logger = logging.getLogger(__name__)
 
@@ -46,4 +47,5 @@ async def main() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
+    configure_telemetry()
     asyncio.run(main())
