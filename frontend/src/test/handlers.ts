@@ -48,6 +48,9 @@ export const handlers = [
       discord_id: "111222333",
     })
   ),
+  http.get("/api/config", () =>
+    HttpResponse.json({ auth_disabled: false })
+  ),
   http.get("/api/sieges", () => HttpResponse.json([])),
   http.get("/api/members", () => HttpResponse.json([])),
   http.get("/api/sieges/building-types", () =>

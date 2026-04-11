@@ -2,8 +2,8 @@
 
 import asyncio
 
+from app.db.seeds import seed_building_type_config, seed_post_conditions
 from app.db.session import AsyncSessionLocal
-from app.db.seeds import seed_post_conditions, seed_building_type_config
 
 
 async def main():

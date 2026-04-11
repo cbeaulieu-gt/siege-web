@@ -10,6 +10,7 @@ from app.api.autofill import router as autofill_router
 from app.api.board import router as board_router
 from app.api.buildings import router as buildings_router
 from app.api.comparison import router as comparison_router
+from app.api.config import router as config_router
 from app.api.discord_sync import router as discord_sync_router
 from app.api.health import router as health_router
 from app.api.images import router as images_router
@@ -45,9 +46,9 @@ async def lifespan(app: FastAPI):
             f"Current environment: {settings.environment}"
         )
     if not settings.auth_disabled:
-        if not settings.session_secret:
+        if not settings.session_secret or "changeme" in settings.session_secret.lower():
             raise RuntimeError(
-                "SESSION_SECRET must be set when auth is enabled. "
+                "SESSION_SECRET must be set to a secure random value when auth is enabled. "
                 f"Current environment: {settings.environment}"
             )
         if settings.environment != "development" and not settings.bot_service_token:
@@ -78,6 +79,7 @@ app.add_middleware(
 # Public routes — no auth required
 app.include_router(health_router, prefix="/api")
 app.include_router(version_router, prefix="/api")
+app.include_router(config_router, prefix="/api")
 app.include_router(auth_router, prefix="/api")
 
 # Protected routes — require authentication

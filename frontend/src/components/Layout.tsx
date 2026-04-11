@@ -1,7 +1,9 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { cn } from "../lib/utils";
 import { Info, LogOut, Shield } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { fetchConfig } from "../api/config";
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
@@ -13,8 +15,28 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 
 export default function Layout() {
   const { user, logout } = useAuth();
+
+  const { data: config, isError } = useQuery({
+    queryKey: ["app-config"],
+    queryFn: fetchConfig,
+    // Config is static for the lifetime of the page — refetch only on mount.
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  // Fail-closed: if the config endpoint is unreachable, treat as auth-enabled
+  // (production mode) and suppress the demo banner.
+  const isDemo = !isError && config?.auth_disabled === true;
+
   return (
     <div className="min-h-screen bg-slate-50">
+      {isDemo && (
+        <div className="bg-amber-400 px-4 py-1.5 text-center text-xs font-medium text-amber-900">
+          Demo mode — authentication disabled. Set{" "}
+          <code className="font-mono">AUTH_DISABLED=false</code> for real
+          deployments.
+        </div>
+      )}
       <nav className="border-b border-slate-200 bg-white shadow-sm">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-14 items-center gap-6">
