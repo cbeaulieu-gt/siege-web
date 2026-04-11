@@ -1,0 +1,42 @@
+# Production overlay — apply on top of docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# This overlay changes dev defaults to production-safe values. It does NOT
+# duplicate service definitions — only the keys that need to differ from the
+# base file are listed here.
+
+services:
+  postgres:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  backend:
+    restart: unless-stopped
+    env_file: .env.production
+    environment:
+      # Overrides .env.production to force production mode and disable demo seed.
+      ENVIRONMENT: production
+      AUTH_DISABLED: "false"
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+  frontend:
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 128m
+
+  bot:
+    restart: unless-stopped
+    env_file: .env.production
+    deploy:
+      resources:
+        limits:
+          memory: 256m

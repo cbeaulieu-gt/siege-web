@@ -124,7 +124,7 @@ cd frontend && npm run lint
 ## Run it yourself
 
 - **Azure (managed path)** — Container Apps + Key Vault + PostgreSQL Flexible Server. See [docs/self-host/azure.md](docs/self-host/azure.md).
-- **Any VPS / Docker Compose** — coming soon (`docs/self-host/anywhere.md`).
+- **Any VPS / Docker Compose** — any Linux host that runs Docker, with Caddy for free TLS and optional Cloudflare Tunnel if you can't open ports. See [docs/self-host/anywhere.md](docs/self-host/anywhere.md).
 
 ## Deploy Environments
 
