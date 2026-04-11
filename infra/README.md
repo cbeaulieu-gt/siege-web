@@ -2,6 +2,8 @@
 
 Azure Bicep templates for the Siege Assignment System.
 
+> For a complete end-to-end deployment walkthrough (prerequisites, resource-group setup, secret population, GitHub Actions wiring, DNS, and smoke test), see [docs/self-host/azure.md](../docs/self-host/azure.md).
+
 ## Resources provisioned
 
 | Resource | Module |
