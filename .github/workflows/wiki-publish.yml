@@ -1,0 +1,35 @@
+name: Publish wiki
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'wiki/**'
+      - '.github/workflows/wiki-publish.yml'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (do not push to wiki)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Mirror wiki/ to siege-web.wiki.git
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main repo
+        uses: actions/checkout@v4
+
+      - name: Publish wiki/ to GitHub Wiki
+        uses: Andrew-Chen-Wang/github-wiki-action@v4
+        with:
+          path: wiki/
+          token: ${{ secrets.WIKI_PAT }}
+          dry-run: ${{ github.event.inputs.dry_run || 'false' }}
+          ignore: |
+            .DS_Store
+            *.bak
