@@ -1,4 +1,11 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
+
+// Dot color constants — kept as JS values because they're used in inline styles
+// (dynamic active/inactive state prevents pure Tailwind expression).
+const COLORS = {
+  dotActive: "#7c3aed",
+  dotInactive: "#cbd5e1",
+} as const;
 
 export interface CarouselSlide {
   /** Short label shown in the image placeholder area. */
@@ -36,19 +43,18 @@ export default function Carousel({ slides }: CarouselProps) {
   const prev = useCallback(() => goTo(currentIndex - 1), [currentIndex, goTo]);
   const next = useCallback(() => goTo(currentIndex + 1), [currentIndex, goTo]);
 
-  // Keyboard navigation when carousel is visible in the viewport.
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (!viewportRef.current) return;
-      const rect = viewportRef.current.getBoundingClientRect();
-      const inView = rect.top < window.innerHeight && rect.bottom > 0;
-      if (!inView) return;
-      if (e.key === "ArrowLeft") prev();
-      if (e.key === "ArrowRight") next();
+  // Keyboard navigation — only fires when the carousel container has focus,
+  // preventing the global keydown leak that affected the whole page.
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      prev();
     }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [prev, next]);
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      next();
+    }
+  }
 
   return (
     <div className="mt-16">
@@ -59,10 +65,13 @@ export default function Carousel({ slides }: CarouselProps) {
         Six screens that cover the full workflow — from assignment to notification.
       </p>
 
-      {/* Viewport */}
+      {/* Viewport — tabIndex makes it focusable so onKeyDown fires */}
       <div
         ref={viewportRef}
-        className="relative mx-auto max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        className="relative mx-auto max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
         data-testid="carousel-viewport"
       >
         {/* Track */}
@@ -154,7 +163,8 @@ export default function Carousel({ slides }: CarouselProps) {
             onClick={() => goTo(i)}
             className="h-2 w-2 rounded-full transition-colors"
             style={{
-              backgroundColor: i === currentIndex ? "#7c3aed" : "#cbd5e1",
+              backgroundColor:
+                i === currentIndex ? COLORS.dotActive : COLORS.dotInactive,
             }}
             data-testid={`carousel-dot-${i}`}
           />

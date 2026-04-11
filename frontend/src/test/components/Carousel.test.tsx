@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect } from "vitest";
 import { renderWithProviders } from "../utils";
@@ -109,5 +109,23 @@ describe("Carousel", () => {
     renderCarousel();
     expect(screen.getByTestId("carousel-prev")).toBeInTheDocument();
     expect(screen.getByTestId("carousel-next")).toBeInTheDocument();
+  });
+
+  it("ArrowRight advances and ArrowLeft retreats when the viewport is focused", () => {
+    renderCarousel();
+    const viewport = screen.getByTestId("carousel-viewport");
+    viewport.focus();
+
+    // ArrowRight → slide 1
+    fireEvent.keyDown(viewport, { key: "ArrowRight" });
+    expect(screen.getByTestId("carousel-track")).toHaveStyle({
+      transform: "translateX(-100%)",
+    });
+
+    // ArrowLeft → back to slide 0
+    fireEvent.keyDown(viewport, { key: "ArrowLeft" });
+    expect(screen.getByTestId("carousel-track")).toHaveStyle({
+      transform: "translateX(-0%)",
+    });
   });
 });

@@ -1,6 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { beforeAll, afterAll, afterEach, describe, it, expect } from "vitest";
+import { beforeAll, afterAll, afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import { Route, Routes } from "react-router-dom";
 import { renderWithProviders } from "../utils";
 import { server } from "../server";
@@ -151,5 +152,52 @@ describe("LandingOrSieges (authenticated user)", () => {
         screen.queryByText(/A siege assignment tool I built/i),
       ).not.toBeInTheDocument();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Loading state — LandingOrSieges returns null while auth check is in flight
+// ---------------------------------------------------------------------------
+
+describe("LandingOrSieges (loading state)", () => {
+  it("renders nothing while the auth check is pending", () => {
+    // Hang the /api/auth/me request indefinitely so isLoading stays true.
+    server.use(
+      http.get("/api/auth/me", () => new Promise(() => {})),
+    );
+    renderLanding();
+    // Neither landing content nor the redirect target should appear.
+    expect(
+      screen.queryByText(/A siege assignment tool I built/i),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Sieges page")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Hero CTA — smooth-scrolls to the self-host section
+// ---------------------------------------------------------------------------
+
+describe("LandingPage hero CTA", () => {
+  beforeEach(() => {
+    server.use(
+      http.get("/api/auth/me", () =>
+        HttpResponse.json({ detail: "Not authenticated" }, { status: 401 }),
+      ),
+    );
+  });
+
+  it("calls scrollIntoView with smooth behavior when CTA is clicked", async () => {
+    const user = userEvent.setup();
+    const scrollIntoViewMock = vi.fn();
+    // jsdom does not implement scrollIntoView; install a mock before render.
+    Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+    renderLanding();
+
+    const cta = await screen.findByTestId("hero-cta");
+    await user.click(cta);
+
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({ behavior: "smooth" });
   });
 });
