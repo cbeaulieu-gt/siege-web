@@ -162,3 +162,11 @@ Copy `.env.deploy.example` to both files and fill in the values.
 ```bash
 python -c "import secrets; print(secrets.token_hex(32))"
 ```
+
+## License
+
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for the full text.
+
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) before opening a PR.
