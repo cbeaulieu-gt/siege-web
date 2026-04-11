@@ -147,6 +147,24 @@ DISCORD_BOT_API_KEY=<generated value>
 BOT_API_KEY=<same generated value>
 ```
 
+### Backend service token
+
+`BOT_SERVICE_TOKEN` authenticates calls that the bot makes back to the backend API. **The backend refuses to start in production if this value is missing or empty** — you will see `RuntimeError: BOT_SERVICE_TOKEN must be set in non-development environments` in the startup logs.
+
+Generate a secure token:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Set it in `.env.production`:
+
+```
+BOT_SERVICE_TOKEN=<generated value>
+```
+
+Both the backend and the bot read this value — make sure it is the same in both services (the single `.env.production` file loaded by both services via `env_file` ensures this when using the production compose overlay).
+
 ### Tier 3 — Azure / deploy-only
 
 Leave these blank or omit them. They are only used by the Azure deployment pipeline.
@@ -260,7 +278,7 @@ If you can't or don't want to open ports 80 and 443, tunnel services create a se
 3. Create a tunnel config at `~/.cloudflared/config.yml`:
    ```yaml
    tunnel: <your-tunnel-id>
-   credentials-file: /root/.cloudflared/<your-tunnel-id>.json
+   credentials-file: ~/.cloudflared/<your-tunnel-id>.json
 
    ingress:
      - hostname: siege.example.com
@@ -310,7 +328,11 @@ The compose overlay's `backend` service sets:
 ```
 DATABASE_URL: postgresql+asyncpg://postgres:password@postgres:5432/siege
 ```
-This points at the sibling `postgres` container on the internal Docker network. Change the password in `docker-compose.yml` (or override it in `docker-compose.prod.yml`) before going to production:
+This points at the sibling `postgres` container on the internal Docker network.
+
+> ⚠️ **Do not use the default `password` value in production.** Generate a strong password with `openssl rand -base64 24` and set it in `.env.production` as `POSTGRES_PASSWORD=<generated value>`. Then update `DATABASE_URL` to match.
+
+Change the password in `docker-compose.yml` (or override it in `docker-compose.prod.yml`) before going to production:
 
 ```yaml
 # In docker-compose.prod.yml, under services.postgres.environment:
@@ -504,6 +526,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d backend
 1. Ensure the host has at least 1 GB RAM (2 GB recommended). Check available memory: `free -h`.
 2. The backend image is built on `python:3.12-slim` (Debian-based) and installs Playwright's system deps at build time. If you've customized the `Dockerfile`, ensure `playwright install-deps` and `playwright install chromium` are still present.
 3. Add `--no-sandbox` to the Playwright launch args if running on a VPS without kernel namespace support (some cheap VPS providers disable user namespaces). This is controlled in `backend/app/services/image_generation.py`.
+4. If image generation fails or containers restart during siege image creation, increase the backend `mem_limit` in `docker-compose.prod.yml` to `1g`.
 
 ---
 

@@ -24,7 +24,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512m
+          memory: 768m
 
   frontend:
     restart: unless-stopped
