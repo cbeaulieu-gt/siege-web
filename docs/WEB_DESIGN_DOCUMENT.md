@@ -53,7 +53,17 @@ The current system is documented in `DESIGN_DOCUMENT.md`. This document restruct
 
 ### 1.5 User Model
 
-The system supports a single user role for now: **Siege Planner**. Authentication is deferred — there is no login system in this version. The architecture should not preclude adding member-facing access later (e.g., members viewing their own assignments), but this is not designed here.
+The system supports a single user role: **Siege Planner**.
+
+**Authentication mechanism:** Discord OAuth2 (Authorization Code Grant, `identify` scope). Users are redirected to Discord to authorize the app, and the backend exchanges the authorization code for an access token, then verifies guild membership via the bot sidecar. Only Discord users who are members of the configured guild **and** exist as a `Member` row in the database are permitted to sign in — unrecognized users receive an authorization error.
+
+**Session:** A signed HS256 JWT is issued in an HttpOnly, Secure, SameSite=Lax cookie with a 24-hour TTL. The frontend wraps all protected routes in a `RequireAuth` guard that redirects unauthenticated requests to `/login`.
+
+**Dev bypass:** Set `AUTH_DISABLED=true` in the local environment to skip OAuth for development. This flag is enforced at startup to prevent it from being set in non-development environments.
+
+**Canonical spec:** See [`docs/superpowers/plans/discord-auth-plan.md`](./superpowers/plans/discord-auth-plan.md) for the full authentication specification.
+
+**Deferred post-v1.0:** Role-based access control (Leader/Officer gating) is explicitly out of scope for v1.0. The `Member` model already carries a `role` field for future use. The architecture does not preclude adding member-facing access later (e.g., members viewing their own assignments), but this is not designed here.
 
 ---
 
