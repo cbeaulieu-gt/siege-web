@@ -121,6 +121,11 @@ cd backend && black . && ruff check .
 cd frontend && npm run lint
 ```
 
+## Run it yourself
+
+- **Azure (managed path)** — Container Apps + Key Vault + PostgreSQL Flexible Server. See [docs/self-host/azure.md](docs/self-host/azure.md).
+- **Any VPS / Docker Compose** — coming soon (`docs/self-host/anywhere.md`).
+
 ## Deploy Environments
 
 Secrets for Azure deployments are stored in per-environment files (both gitignored):
