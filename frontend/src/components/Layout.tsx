@@ -16,14 +16,17 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 export default function Layout() {
   const { user, logout } = useAuth();
 
-  const { data: config } = useQuery({
+  const { data: config, isError } = useQuery({
     queryKey: ["app-config"],
     queryFn: fetchConfig,
     // Config is static for the lifetime of the page — refetch only on mount.
     staleTime: Infinity,
+    retry: false,
   });
 
-  const isDemo = config?.auth_disabled === true;
+  // Fail-closed: if the config endpoint is unreachable, treat as auth-enabled
+  // (production mode) and suppress the demo banner.
+  const isDemo = !isError && config?.auth_disabled === true;
 
   return (
     <div className="min-h-screen bg-slate-50">

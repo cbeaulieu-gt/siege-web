@@ -13,6 +13,7 @@ Usage (from backend/):
 import asyncio
 import sys
 from datetime import date, timedelta
+from itertools import cycle
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -129,7 +130,7 @@ async def seed_buildings_and_positions(
     if result.first() is not None:
         return  # Already seeded.
 
-    member_iter = iter(members * 10)  # Repeat to fill all positions.
+    member_iter = cycle(members)  # Round-robin through members to fill all positions.
 
     for building_type, building_number, level, group_count, slots in DEMO_BUILDINGS:
         building = Building(

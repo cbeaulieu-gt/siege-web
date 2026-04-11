@@ -5,7 +5,10 @@
 set -e
 
 echo "Running database migrations..."
-alembic upgrade head
+if ! alembic upgrade head; then
+    echo "ERROR: Database migrations failed"
+    exit 1
+fi
 echo "Migrations complete."
 
 # In development mode, seed demo data so the UI is populated on first boot.

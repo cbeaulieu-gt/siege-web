@@ -146,6 +146,54 @@ class TestStartupSessionSecretGuard:
                 pass
 
     @pytest.mark.asyncio
+    async def test_changeme_placeholder_raises_at_startup(self, monkeypatch):
+        """RuntimeError raised when SESSION_SECRET contains the default placeholder."""
+        import app.config as config_module
+        import app.main as main_module
+
+        s = Settings(
+            database_url="postgresql+asyncpg://u:p@localhost/db",
+            discord_bot_api_url="http://bot:8001",
+            discord_bot_api_key="key",
+            discord_guild_id="111",
+            environment="development",
+            auth_disabled=False,
+            session_secret="changeme-use-a-long-random-string-in-production",
+        )
+        monkeypatch.setattr(config_module, "settings", s)
+        monkeypatch.setattr(main_module, "settings", s)
+
+        with pytest.raises(
+            RuntimeError, match="SESSION_SECRET must be set to a secure random value"
+        ):
+            async with main_module.lifespan(main_module.app):
+                pass
+
+    @pytest.mark.asyncio
+    async def test_changeme_uppercase_raises_at_startup(self, monkeypatch):
+        """RuntimeError raised for uppercase variant of the placeholder."""
+        import app.config as config_module
+        import app.main as main_module
+
+        s = Settings(
+            database_url="postgresql+asyncpg://u:p@localhost/db",
+            discord_bot_api_url="http://bot:8001",
+            discord_bot_api_key="key",
+            discord_guild_id="111",
+            environment="development",
+            auth_disabled=False,
+            session_secret="CHANGEME123",
+        )
+        monkeypatch.setattr(config_module, "settings", s)
+        monkeypatch.setattr(main_module, "settings", s)
+
+        with pytest.raises(
+            RuntimeError, match="SESSION_SECRET must be set to a secure random value"
+        ):
+            async with main_module.lifespan(main_module.app):
+                pass
+
+    @pytest.mark.asyncio
     async def test_present_session_secret_does_not_raise(self, monkeypatch):
         """No RuntimeError when auth_disabled=False and session_secret is provided."""
         import app.config as config_module

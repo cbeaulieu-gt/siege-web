@@ -43,9 +43,9 @@ async def lifespan(app: FastAPI):
             f"Current environment: {settings.environment}"
         )
     if not settings.auth_disabled:
-        if not settings.session_secret:
+        if not settings.session_secret or "changeme" in settings.session_secret.lower():
             raise RuntimeError(
-                "SESSION_SECRET must be set when auth is enabled. "
+                "SESSION_SECRET must be set to a secure random value when auth is enabled. "
                 f"Current environment: {settings.environment}"
             )
         if settings.environment != "development" and not settings.bot_service_token:

@@ -1,8 +1,6 @@
 """Replace power with power_level, drop sort_value"""
-
-import sqlalchemy as sa
-
 from alembic import op
+import sqlalchemy as sa
 
 revision = "0006"
 down_revision = "0005"
