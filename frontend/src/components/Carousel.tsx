@@ -68,7 +68,6 @@ export default function Carousel({ slides }: CarouselProps) {
       {/* Viewport — tabIndex makes it focusable so onKeyDown fires */}
       <div
         ref={viewportRef}
-        // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
         tabIndex={0}
         onKeyDown={handleKeyDown}
         className="relative mx-auto max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
