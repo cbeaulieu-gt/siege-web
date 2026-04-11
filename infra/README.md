@@ -2,7 +2,7 @@
 
 Azure Bicep templates for the Siege Assignment System.
 
-> For a complete end-to-end deployment walkthrough (prerequisites, resource-group setup, secret population, GitHub Actions wiring, DNS, and smoke test), see [docs/self-host/azure.md](../docs/self-host/azure.md).
+> For a complete end-to-end deployment walkthrough (prerequisites, resource-group setup, secret population, GitHub Actions wiring, DNS, and smoke test), see the [Self-Host on Azure wiki page](https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Azure).
 
 ## Resources provisioned
 
