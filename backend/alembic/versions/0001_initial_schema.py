@@ -6,9 +6,10 @@ Create Date: 2026-03-16
 
 """
 
-from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "0001"
 down_revision = None
@@ -20,20 +21,37 @@ def upgrade() -> None:
     # Create enum types via raw SQL to avoid asyncpg/checkfirst bug.
     # Then reference them with postgresql.ENUM(create_type=False) in tables.
     op.execute("CREATE TYPE siegestatus AS ENUM ('planning', 'active', 'complete')")
-    op.execute("CREATE TYPE buildingtype AS ENUM ('stronghold', 'mana_shrine', 'magic_tower', 'defense_tower', 'post')")
+    op.execute(
+        "CREATE TYPE buildingtype AS ENUM ('stronghold', 'mana_shrine', 'magic_tower', 'defense_tower', 'post')"
+    )
     op.execute("CREATE TYPE memberrole AS ENUM ('heavy_hitter', 'advanced', 'medium', 'novice')")
     op.execute("CREATE TYPE notificationbatchstatus AS ENUM ('pending', 'completed')")
 
-    siege_status = postgresql.ENUM("planning", "active", "complete", name="siegestatus", create_type=False)
+    siege_status = postgresql.ENUM(
+        "planning", "active", "complete", name="siegestatus", create_type=False
+    )
     building_type = postgresql.ENUM(
-        "stronghold", "mana_shrine", "magic_tower", "defense_tower", "post",
-        name="buildingtype", create_type=False,
+        "stronghold",
+        "mana_shrine",
+        "magic_tower",
+        "defense_tower",
+        "post",
+        name="buildingtype",
+        create_type=False,
     )
     member_role = postgresql.ENUM(
-        "heavy_hitter", "advanced", "medium", "novice", name="memberrole", create_type=False,
+        "heavy_hitter",
+        "advanced",
+        "medium",
+        "novice",
+        name="memberrole",
+        create_type=False,
     )
     notification_batch_status = postgresql.ENUM(
-        "pending", "completed", name="notificationbatchstatus", create_type=False,
+        "pending",
+        "completed",
+        name="notificationbatchstatus",
+        create_type=False,
     )
 
     # 1. member
@@ -114,9 +132,7 @@ def upgrade() -> None:
         sa.Column("building_type", building_type, nullable=False),
         sa.Column("building_number", sa.Integer(), nullable=False),
         sa.Column("level", sa.Integer(), nullable=False, server_default="1"),
-        sa.Column(
-            "is_broken", sa.Boolean(), nullable=False, server_default=sa.text("false")
-        ),
+        sa.Column("is_broken", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.CheckConstraint(
             "building_number >= 1 AND building_number <= 18",
             name="building_number_range",
@@ -133,9 +149,7 @@ def upgrade() -> None:
         sa.Column("building_id", sa.Integer(), nullable=False),
         sa.Column("group_number", sa.Integer(), nullable=False),
         sa.Column("slot_count", sa.Integer(), nullable=False, server_default="3"),
-        sa.CheckConstraint(
-            "group_number >= 1 AND group_number <= 9", name="group_number_range"
-        ),
+        sa.CheckConstraint("group_number >= 1 AND group_number <= 9", name="group_number_range"),
         sa.CheckConstraint("slot_count >= 1 AND slot_count <= 3", name="slot_count_range"),
         sa.ForeignKeyConstraint(["building_id"], ["building.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
@@ -149,12 +163,8 @@ def upgrade() -> None:
         sa.Column("building_group_id", sa.Integer(), nullable=False),
         sa.Column("position_number", sa.Integer(), nullable=False),
         sa.Column("member_id", sa.Integer(), nullable=True),
-        sa.Column(
-            "is_reserve", sa.Boolean(), nullable=False, server_default=sa.text("false")
-        ),
-        sa.Column(
-            "is_disabled", sa.Boolean(), nullable=False, server_default=sa.text("false")
-        ),
+        sa.Column("is_reserve", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("is_disabled", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.CheckConstraint("position_number >= 1", name="position_number_min"),
         sa.CheckConstraint(
             "NOT (is_disabled = TRUE AND (member_id IS NOT NULL OR is_reserve = TRUE))",
@@ -164,9 +174,7 @@ def upgrade() -> None:
             "NOT (is_reserve = TRUE AND member_id IS NOT NULL)",
             name="reserve_position_cannot_have_member",
         ),
-        sa.ForeignKeyConstraint(
-            ["building_group_id"], ["building_group.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["building_group_id"], ["building_group.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["member_id"], ["member.id"], ondelete="SET NULL"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("building_group_id", "position_number"),
@@ -192,9 +200,7 @@ def upgrade() -> None:
         sa.Column("post_id", sa.Integer(), nullable=False),
         sa.Column("post_condition_id", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(["post_id"], ["post.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["post_condition_id"], ["post_condition.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["post_condition_id"], ["post_condition.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("post_id", "post_condition_id"),
     )
 
@@ -204,9 +210,7 @@ def upgrade() -> None:
         sa.Column("member_id", sa.Integer(), nullable=False),
         sa.Column("post_condition_id", sa.Integer(), nullable=False),
         sa.ForeignKeyConstraint(["member_id"], ["member.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(
-            ["post_condition_id"], ["post_condition.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["post_condition_id"], ["post_condition.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("member_id", "post_condition_id"),
     )
 
@@ -223,9 +227,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("false"),
         ),
-        sa.CheckConstraint(
-            "attack_day IN (1, 2) OR attack_day IS NULL", name="attack_day_valid"
-        ),
+        sa.CheckConstraint("attack_day IN (1, 2) OR attack_day IS NULL", name="attack_day_valid"),
         sa.ForeignKeyConstraint(["siege_id"], ["siege.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["member_id"], ["member.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("siege_id", "member_id"),
@@ -262,9 +264,7 @@ def upgrade() -> None:
         sa.Column("success", sa.Boolean(), nullable=True),
         sa.Column("error", sa.String(), nullable=True),
         sa.Column("sent_at", sa.TIMESTAMP(), nullable=True),
-        sa.ForeignKeyConstraint(
-            ["batch_id"], ["notification_batch.id"], ondelete="CASCADE"
-        ),
+        sa.ForeignKeyConstraint(["batch_id"], ["notification_batch.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["member_id"], ["member.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )

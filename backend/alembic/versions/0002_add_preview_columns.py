@@ -6,8 +6,9 @@ Create Date: 2026-03-17
 
 """
 
-from alembic import op
 import sqlalchemy as sa
+
+from alembic import op
 
 revision = "0002"
 down_revision = "0001"
@@ -19,7 +20,9 @@ def upgrade() -> None:
     op.add_column("siege", sa.Column("autofill_preview", sa.JSON(), nullable=True))
     op.add_column("siege", sa.Column("autofill_preview_expires_at", sa.TIMESTAMP(), nullable=True))
     op.add_column("siege", sa.Column("attack_day_preview", sa.JSON(), nullable=True))
-    op.add_column("siege", sa.Column("attack_day_preview_expires_at", sa.TIMESTAMP(), nullable=True))
+    op.add_column(
+        "siege", sa.Column("attack_day_preview_expires_at", sa.TIMESTAMP(), nullable=True)
+    )
 
 
 def downgrade() -> None:

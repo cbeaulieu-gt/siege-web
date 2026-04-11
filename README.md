@@ -14,55 +14,54 @@ Web application for managing Raid Shadow Legends clan siege assignments. Replace
 ## Prerequisites
 
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-- Python 3.12+
-- Node.js 20+
 
-## Quick Start (Docker)
+That's it for the Quick Start. Python and Node are only needed if you want to run services outside Docker.
 
-Runs all services in containers.
+## Quick Start
+
+Get a populated local UI running in under 5 minutes — no Discord setup required.
 
 ```bash
-# 1. Create .env from example
+# 1. Clone and enter the repo
+git clone https://github.com/cbeaulieu-gt/siege-web.git
+cd siege-web
+
+# 2. Copy the example env (auth is disabled by default for local dev)
 cp .env.example .env
 
-# 2. Start all services
+# 3. Start everything
 docker-compose up --build
-
-# 3. Run database migrations (first time only)
-docker-compose exec backend alembic upgrade head
-
-# 4. Seed reference data (first time only)
-docker-compose exec backend python seed.py
 ```
 
-Open http://localhost:5173 in your browser.
+Open http://localhost:5173 — the app will load with 25 demo members and an active siege already populated. A thin amber banner at the top confirms you are in demo mode.
 
-## Dev Mode (recommended for active development)
+> **What happens on first boot:** the backend container runs `alembic upgrade head` then `python scripts/seed_demo.py` before starting. The seed script is idempotent — restarting the stack does not create duplicates.
 
-Runs PostgreSQL in Docker, backend and frontend natively for hot reload and debugging.
+To stop and wipe data: `docker-compose down -v`
+
+## Dev Mode (hot reload)
+
+Runs PostgreSQL in Docker; backend and frontend run natively for fast iteration.
 
 ```bash
-# 1. Start PostgreSQL
+# 1. Start PostgreSQL only
 docker-compose up postgres
 
-# 2. Backend setup (first time)
+# 2. Backend (new terminal)
 cd backend
 pip install -r requirements-dev.txt
 alembic upgrade head
-python seed.py
-
-# 3. Start backend (new terminal)
-cd backend
+python scripts/seed_demo.py   # populate demo data
 uvicorn app.main:app --reload
 
-# 4. Start frontend (new terminal)
+# 3. Frontend (new terminal)
 cd frontend
 npm ci
 npm run dev
 ```
 
 - Frontend: http://localhost:5173 (proxies `/api/*` to backend)
-- Backend API docs: http://localhost:8000/api/docs
+- API docs: http://localhost:8000/api/docs
 
 ### VS Code
 
@@ -71,18 +70,29 @@ Launch configurations are included in `.vscode/`:
 - **F5 → "Full Stack"** launches both backend and frontend
 - **Ctrl+Shift+P → "Run Task"** for Docker, migrations, seeding, and tests
 
-Requires "Docker: Start PostgreSQL" task to be running first.
+Requires the "Docker: Start PostgreSQL" task to be running first.
+
+## Running with real Discord OAuth
+
+1. Set `AUTH_DISABLED=false` in `.env`
+2. Fill in the **Tier 2** variables in `.env` (Discord OAuth2 app credentials, bot token, guild ID)
+3. Restart the stack
+
+See `.env.example` for the full variable reference organized by tier.
 
 ## Database
 
-Migrations and seeds only need to run once. Data persists in the `postgres_data` Docker volume across restarts.
+Migrations and seeds only need to run once per fresh volume. Data persists across restarts in the `postgres_data` Docker volume.
 
 ```bash
 # Run migrations
 cd backend && alembic upgrade head
 
-# Seed reference data (36 post conditions + 5 building type configs)
-cd backend && python seed.py
+# Seed reference + demo data
+cd backend && python scripts/seed_demo.py
+
+# Reference data only (no demo members/siege)
+cd backend && python scripts/seed.py
 
 # Create a new migration after model changes
 cd backend && alembic revision --autogenerate -m "description"
@@ -94,14 +104,11 @@ cd backend && alembic revision --autogenerate -m "description"
 # Backend
 cd backend && python -m pytest --ignore=tests/test_schema.py -v
 
-# Bot
-cd bot && python -m pytest -v
-
-# Excel import script
-cd scripts && python -m pytest tests/ -v
-
 # Frontend type check + build
 cd frontend && npm run build
+
+# Bot
+cd bot && python -m pytest -v
 ```
 
 ## Linting
@@ -123,26 +130,30 @@ Secrets for Azure deployments are stored in per-environment files (both gitignor
 | `.env.deploy.dev` | Secrets for the dev Azure instance (`siege-web-dev` resource group) |
 | `.env.deploy.prod` | Secrets for the prod Azure instance (`siege-web-prod` resource group) |
 
-Copy `.env.deploy.example` to both files and fill in the values. At minimum, `DISCORD_GUILD_ID` must differ between environments.
+Copy `.env.deploy.example` to both files and fill in the values.
 
 ```powershell
 # Build and deploy to dev
 .\bootstrap-images.ps1 -Env dev -EnvFile .env.deploy.dev
 
-# Build and deploy to prod (default EnvFile, so -EnvFile is optional)
+# Build and deploy to prod
 .\bootstrap-images.ps1 -Env prod -EnvFile .env.deploy.prod
-.\bootstrap-images.ps1 -Env prod
 ```
 
 ## Environment Variables
 
-Copy `.env.example` to `.env`. All variables are required for Docker Compose. For dev mode, the backend reads from `backend/.env`.
+`.env.example` is organized into three tiers:
 
-| Variable | Used by | Description |
-|---|---|---|
-| `DATABASE_URL` | backend | PostgreSQL connection string |
-| `DISCORD_BOT_API_URL` | backend | Bot sidecar URL |
-| `DISCORD_BOT_API_KEY` / `BOT_API_KEY` | backend, bot | Shared API key |
-| `DISCORD_TOKEN` | bot | Discord bot token |
-| `DISCORD_GUILD_ID` | backend, bot | Discord server ID |
-| `ENVIRONMENT` | all | `development` or `production` |
+| Tier | Description |
+|---|---|
+| **1 — Always required** | `DATABASE_URL`, `ENVIRONMENT`, `AUTH_DISABLED`, `SESSION_SECRET` |
+| **2 — Discord / real auth** | OAuth2 credentials, bot token, guild ID, channel names, API keys |
+| **3 — Azure / deploy only** | `IMPORT_EXCEL_PATH` and anything used only by Bicep or CI |
+
+`AUTH_DISABLED=true` (the default in `.env.example`) bypasses login entirely — anyone who can reach the URL has full access. Never use this outside a local dev environment.
+
+`SESSION_SECRET` is required when `AUTH_DISABLED=false`. Generate a secure value with:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
