@@ -21,13 +21,9 @@ def configure_telemetry() -> None:
     ``connection_string`` argument.  We guard the call so that a missing env var
     is a silent no-op rather than an import-time or startup error.
     """
-    connection_string = os.environ.get(
-        "APPLICATIONINSIGHTS_CONNECTION_STRING", ""
-    ).strip()
+    connection_string = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING", "").strip()
     if not connection_string:
-        logger.debug(
-            "APPLICATIONINSIGHTS_CONNECTION_STRING not set — telemetry disabled."
-        )
+        logger.debug("APPLICATIONINSIGHTS_CONNECTION_STRING not set — telemetry disabled.")
         return
 
     try:
@@ -37,9 +33,11 @@ def configure_telemetry() -> None:
             logger_name="app",  # collect logs from the 'app' namespace and children
         )
         logger.info("Azure Monitor OpenTelemetry configured for backend.")
-    except (
-        Exception
-    ):  # pragma: no cover — unexpected SDK failure must not crash the app
+    # Catch-all: telemetry init failures must never crash the app.
+    # Azure SDK init can raise ValueError (bad connection string),
+    # ConnectionError (network), or ImportError (missing optional deps).
+    # A failure here is always logged at ERROR and then swallowed.
+    except Exception:  # pragma: no cover
         logger.exception(
             "Failed to configure Azure Monitor OpenTelemetry; continuing without telemetry."
         )

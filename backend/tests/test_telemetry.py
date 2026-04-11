@@ -29,11 +29,7 @@ class TestConfigureTelemetryNoop:
         mock_configure = MagicMock()
         with patch.dict(
             "sys.modules",
-            {
-                "azure.monitor.opentelemetry": MagicMock(
-                    configure_azure_monitor=mock_configure
-                )
-            },
+            {"azure.monitor.opentelemetry": MagicMock(configure_azure_monitor=mock_configure)},
         ):
             telemetry_module.configure_telemetry()
 
@@ -52,11 +48,7 @@ class TestConfigureTelemetryNoop:
         mock_configure = MagicMock()
         with patch.dict(
             "sys.modules",
-            {
-                "azure.monitor.opentelemetry": MagicMock(
-                    configure_azure_monitor=mock_configure
-                )
-            },
+            {"azure.monitor.opentelemetry": MagicMock(configure_azure_monitor=mock_configure)},
         ):
             telemetry_module.configure_telemetry()
 
@@ -75,11 +67,7 @@ class TestConfigureTelemetryNoop:
         mock_configure = MagicMock()
         with patch.dict(
             "sys.modules",
-            {
-                "azure.monitor.opentelemetry": MagicMock(
-                    configure_azure_monitor=mock_configure
-                )
-            },
+            {"azure.monitor.opentelemetry": MagicMock(configure_azure_monitor=mock_configure)},
         ):
             telemetry_module.configure_telemetry()
 
@@ -89,7 +77,8 @@ class TestConfigureTelemetryNoop:
 class TestConfigureTelemetryActive:
     """When env var is set, configure_azure_monitor() must be called."""
 
-    # A syntactically valid-format connection string (fake values; no real App Insights).
+    # Fake connection string — intentionally invalid; the SDK accepts any
+    # syntactically-valid string at configure time and only fails on export.
     _FAKE_CS = (
         "InstrumentationKey=00000000-0000-0000-0000-000000000000;"
         "IngestionEndpoint=https://eastus-1.in.applicationinsights.azure.com/;"
@@ -110,9 +99,7 @@ class TestConfigureTelemetryActive:
         fake_azure_module = MagicMock()
         fake_azure_module.configure_azure_monitor = mock_configure
 
-        with patch.dict(
-            "sys.modules", {"azure.monitor.opentelemetry": fake_azure_module}
-        ):
+        with patch.dict("sys.modules", {"azure.monitor.opentelemetry": fake_azure_module}):
             telemetry_module.configure_telemetry()
 
         mock_configure.assert_called_once_with(logger_name="app")
@@ -132,7 +119,5 @@ class TestConfigureTelemetryActive:
         fake_azure_module.configure_azure_monitor = mock_configure
 
         # Should not raise — the function catches and logs the exception.
-        with patch.dict(
-            "sys.modules", {"azure.monitor.opentelemetry": fake_azure_module}
-        ):
+        with patch.dict("sys.modules", {"azure.monitor.opentelemetry": fake_azure_module}):
             telemetry_module.configure_telemetry()  # no exception expected
