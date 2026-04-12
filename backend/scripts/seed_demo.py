@@ -28,6 +28,8 @@ from app.models.building_group import BuildingGroup
 from app.models.enums import BuildingType, MemberRole, SiegeStatus
 from app.models.member import Member
 from app.models.position import Position
+from app.models.post import Post
+from app.models.post_priority_config import PostPriorityConfig
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 
@@ -85,6 +87,8 @@ DEMO_BUILDINGS: list[tuple[BuildingType, int, int, int, int]] = [
     (BuildingType.defense_tower, 3, 1, 1, 2),
     (BuildingType.defense_tower, 4, 1, 1, 2),
     (BuildingType.defense_tower, 5, 1, 1, 2),
+    # 18 post buildings — each has 1 group with 1 slot
+    *[(BuildingType.post, n, 1, 1, 1) for n in range(1, 19)],
 ]
 
 
@@ -130,14 +134,21 @@ async def seed_buildings_and_positions(
     session: AsyncSession,
     siege: Siege,
     members: list[Member],
+    member_start: int = 0,
 ) -> None:
-    """Create buildings, groups, and positions; assign members round-robin."""
+    """Create buildings, groups, and positions; assign members round-robin.
+
+    member_start offsets which member the cycle begins at, so a second siege
+    can have a visibly different assignment order for comparison screenshots.
+    """
     # Check if siege already has buildings (idempotency).
     result = await session.execute(select(Building).where(Building.siege_id == siege.id))
     if result.first() is not None:
         return  # Already seeded.
 
-    member_iter = cycle(members)  # Round-robin through members to fill all positions.
+    # Rotate the member list so the second siege shows different assignments.
+    rotated = members[member_start:] + members[:member_start]
+    member_iter = cycle(rotated)
 
     for building_type, building_number, level, group_count, slots in DEMO_BUILDINGS:
         building = Building(
@@ -169,7 +180,41 @@ async def seed_buildings_and_positions(
                 )
                 session.add(position)
 
+        # Post-type buildings require a matching Post record.
+        if building_type == BuildingType.post:
+            ppc_result = await session.execute(
+                select(PostPriorityConfig).where(
+                    PostPriorityConfig.post_number == building_number
+                )
+            )
+            ppc = ppc_result.scalar_one_or_none()
+            session.add(
+                Post(
+                    siege_id=siege.id,
+                    building_id=building.id,
+                    priority=ppc.priority if ppc else 2,
+                    description=ppc.description if ppc else None,
+                )
+            )
+
     await session.flush()
+
+
+async def get_or_create_second_siege(session: AsyncSession, first_siege: Siege) -> Siege:
+    """Return the existing planning siege or create one one week after the first."""
+    result = await session.execute(
+        select(Siege).where(Siege.status == SiegeStatus.planning).limit(1)
+    )
+    siege = result.scalar_one_or_none()
+    if siege is None:
+        siege = Siege(
+            date=first_siege.date + timedelta(weeks=1),
+            status=SiegeStatus.planning,
+            defense_scroll_count=6,
+        )
+        session.add(siege)
+        await session.flush()
+    return siege
 
 
 async def seed_siege_members(
@@ -226,8 +271,27 @@ async def main() -> None:
         await seed_siege_members(session, siege, members)
         await session.commit()
 
+        # Second (planning) siege — same layout, shifted member assignments.
+        print("Seeding second (planning) siege...")
+        siege2 = await get_or_create_second_siege(session, siege)
+        await session.commit()
+
+        print("Seeding second siege board positions...")
+        # Shift member rotation by 7 so ~25% of assignments visibly differ.
+        await seed_buildings_and_positions(session, siege2, members, member_start=7)
+        await session.commit()
+
+        print("Seeding second siege member enrollments...")
+        await seed_siege_members(session, siege2, members)
+        await session.commit()
+
     await engine.dispose()
-    print(f"Demo seed complete. Siege ID: {siege.id}, Members: {len(members)}")
+    print(
+        f"Demo seed complete. "
+        f"Siege 1 ID: {siege.id} (active), "
+        f"Siege 2 ID: {siege2.id} (planning), "
+        f"Members: {len(members)}"
+    )
 
 
 if __name__ == "__main__":

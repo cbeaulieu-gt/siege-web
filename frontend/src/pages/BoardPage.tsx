@@ -840,11 +840,31 @@ export default function BoardPage() {
   }, [siegeMembers]);
 
   // Build lookups for autofill preview dialog
-  const positionLookup = useMemo(() => {
-    const map: Record<number, PositionResponse> = {};
-    for (const pos of allPositions) map[pos.id] = pos;
+  const positionContextLookup = useMemo(() => {
+    const map: Record<
+      number,
+      {
+        buildingType: string;
+        buildingNumber: number;
+        groupNumber: number;
+        positionNumber: number;
+      }
+    > = {};
+    if (!board) return map;
+    for (const building of board.buildings) {
+      for (const group of building.groups) {
+        for (const pos of group.positions) {
+          map[pos.id] = {
+            buildingType: building.building_type,
+            buildingNumber: building.building_number,
+            groupNumber: group.group_number,
+            positionNumber: pos.position_number,
+          };
+        }
+      }
+    }
     return map;
-  }, [allPositions]);
+  }, [board]);
 
   const memberLookup = useMemo(() => {
     const map: Record<number, string> = {};
@@ -1098,14 +1118,21 @@ export default function BoardPage() {
             {autofillPreview?.assignments.map((a) => {
               const member =
                 a.member_id != null ? memberLookup[a.member_id] : null;
-              const pos = positionLookup[a.position_id];
               return (
                 <div
                   key={a.position_id}
                   className="flex items-center justify-between rounded-sm px-2 py-1 hover:bg-slate-50"
                 >
                   <span className="text-sm text-slate-600">
-                    Position {pos?.position_number ?? a.position_id}
+                    {(() => {
+                      const ctx = positionContextLookup[a.position_id];
+                      if (!ctx) return `Position ${a.position_id}`;
+                      const label =
+                        BUILDING_LABELS[
+                          ctx.buildingType as keyof typeof BUILDING_LABELS
+                        ] ?? ctx.buildingType;
+                      return `${label} ${ctx.buildingNumber} · G${ctx.groupNumber} · Pos ${ctx.positionNumber}`;
+                    })()}
                   </span>
                   <span className="text-sm font-medium">
                     {a.is_reserve ? (
