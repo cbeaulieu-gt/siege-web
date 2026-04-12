@@ -225,7 +225,8 @@ export default function LandingPage() {
         >
           <div className="mx-auto max-w-4xl px-6 py-24 text-center">
             <p className="mb-5 text-xs font-semibold uppercase tracking-widest text-slate-500">
-              A portfolio project by higgsbp
+              A portfolio project by{" "}
+              <a href="https://www.linkedin.com/in/christopher-beaulieu/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">Christopher Beaulieu</a>
             </p>
             <h1 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-slate-900 sm:text-5xl">
               A siege assignment tool I built
@@ -467,6 +468,19 @@ export default function LandingPage() {
               </p>
               <p className="text-slate-700">
                 <span className="inline-block w-20 font-medium text-slate-400">
+                  LinkedIn
+                </span>
+                <a
+                  href="https://www.linkedin.com/in/christopher-beaulieu/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-violet-600 hover:underline"
+                >
+                  linkedin.com/in/christopher-beaulieu
+                </a>
+              </p>
+              <p className="text-slate-700">
+                <span className="inline-block w-20 font-medium text-slate-400">
                   GitHub
                 </span>
                 <a
@@ -487,7 +501,7 @@ export default function LandingPage() {
 
             <div className="border-t border-slate-200 pt-6">
               <p className="text-sm text-slate-400">
-                © 2026 higgsbp · Built as a portfolio project
+                © 2026 Christopher Beaulieu · Built as a portfolio project
               </p>
             </div>
           </div>
