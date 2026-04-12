@@ -85,6 +85,15 @@ function PostRow({
         .find((p) => !p.is_reserve && !p.is_disabled && p.member_id !== null)
     : undefined;
 
+  // A post may have a reserve slot set even when no regular member is assigned.
+  // Reserve positions have is_reserve=true and member_id=null (DB constraint).
+  const reservePosition = building
+    ? building.groups
+        .flatMap((g) => g.positions)
+        .find((p) => p.is_reserve && !p.is_disabled)
+    : undefined;
+  const isReserve = reservePosition != null;
+
   const matchedCondition =
     assignedPosition && assignedPosition.matched_condition_id !== null
       ? post.active_conditions.find(
@@ -92,9 +101,17 @@ function PostRow({
         )
       : undefined;
 
-  // matchBadge is the element to render, or null when no member is assigned
+  // matchBadge is the element to render, or null when nothing is assigned.
+  // Priority: regular assignment > reserve > nothing.
   const matchBadge =
-    assignedPosition == null ? null : matchedCondition != null ? (
+    assignedPosition == null && isReserve ? (
+      <Badge
+        variant="default"
+        className="shrink-0 border border-teal-200 bg-teal-100 text-xs text-teal-700 hover:bg-teal-100"
+      >
+        Reserve
+      </Badge>
+    ) : assignedPosition == null ? null : matchedCondition != null ? (
       <Badge
         variant="default"
         className="shrink-0 border border-green-200 bg-green-100 text-xs text-green-800 hover:bg-green-100"
