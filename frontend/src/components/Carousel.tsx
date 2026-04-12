@@ -73,7 +73,7 @@ export default function Carousel({ slides }: CarouselProps) {
         ref={viewportRef}
         tabIndex={0}
         onKeyDown={handleKeyDown}
-        className="relative mx-auto max-w-2xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+        className="relative mx-auto max-w-5xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
         data-testid="carousel-viewport"
       >
         {/* Track */}
@@ -96,11 +96,11 @@ export default function Carousel({ slides }: CarouselProps) {
                 <img
                   src={slide.image}
                   alt={slide.title}
-                  className="h-[28rem] w-full object-cover"
+                  className="h-[36rem] w-full object-cover"
                   loading="lazy"
                 />
               ) : (
-                <div className="flex h-[28rem] items-center justify-center border-b-2 border-dashed border-slate-300 bg-slate-50">
+                <div className="flex h-[36rem] items-center justify-center border-b-2 border-dashed border-slate-300 bg-slate-50">
                   <span className="px-4 text-center text-sm font-semibold text-slate-400">
                     {slide.placeholder}
                   </span>
