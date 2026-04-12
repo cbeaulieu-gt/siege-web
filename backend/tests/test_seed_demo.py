@@ -2,7 +2,7 @@
 
 These tests run against an in-memory SQLite database (via the aiosqlite driver)
 to keep them fast and DB-free in CI. They verify:
-  - All 25 demo members are created on first run
+  - All 28 demo members are created on first run
   - The demo siege is created with correct status
   - Running twice does not create duplicates
   - Buildings and positions are populated
@@ -95,15 +95,15 @@ class TestSeedDemoMembers:
     async def test_creates_25_members(self, session):
         await _run_seed(session)
         count = (await session.execute(select(func.count()).select_from(Member))).scalar_one()
-        assert count == 25
+        assert count == 28
 
     @pytest.mark.asyncio
     async def test_members_have_demo_names(self, session):
         await _run_seed(session)
         result = await session.execute(select(Member.name))
         names = [row[0] for row in result.all()]
-        assert "Demo Member 01" in names
-        assert "Demo Member 25" in names
+        assert "Grimmaw" in names
+        assert "Noll" in names
 
     @pytest.mark.asyncio
     async def test_idempotent_member_creation(self, session):
@@ -111,7 +111,7 @@ class TestSeedDemoMembers:
         await _run_seed(session)
         await _run_seed(session)
         count = (await session.execute(select(func.count()).select_from(Member))).scalar_one()
-        assert count == 25
+        assert count == 28
 
 
 class TestSeedDemoSiege:
@@ -185,7 +185,7 @@ class TestSeedDemosiegeMembers:
     async def test_enrolls_all_members(self, session):
         await _run_seed(session)
         count = (await session.execute(select(func.count()).select_from(SiegeMember))).scalar_one()
-        assert count == 25
+        assert count == 28
 
     @pytest.mark.asyncio
     async def test_members_have_attack_days(self, session):
@@ -201,4 +201,4 @@ class TestSeedDemosiegeMembers:
         await _run_seed(session)
         await _run_seed(session)
         count = (await session.execute(select(func.count()).select_from(SiegeMember))).scalar_one()
-        assert count == 25
+        assert count == 28

@@ -203,7 +203,7 @@ async def seed_buildings_and_positions(
 async def get_or_create_second_siege(session: AsyncSession, first_siege: Siege) -> Siege:
     """Return the existing planning siege or create one one week after the first."""
     result = await session.execute(
-        select(Siege).where(Siege.status == SiegeStatus.planning).limit(1)
+        select(Siege).where(Siege.status == SiegeStatus.planning).order_by(Siege.date.desc()).limit(1)
     )
     siege = result.scalar_one_or_none()
     if siege is None:
