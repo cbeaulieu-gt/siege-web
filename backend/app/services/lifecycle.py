@@ -8,6 +8,7 @@ from app.models.building_group import BuildingGroup
 from app.models.enums import BuildingType, SiegeStatus
 from app.models.position import Position
 from app.models.post import Post
+from app.models.post_priority_config import PostPriorityConfig
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 from app.services import validation as validation_service
@@ -206,10 +207,19 @@ async def clone_siege(session: AsyncSession, siege_id: int) -> Siege:
         # 2c. Copy post if building type is post
         if src_building.building_type == BuildingType.post and src_building.post is not None:
             src_post = src_building.post
+            # Look up priority from config by post_number rather than copying the source
+            # priority verbatim — the source siege may predate PostPriorityConfig seeds and
+            # carry stale priority=0 values that would otherwise propagate to every clone.
+            ppc_result = await session.execute(
+                select(PostPriorityConfig).where(
+                    PostPriorityConfig.post_number == src_building.building_number
+                )
+            )
+            ppc = ppc_result.scalar_one_or_none()
             new_post = Post(
                 siege_id=new_siege.id,
                 building_id=new_building.id,
-                priority=src_post.priority,
+                priority=ppc.priority if ppc else 2,
                 description=src_post.description,
                 # active_conditions intentionally NOT copied — game assigns new conditions
             )
