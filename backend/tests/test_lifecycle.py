@@ -241,6 +241,7 @@ async def test_clone_uses_post_priority_config_not_source_priority():
     # flush 1 → new Building gets id=10
     # flush 2 → new BuildingGroup gets id=20
     flush_id_map = {0: ("siege", 99), 1: ("building", 10), 2: ("group", 20)}
+
     async def fake_execute(stmt):
         nonlocal execute_call_count
         result = MagicMock()
