@@ -23,7 +23,7 @@ async def compare_with_most_recent(
     if other is None:
         raise HTTPException(status_code=404, detail="No completed siege found to compare against")
 
-    return await comparison_service.compare_sieges(db, siege_id, other.id)
+    return await comparison_service.compare_sieges(db, other.id, siege_id)
 
 
 @router.get("/sieges/{siege_id}/compare/{other_id}", response_model=ComparisonResult)
