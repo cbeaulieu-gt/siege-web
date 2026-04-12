@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Seed demo data for local development.
 
-Creates 25 fictional clan members, one siege with those members enrolled,
+Creates 28 fictional clan members, one siege with those members enrolled,
 and fills most building positions so the board is populated and clickable.
 
 Idempotent: safe to run multiple times — existing rows are left unchanged.
@@ -32,35 +32,42 @@ from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
 
 # ---------------------------------------------------------------------------
-# Demo member pool — 25 fully fictional names
+# Demo member pool — 28 fully fictional names
 # ---------------------------------------------------------------------------
 
 DEMO_MEMBERS: list[tuple[str, MemberRole, str]] = [
-    ("Demo Member 01", MemberRole.heavy_hitter, "gt_25m"),
-    ("Demo Member 02", MemberRole.heavy_hitter, "gt_25m"),
-    ("Demo Member 03", MemberRole.heavy_hitter, "gt_25m"),
-    ("Demo Member 04", MemberRole.advanced, "21_25m"),
-    ("Demo Member 05", MemberRole.advanced, "21_25m"),
-    ("Demo Member 06", MemberRole.advanced, "21_25m"),
-    ("Demo Member 07", MemberRole.advanced, "21_25m"),
-    ("Demo Member 08", MemberRole.advanced, "16_20m"),
-    ("Demo Member 09", MemberRole.advanced, "16_20m"),
-    ("Demo Member 10", MemberRole.advanced, "16_20m"),
-    ("Demo Member 11", MemberRole.medium, "16_20m"),
-    ("Demo Member 12", MemberRole.medium, "16_20m"),
-    ("Demo Member 13", MemberRole.medium, "10_15m"),
-    ("Demo Member 14", MemberRole.medium, "10_15m"),
-    ("Demo Member 15", MemberRole.medium, "10_15m"),
-    ("Demo Member 16", MemberRole.medium, "10_15m"),
-    ("Demo Member 17", MemberRole.medium, "10_15m"),
-    ("Demo Member 18", MemberRole.novice, "lt_10m"),
-    ("Demo Member 19", MemberRole.novice, "lt_10m"),
-    ("Demo Member 20", MemberRole.novice, "lt_10m"),
-    ("Demo Member 21", MemberRole.novice, "lt_10m"),
-    ("Demo Member 22", MemberRole.novice, "lt_10m"),
-    ("Demo Member 23", MemberRole.novice, "lt_10m"),
-    ("Demo Member 24", MemberRole.novice, "lt_10m"),
-    ("Demo Member 25", MemberRole.novice, "lt_10m"),
+    # Heavy Hitters (5) — gt_25m
+    ("Grimmaw",   MemberRole.heavy_hitter, "gt_25m"),
+    ("Valdris",   MemberRole.heavy_hitter, "gt_25m"),
+    ("Korath",    MemberRole.heavy_hitter, "gt_25m"),
+    ("Thornclaw", MemberRole.heavy_hitter, "gt_25m"),
+    ("Malakar",   MemberRole.heavy_hitter, "gt_25m"),
+    # Advanced (7) — 3 at 21_25m, 4 at 16_20m
+    ("Drakemoor", MemberRole.advanced, "21_25m"),
+    ("Sylvaris",  MemberRole.advanced, "21_25m"),
+    ("Varek",     MemberRole.advanced, "21_25m"),
+    ("Kaelith",   MemberRole.advanced, "16_20m"),
+    ("Morvain",   MemberRole.advanced, "16_20m"),
+    ("Rhogar",    MemberRole.advanced, "16_20m"),
+    ("Ashborne",  MemberRole.advanced, "16_20m"),
+    # Medium (7) — 2 at 16_20m, 5 at 10_15m
+    ("Brennan",   MemberRole.medium, "16_20m"),
+    ("Tovik",     MemberRole.medium, "16_20m"),
+    ("Sellira",   MemberRole.medium, "10_15m"),
+    ("Jorund",    MemberRole.medium, "10_15m"),
+    ("Marek",     MemberRole.medium, "10_15m"),
+    ("Dravak",    MemberRole.medium, "10_15m"),
+    ("Linneth",   MemberRole.medium, "10_15m"),
+    # Novice (9) — lt_10m
+    ("Tamsin",    MemberRole.novice, "lt_10m"),
+    ("Wren",      MemberRole.novice, "lt_10m"),
+    ("Orrin",     MemberRole.novice, "lt_10m"),
+    ("Finnick",   MemberRole.novice, "lt_10m"),
+    ("Perrin",    MemberRole.novice, "lt_10m"),
+    ("Lira",      MemberRole.novice, "lt_10m"),
+    ("Kessen",    MemberRole.novice, "lt_10m"),
+    ("Brandis",   MemberRole.novice, "lt_10m"),
+    ("Noll",      MemberRole.novice, "lt_10m"),
 ]
 
 # Building layout: (type, building_number, level, group_count, slots_per_group)

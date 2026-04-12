@@ -8,12 +8,15 @@ const COLORS = {
 } as const;
 
 export interface CarouselSlide {
-  /** Short label shown in the image placeholder area. */
+  /** Short label shown in the image placeholder area (used as fallback when no image). */
   placeholder: string;
   /** Bold title below the slide image. */
   title: string;
   /** Subtitle / description below the title. */
   description: string;
+  /** Optional path to an image file (e.g. "/landing/carousel-foo.png"). When set, renders
+   *  an <img> tag instead of the placeholder div. */
+  image?: string;
 }
 
 interface CarouselProps {
@@ -88,12 +91,21 @@ export default function Carousel({ slides }: CarouselProps) {
               className="w-full shrink-0 overflow-hidden"
               data-testid={`carousel-slide-${i}`}
             >
-              {/* Image placeholder */}
-              <div className="flex h-[28rem] items-center justify-center border-b-2 border-dashed border-slate-300 bg-slate-50">
-                <span className="px-4 text-center text-sm font-semibold text-slate-400">
-                  {slide.placeholder}
-                </span>
-              </div>
+              {/* Image — renders a real screenshot when available, placeholder div otherwise */}
+              {slide.image ? (
+                <img
+                  src={slide.image}
+                  alt={slide.title}
+                  className="h-[28rem] w-full object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <div className="flex h-[28rem] items-center justify-center border-b-2 border-dashed border-slate-300 bg-slate-50">
+                  <span className="px-4 text-center text-sm font-semibold text-slate-400">
+                    {slide.placeholder}
+                  </span>
+                </div>
+              )}
               {/* Caption */}
               <div className="border-t border-slate-100 px-6 py-4">
                 <p className="mb-0.5 text-sm font-medium text-slate-700">
