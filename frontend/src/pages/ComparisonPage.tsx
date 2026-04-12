@@ -88,7 +88,7 @@ export default function ComparisonPage() {
     queryKey: ["comparison", siegeId, compareToId],
     queryFn: () =>
       isSpecific && specificId != null
-        ? compareSiegesSpecific(siegeId, specificId)
+        ? compareSiegesSpecific(specificId, siegeId)
         : compareSieges(siegeId),
     enabled: true,
   });
