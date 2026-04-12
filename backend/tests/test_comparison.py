@@ -107,6 +107,10 @@ async def test_compare_with_specific_endpoint_200(client):
     assert data["siege_a_id"] == 1
     assert data["siege_b_id"] == 2
     assert len(data["members"]) == 1
+    # Verify parameter order: compare-to siege (other_id=2) is siege_a, current siege (siege_id=1) is siege_b
+    call_args = mock_compare.call_args
+    assert call_args.args[1] == 2, "other_id should be passed as siege_a (compare-to / old)"
+    assert call_args.args[2] == 1, "siege_id should be passed as siege_b (current / new)"
 
 
 # ---------------------------------------------------------------------------

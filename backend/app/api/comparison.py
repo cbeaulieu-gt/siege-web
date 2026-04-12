@@ -23,6 +23,7 @@ async def compare_with_most_recent(
     if other is None:
         raise HTTPException(status_code=404, detail="No completed siege found to compare against")
 
+    # siege_a = compare-to (old), siege_b = current (new)
     return await comparison_service.compare_sieges(db, other.id, siege_id)
 
 
@@ -39,4 +40,5 @@ async def compare_with_specific(
     if other_id not in found_ids:
         raise HTTPException(status_code=404, detail="Other siege not found")
 
-    return await comparison_service.compare_sieges(db, siege_id, other_id)
+    # siege_a = compare-to (old), siege_b = current (new)
+    return await comparison_service.compare_sieges(db, other_id, siege_id)
