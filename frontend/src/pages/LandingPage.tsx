@@ -25,31 +25,37 @@ export function LandingOrSieges() {
 // ---------------------------------------------------------------------------
 const SLIDES: CarouselSlide[] = [
   {
+    image: "/landing/carousel-assignment-board.png",
     placeholder: "Assignment board",
     title: "Assignment board",
     description: "Drag-and-drop member buckets per building",
   },
   {
+    image: "/landing/carousel-autofill-preview.png",
     placeholder: "Auto-fill preview",
     title: "Auto-fill preview",
     description: "Algorithm output before committing",
   },
   {
+    image: "/landing/carousel-validation-errors.png",
     placeholder: "Validation errors",
     title: "Validation errors",
     description: "16 rules enforced live as you edit",
   },
   {
+    image: "/landing/carousel-siege-comparison.png",
     placeholder: "Siege comparison",
     title: "Siege comparison",
     description: "Side-by-side planning view",
   },
   {
+    image: "/landing/carousel-discord-image.png",
     placeholder: "Generated Discord image",
     title: "Generated Discord image",
     description: "The PNG posted to your channel",
   },
   {
+    // No image yet — owner will supply this screenshot later
     placeholder: "Notification tracking",
     title: "Notification tracking",
     description: "DM batch delivery status",
@@ -253,13 +259,13 @@ export default function LandingPage() {
               What it does
             </h2>
             <div className="grid items-start gap-10 md:grid-cols-2">
-              {/* Screenshot placeholder */}
-              <div
-                className="flex h-96 items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-white text-sm text-slate-400"
+              {/* Hero board screenshot */}
+              <img
+                src="/landing/hero-board.png"
+                alt="Siege assignment board showing member positions across buildings"
+                className="h-96 w-full rounded-lg border border-slate-200 object-cover shadow-sm"
                 data-testid="board-screenshot"
-              >
-                Master&rsquo;s Of Magicka board screenshot
-              </div>
+              />
 
               {/* Feature bullets */}
               <ul className="space-y-4" data-testid="feature-list">
