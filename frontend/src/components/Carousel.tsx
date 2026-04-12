@@ -65,7 +65,7 @@ export default function Carousel({ slides }: CarouselProps) {
         See the workflow
       </h3>
       <p className="mb-6 text-sm text-slate-500">
-        Eight screens that cover the full workflow — from assignment to notification.
+        Seven screens that cover the full workflow — from assignment to notification.
       </p>
 
       {/* Viewport — tabIndex makes it focusable so onKeyDown fires */}

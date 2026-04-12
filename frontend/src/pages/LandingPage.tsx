@@ -31,12 +31,6 @@ const SLIDES: CarouselSlide[] = [
     description: "Drag-and-drop member buckets per building",
   },
   {
-    image: "/landing/carousel-post-conditions.png",
-    placeholder: "Post conditions",
-    title: "Post conditions",
-    description: "Configure priority and conditions for each post building",
-  },
-  {
     image: "/landing/carousel-member-management.png",
     placeholder: "Member management",
     title: "Member management",
