@@ -31,10 +31,16 @@ const SLIDES: CarouselSlide[] = [
     description: "Drag-and-drop member buckets per building",
   },
   {
-    image: "/landing/carousel-autofill-preview.png",
-    placeholder: "Auto-fill preview",
-    title: "Auto-fill preview",
-    description: "Algorithm output before committing",
+    image: "/landing/carousel-post-conditions.png",
+    placeholder: "Post conditions",
+    title: "Post conditions",
+    description: "Configure priority and conditions for each post building",
+  },
+  {
+    image: "/landing/carousel-member-management.png",
+    placeholder: "Member management",
+    title: "Member management",
+    description: "Roster with roles, scroll counts, and Discord sync",
   },
   {
     image: "/landing/carousel-validation-errors.png",
@@ -49,13 +55,18 @@ const SLIDES: CarouselSlide[] = [
     description: "Side-by-side planning view",
   },
   {
+    image: "/landing/carousel-post-assignments.png",
+    placeholder: "Post assignments",
+    title: "Post assignments",
+    description: "Assign members to post buildings for each siege",
+  },
+  {
     image: "/landing/carousel-discord-image.png",
     placeholder: "Generated Discord image",
     title: "Generated Discord image",
     description: "The PNG posted to your channel",
   },
   {
-    // No image yet — owner will supply this screenshot later
     placeholder: "Notification tracking",
     title: "Notification tracking",
     description: "DM batch delivery status",
