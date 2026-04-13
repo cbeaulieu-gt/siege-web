@@ -65,7 +65,7 @@ describe("LoginPage", () => {
     });
     await waitFor(() => {
       expect(
-        screen.getByText(/Clan Deputies role/i)
+        screen.getByText(/required Discord role/i)
       ).toBeInTheDocument();
     });
   });

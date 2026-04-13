@@ -459,9 +459,7 @@ async def test_callback_insufficient_role_redirects(monkeypatch):
             with patch(
                 "app.api.auth._check_guild_membership",
                 # Member is in the guild but only has a different role
-                new=AsyncMock(
-                    return_value={"is_member": True, "role_names": ["some-other-role"]}
-                ),
+                new=AsyncMock(return_value={"is_member": True, "role_names": ["some-other-role"]}),
             ):
                 async with AsyncClient(
                     transport=ASGITransport(app=app),
