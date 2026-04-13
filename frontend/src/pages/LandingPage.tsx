@@ -31,10 +31,10 @@ const SLIDES: CarouselSlide[] = [
     description: "Drag-and-drop member buckets per building",
   },
   {
-    image: "/landing/carousel-autofill-preview.png",
-    placeholder: "Auto-fill preview",
-    title: "Auto-fill preview",
-    description: "Algorithm output before committing",
+    image: "/landing/carousel-member-management.png",
+    placeholder: "Member management",
+    title: "Member management",
+    description: "Roster with roles, scroll counts, and Discord sync",
   },
   {
     image: "/landing/carousel-validation-errors.png",
@@ -49,16 +49,16 @@ const SLIDES: CarouselSlide[] = [
     description: "Side-by-side planning view",
   },
   {
+    image: "/landing/carousel-post-assignments.png",
+    placeholder: "Post assignments",
+    title: "Post assignments",
+    description: "Assign members to post buildings for each siege",
+  },
+  {
     image: "/landing/carousel-discord-image.png",
     placeholder: "Generated Discord image",
     title: "Generated Discord image",
     description: "The PNG posted to your channel",
-  },
-  {
-    // No image yet — owner will supply this screenshot later
-    placeholder: "Notification tracking",
-    title: "Notification tracking",
-    description: "DM batch delivery status",
   },
 ];
 
@@ -225,7 +225,8 @@ export default function LandingPage() {
         >
           <div className="mx-auto max-w-4xl px-6 py-24 text-center">
             <p className="mb-5 text-xs font-semibold uppercase tracking-widest text-slate-500">
-              A portfolio project by higgsbp
+              A portfolio project by{" "}
+              <a href="https://www.linkedin.com/in/christopher-beaulieu/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">Christopher Beaulieu</a>
             </p>
             <h1 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-slate-900 sm:text-5xl">
               A siege assignment tool I built
@@ -270,12 +271,15 @@ export default function LandingPage() {
               {/* Feature bullets */}
               <ul className="space-y-4" data-testid="feature-list">
                 {[
+                  "Drag-and-drop member bucket per building",
+                  "Member management with roles, scroll counts, and Discord sync",
+                  "Post condition and member preference system",
+                  "Building-level slot awareness with support for broken buildings",
                   "Auto-fill algorithm that respects pin state and attack-day thresholds",
                   "16 validation rules enforced live as you edit",
-                  "Drag-and-drop member bucket per building",
+                  "Side-by-side siege comparison for planning",
                   "Generated PNG boards posted to Discord automatically",
                   "Per-member DM notifications with delivery tracking",
-                  "Side-by-side siege comparison for planning",
                 ].map((text) => (
                   <li key={text} className="flex items-start gap-3">
                     <CheckIcon />
@@ -467,6 +471,19 @@ export default function LandingPage() {
               </p>
               <p className="text-slate-700">
                 <span className="inline-block w-20 font-medium text-slate-400">
+                  LinkedIn
+                </span>
+                <a
+                  href="https://www.linkedin.com/in/christopher-beaulieu/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-violet-600 hover:underline"
+                >
+                  linkedin.com/in/christopher-beaulieu
+                </a>
+              </p>
+              <p className="text-slate-700">
+                <span className="inline-block w-20 font-medium text-slate-400">
                   GitHub
                 </span>
                 <a
@@ -487,7 +504,7 @@ export default function LandingPage() {
 
             <div className="border-t border-slate-200 pt-6">
               <p className="text-sm text-slate-400">
-                © 2026 higgsbp · Built as a portfolio project
+                © 2026 Christopher Beaulieu · Built as a portfolio project
               </p>
             </div>
           </div>
