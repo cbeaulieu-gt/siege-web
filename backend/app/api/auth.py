@@ -29,6 +29,7 @@ class AuthError:
     INVALID_STATE = "invalid_state"
     SERVICE_UNAVAILABLE = "service_unavailable"
     UNAUTHORIZED = "unauthorized"
+    INSUFFICIENT_ROLE = "insufficient_role"
 
 
 DISCORD_API_BASE = "https://discord.com/api/v10"
@@ -144,6 +145,15 @@ async def callback(
     if not guild_check.get("is_member"):
         logger.warning("auth_guild_check_rejected", extra={"discord_id": discord_id})
         return _error_redirect(AuthError.UNAUTHORIZED)
+
+    # 4b. Verify required Discord role
+    role_names: list[str] = guild_check.get("role_names", [])
+    if settings.discord_required_role not in role_names:
+        logger.warning(
+            "auth_role_check_rejected",
+            extra={"discord_id": discord_id, "required_role": settings.discord_required_role},
+        )
+        return _error_redirect(AuthError.INSUFFICIENT_ROLE)
 
     # 5. Match member by discord_id only — no username fallback
     result = await db.execute(select(Member).where(Member.discord_id == discord_id))

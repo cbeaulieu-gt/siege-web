@@ -58,6 +58,17 @@ describe("LoginPage", () => {
       ).toBeInTheDocument();
     });
   });
+
+  it("shows insufficient_role error message for ?error=insufficient_role", async () => {
+    renderWithProviders(<LoginPage />, {
+      initialEntries: ["/login?error=insufficient_role"],
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByText(/required Discord role/i)
+      ).toBeInTheDocument();
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -158,4 +158,5 @@ async def get_guild_member(
         "username": member.name,
         "display_name": member.display_name,
         "roles": [str(r.id) for r in member.roles if r.name != "@everyone"],
+        "role_names": [r.name for r in member.roles if r.name != "@everyone"],
     }

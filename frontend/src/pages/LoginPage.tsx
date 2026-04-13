@@ -7,6 +7,8 @@ import { Shield } from "lucide-react";
 const ERROR_MESSAGES: Record<string, string> = {
   service_unavailable:
     "Login is temporarily unavailable. Please try again in a moment.",
+  insufficient_role:
+    "You don't have the required Discord role to access this application. Contact your clan leader for access.",
 };
 
 // Errors that indicate guild membership denial — trigger the soft-handoff reframe.

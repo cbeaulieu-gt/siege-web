@@ -130,9 +130,13 @@ DISCORD_SIEGE_CHANNEL=clan-siege-assignments
 DISCORD_SIEGE_IMAGES_CHANNEL=clan-siege-assignment-images
 
 DISCORD_BOT_API_URL=http://bot:8001
+
+DISCORD_REQUIRED_ROLE=Clan Deputies
 ```
 
 `DISCORD_BOT_API_URL` stays as `http://bot:8001` when running inside Docker Compose — the bot service is reachable by its service name on the internal Docker network.
+
+`DISCORD_REQUIRED_ROLE` controls which Discord role a user must have to log in. The default is `Clan Deputies` — **change this to whatever role your clan uses for siege managers or officers.** The role name must be an exact, case-sensitive match to a role that exists in your Discord server. If the variable is unset, it falls back to `Clan Deputies`. Multi-role support may be added later if needed.
 
 Generate shared secrets for `DISCORD_BOT_API_KEY` and `BOT_API_KEY`. **These two must be identical** — the backend uses `DISCORD_BOT_API_KEY` to authenticate calls it sends to the bot, and the bot uses `BOT_API_KEY` to validate those calls on arrival:
 

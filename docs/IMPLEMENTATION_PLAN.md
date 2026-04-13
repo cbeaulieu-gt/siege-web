@@ -9,7 +9,7 @@ All open questions from the initial planning session have been resolved. These d
 | Database | Azure Database for PostgreSQL (Flexible Server) |
 | Hosting | Azure Container Apps + Azure Container Registry (ACR) |
 | CI/CD | GitHub Actions → Docker build → push to ACR → deploy to Container Apps |
-| Authentication | Discord OAuth2 with JWT session cookies — guild membership is the authorization boundary (see `docs/superpowers/plans/discord-auth-plan.md`) |
+| Authentication | Discord OAuth2 with JWT session cookies — guild membership + required Discord role is the authorization boundary (see `docs/superpowers/plans/discord-auth-plan.md`; role configured via `DISCORD_REQUIRED_ROLE`, default `"Clan Deputies"`) |
 | Discord Bot | Full rewrite: discord.py + FastAPI HTTP sidecar, deployed as its own container |
 | Board API response shape | Nested hierarchy (buildings → groups → positions) |
 | Validation Rule 10 (RESERVE balance) | Warn on any slot that is empty, not disabled, and not marked RESERVE |
