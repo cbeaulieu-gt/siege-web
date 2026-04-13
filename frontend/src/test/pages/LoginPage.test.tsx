@@ -108,7 +108,7 @@ describe("LoginPage — rejection reframe", () => {
     });
     expect(
       screen.getByRole("link", {
-        name: /Run Siege Assignments for your own clan/i,
+        name: /Run RSL Siege Manager for your own clan/i,
       })
     ).toBeInTheDocument();
   });
@@ -118,7 +118,7 @@ describe("LoginPage — rejection reframe", () => {
     await waitFor(() => {
       expect(
         screen.getByRole("link", {
-          name: /Run Siege Assignments for your own clan/i,
+          name: /Run RSL Siege Manager for your own clan/i,
         })
       ).toBeInTheDocument();
     });

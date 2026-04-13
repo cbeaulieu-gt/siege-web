@@ -1,4 +1,4 @@
-**Siege Assignments**
+**RSL Siege Manager**
 
 - [Home](Home)
 - [Getting Started](Getting-Started)

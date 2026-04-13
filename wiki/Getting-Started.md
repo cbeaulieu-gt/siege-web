@@ -1,6 +1,6 @@
 # Getting Started
 
-Get a populated local instance of Siege Assignments running in under 5 minutes. No Discord account needed — the default dev profile runs in demo mode with pre-seeded data and authentication disabled.
+Get a populated local instance of RSL Siege Manager running in under 5 minutes. No Discord account needed — the default dev profile runs in demo mode with pre-seeded data and authentication disabled.
 
 ## What you need
 

@@ -184,7 +184,7 @@ export default function LandingPage() {
           >
             <ShieldIcon />
             <span className="text-base font-semibold tracking-tight">
-              Siege Assignments
+              RSL Siege Manager
             </span>
           </a>
 
@@ -366,7 +366,7 @@ export default function LandingPage() {
               Run it for your own clan
             </h2>
             <p className="mb-12 max-w-2xl leading-relaxed text-slate-600">
-              Siege Assignments is fully open source and deliberately
+              RSL Siege Manager is fully open source and deliberately
               cloud-agnostic. Three paths — pick the one that fits your setup.
             </p>
 
