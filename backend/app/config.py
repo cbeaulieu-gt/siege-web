@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     # at OAuth callback with an insufficient_role error.
     discord_required_role: str = "Clan Deputies"
 
+    # Comma-separated list of origins allowed by CORS middleware.
+    # Default covers local dev frontend. In production set to your public domain,
+    # e.g. "https://rslsiege.com" or "https://rslsiege.com,https://www.rslsiege.com".
+    allowed_origins: str = "http://localhost:5173"
+
 
 settings = Settings()
 

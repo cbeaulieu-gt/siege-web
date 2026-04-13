@@ -39,6 +39,9 @@ param acrPassword string
 @description('Application Insights connection string for telemetry (pass empty string to disable)')
 param appInsightsConnectionString string = ''
 
+@description('Public-facing URL injected as VITE_PUBLIC_URL into the frontend container (e.g. https://rslsiege.com). Leave empty to omit the variable.')
+param publicUrl string = ''
+
 // ── CPU / memory sizing ───────────────────────────────────────────────────────
 // Container Apps allocates CPU and memory in fixed pairs:
 //   0.25 vCPU / 0.5 Gi  — fine for static content or very low traffic
@@ -240,6 +243,9 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
             ],
             empty(appInsightsConnectionString) ? [] : [
               { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
+            ],
+            empty(publicUrl) ? [] : [
+              { name: 'VITE_PUBLIC_URL', value: publicUrl }
             ]
           )
         }

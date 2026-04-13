@@ -125,6 +125,9 @@ param apiMinReplicas int = 1
 @description('Minimum replicas for the frontend app (0 = scale to zero when idle)')
 param frontendMinReplicas int = 1
 
+@description('Public-facing URL for canonical/og tags (e.g. https://rslsiege.com). Leave empty for dev.')
+param publicUrl string = ''
+
 // ── Modules ──────────────────────────────────────────────────────────────────
 
 module logAnalytics 'modules/log-analytics.bicep' = {
@@ -232,6 +235,7 @@ module containerApps 'modules/container-apps.bicep' = {
     botMemory: botMemory
     apiMinReplicas: apiMinReplicas
     frontendMinReplicas: frontendMinReplicas
+    publicUrl: publicUrl
   }
 }
 

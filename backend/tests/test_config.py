@@ -67,6 +67,18 @@ class TestSettingsDefaults:
         s = self._make_settings(discord_required_role="Admin")
         assert s.discord_required_role == "Admin"
 
+    def test_allowed_origins_defaults_to_localhost(self):
+        s = self._make_settings()
+        assert s.allowed_origins == "http://localhost:5173"
+
+    def test_allowed_origins_accepts_override(self):
+        s = self._make_settings(allowed_origins="https://rslsiege.com")
+        assert s.allowed_origins == "https://rslsiege.com"
+
+    def test_allowed_origins_accepts_comma_separated_values(self):
+        s = self._make_settings(allowed_origins="https://rslsiege.com,https://www.rslsiege.com")
+        assert s.allowed_origins == "https://rslsiege.com,https://www.rslsiege.com"
+
     def test_new_fields_accept_provided_values(self):
         s = self._make_settings(
             discord_client_id="cid",

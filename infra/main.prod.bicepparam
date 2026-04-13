@@ -103,6 +103,10 @@ param frontendMemory = '0.5Gi'
 param botCpu = '0.25'
 param botMemory = '0.5Gi'
 
+// ── Custom domain ─────────────────────────────────────────────────────────────
+// Injected as VITE_PUBLIC_URL into the frontend container for canonical/og tags.
+param publicUrl = 'https://rslsiege.com'
+
 // ── Replica scaling ────────────────────────────────────────────────────────────
 // API stays warm in prod — Playwright cold starts on a scaled-to-zero replica
 // are too slow for an acceptable user experience.
