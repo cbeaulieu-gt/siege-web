@@ -345,15 +345,7 @@ The `publicUrl` Bicep parameter sets `VITE_PUBLIC_URL` on the frontend container
 param publicUrl = 'https://siege.yourclan.com'
 ```
 
-The backend's `ALLOWED_ORIGINS` env var controls which origins the CORS middleware accepts. By default it is set to the dev frontend URL — when using a custom domain you must add your domain. Pass it at deploy time (or add it to `main.prod.bicepparam` as a plain param if you are comfortable having it in source control, since it is not a secret):
-
-```powershell
-az deployment group create `
-    ... `
-    --parameters allowedOrigins="https://siege.yourclan.com"
-```
-
-Alternatively, update the `ALLOWED_ORIGINS` environment variable directly on the API Container App after deploy:
+The backend's `ALLOWED_ORIGINS` env var controls which origins the CORS middleware accepts. By default it is set to the dev frontend URL — when using a custom domain you must update it on the backend Container App at runtime. This is not an infrastructure parameter; set it directly on the container after deploy:
 
 ```powershell
 az containerapp update `
@@ -362,7 +354,7 @@ az containerapp update `
     --set-env-vars "ALLOWED_ORIGINS=https://siege.yourclan.com"
 ```
 
-Then re-run the Bicep deploy with `--parameters publicUrl="https://siege.yourclan.com"` to record the value permanently.
+This takes effect immediately for new requests (Azure creates a new revision). No Bicep re-deploy is needed for this change.
 
 1. In the Azure portal, navigate to the Container App → **Custom domains** → **Add custom domain**.
 2. Follow the wizard: it shows the CNAME and TXT records you need to add at your DNS provider.
