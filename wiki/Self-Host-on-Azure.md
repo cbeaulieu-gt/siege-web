@@ -131,6 +131,7 @@ The Bicep template accepts secrets as parameters at deploy time — they are wri
 | `discordClientId` | Discord OAuth2 app client ID | Discord Developer Portal → your app → OAuth2 |
 | `discordClientSecret` | Discord OAuth2 app client secret | Discord Developer Portal → your app → OAuth2 |
 | `discordRedirectUri` | Full OAuth2 callback URL | `https://<frontend-fqdn>/api/auth/callback` — use a placeholder on first deploy, update after you have the FQDN |
+| `discordRequiredRole` | Discord role required to log in (optional) | Defaults to `Clan Deputies` if omitted — set this to whatever officer/manager role your clan uses |
 
 To generate a random secret for `postgresAdminPassword`, `discordBotApiKey`, `botApiKey`, and `sessionSecret`:
 
@@ -160,6 +161,8 @@ DISCORD_GUILD_ID=<your server id>
 ```
 
 > **Note:** `SESSION_SECRET`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, and `DISCORD_REDIRECT_URI` are not in `.env.deploy.example` (it predates OAuth2 support). Pass them directly on the command line or add them to your `.env.deploy.prod` file and set them as environment variables before running the deploy.
+
+> **`discordRequiredRole`** is optional — if you omit it the Bicep template defaults to `Clan Deputies`. Most self-hosters will need to change this. Set it to the exact (case-sensitive) name of the Discord role your clan uses for siege managers or officers, for example: `--parameters discordRequiredRole="Raid Officers"`
 
 ### Run the deploy
 
@@ -452,4 +455,5 @@ This table covers every secret and config value the deployed app uses, where it 
 | Discord OAuth2 client ID | Key Vault secret | `discord-client-id` | `siege-api` | Discord Developer Portal → OAuth2 |
 | Discord OAuth2 client secret | Key Vault secret | `discord-client-secret` | `siege-api` | Discord Developer Portal → OAuth2 |
 | Discord redirect URI | Container App env var (plain) | — | `siege-api` | Your frontend FQDN + `/api/auth/callback` |
+| Required Discord role | Container App env var (plain) | — | `siege-api` | Bicep `discordRequiredRole` param (default: `Clan Deputies`) |
 | App Insights connection string | Container App env var (plain) | — | `siege-api`, `siege-bot`, `siege-frontend` | Bicep output — set automatically |

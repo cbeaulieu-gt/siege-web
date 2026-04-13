@@ -508,6 +508,43 @@ returns `{"discord_connected":false}` or times out.
 
 ---
 
+### User sees "You need the Clan Deputies role" on login
+
+**Symptoms:** User completes Discord OAuth normally but lands on the login page with an
+`unauthorized` error message referencing a missing role.
+
+**Cause:** Either the user does not have the required Discord role, or `DISCORD_REQUIRED_ROLE`
+is set to a role name that does not exactly match a role in the server.
+
+**Steps:**
+
+1. Confirm the exact role name in your environment. For Docker / VPS deployments check `.env`:
+   ```bash
+   grep DISCORD_REQUIRED_ROLE .env
+   ```
+   For Azure deployments check the Container App environment variable:
+   ```bash
+   az containerapp show \
+     --name {CONTAINER_APP_API} \
+     --resource-group {RESOURCE_GROUP} \
+     --query "properties.template.containers[0].env[?name=='DISCORD_REQUIRED_ROLE'].value" \
+     --output tsv
+   ```
+
+2. In Discord, open **Server Settings → Roles** and verify the role name matches exactly —
+   the check is case-sensitive. Common mismatches: extra spaces, different capitalisation
+   (e.g. `Clan deputies` vs `Clan Deputies`), or a role that was renamed since the env var
+   was set.
+
+3. Verify the affected user actually holds the role: right-click the user in Discord →
+   **Roles** and confirm the required role is listed.
+
+4. If the role name is wrong, update `DISCORD_REQUIRED_ROLE` and restart the `siege-api`
+   container (or force a new Container App revision on Azure). No database changes are
+   needed — the check happens at login time only.
+
+---
+
 ### Board loads slowly
 
 **Symptoms:** `GET /api/sieges/{id}/board` takes more than 2–3 seconds. Frontend board

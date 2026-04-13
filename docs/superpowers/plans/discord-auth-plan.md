@@ -51,6 +51,8 @@ Guild membership and roles are verified **server-side** using the bot token — 
 8. Backend: calls bot sidecar GET /api/members/{discord_id}
    - Bot unreachable / HTTP error → 503, redirect /login?error=service_unavailable
    - is_member=false → redirect /login?error=unauthorized
+   - is_member=true but user lacks the role named by DISCORD_REQUIRED_ROLE → redirect /login?error=unauthorized
+   (DISCORD_REQUIRED_ROLE defaults to "Clan Deputies"; exact case-sensitive match against the member's role names)
 9. Backend: matches Member WHERE discord_id = discord_id only (NO username fallback)
    - No match → redirect /login?error=unauthorized
 10. Backend: issues 24-hour JWT in HttpOnly/Secure/SameSite=Lax cookie
@@ -147,6 +149,8 @@ async def get_guild_member(
         "roles": [str(r.id) for r in member.roles if r.name != "@everyone"],
     }
 ```
+
+> **Role gating note:** the callback uses the `roles` list returned above (role IDs) together with `DISCORD_REQUIRED_ROLE` (a role *name*) to verify access. The backend resolves role names via a separate `fetch_member` lookup or by including role names in the sidecar response. If the required role is absent from the member's roles, the callback redirects to `/login?error=unauthorized` — the same path as a non-member. `DISCORD_REQUIRED_ROLE` defaults to `"Clan Deputies"` but is fully configurable; self-hosters should set it to whatever Discord role their clan uses for siege managers.
 
 **New method on `backend/app/services/bot_client.py`:**
 
