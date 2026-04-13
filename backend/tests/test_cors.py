@@ -14,7 +14,6 @@ that each test group exercises an independent CORS configuration without
 mutating the global ``app`` object (which is shared across tests).
 """
 
-import pytest
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.testclient import TestClient
