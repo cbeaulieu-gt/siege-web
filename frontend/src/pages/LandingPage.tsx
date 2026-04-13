@@ -184,7 +184,7 @@ export default function LandingPage() {
           >
             <ShieldIcon />
             <span className="text-base font-semibold tracking-tight">
-              Siege Assignments
+              RSL Siege Manager
             </span>
           </a>
 
@@ -226,7 +226,7 @@ export default function LandingPage() {
           <div className="mx-auto max-w-4xl px-6 py-24 text-center">
             <p className="mb-5 text-xs font-semibold uppercase tracking-widest text-slate-500">
               A portfolio project by{" "}
-              <a href="https://www.linkedin.com/in/christopher-beaulieu/" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">Christopher Beaulieu</a>
+              <a href="https://christopherbeaulieu.net" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:underline">Christopher Beaulieu</a>
             </p>
             <h1 className="mb-4 text-4xl font-bold leading-tight tracking-tight text-slate-900 sm:text-5xl">
               A siege assignment tool I built
@@ -366,7 +366,7 @@ export default function LandingPage() {
               Run it for your own clan
             </h2>
             <p className="mb-12 max-w-2xl leading-relaxed text-slate-600">
-              Siege Assignments is fully open source and deliberately
+              RSL Siege Manager is fully open source and deliberately
               cloud-agnostic. Three paths — pick the one that fits your setup.
             </p>
 

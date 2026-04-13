@@ -89,7 +89,7 @@ def test_build_assignments_html_contains_title():
     board = _make_board()
     html = _build_assignments_html(board, "2026-03-20")
     assert "2026-03-20" in html
-    assert "Siege Assignments" in html
+    assert "RSL Siege Manager" in html
 
 
 def test_build_assignments_html_contains_building_type():
@@ -124,7 +124,7 @@ def test_build_assignments_html_empty_board():
     board = _make_board()
     html = _build_assignments_html(board, "2026-03-20")
     assert len(html) > 0
-    assert "Siege Assignments" in html
+    assert "RSL Siege Manager" in html
 
 
 def test_build_assignments_html_all_building_types_colored():
@@ -204,7 +204,7 @@ async def test_generate_assignments_image_calls_render():
     mock_render.assert_awaited_once()
     # Verify the HTML passed to render contains expected content
     called_html = mock_render.call_args[0][0]
-    assert "Siege Assignments" in called_html
+    assert "RSL Siege Manager" in called_html
 
 
 @pytest.mark.asyncio

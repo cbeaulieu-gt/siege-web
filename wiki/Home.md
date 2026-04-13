@@ -1,4 +1,4 @@
-# Siege Assignments
+# RSL Siege Manager
 
 A web app for managing Raid Shadow Legends clan siege assignments. Replaces the Discord-plus-Excel workflow with a unified web UI backed by a relational database. Open source, self-hostable, and free.
 

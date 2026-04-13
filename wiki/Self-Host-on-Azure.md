@@ -66,7 +66,7 @@ This is the managed, hands-off path. Azure handles TLS, scaling, secret rotation
 The app uses Discord OAuth2 for user login. You need a Discord application with a bot user.
 
 1. Go to [discord.com/developers/applications](https://discord.com/developers/applications) and click **New Application**.
-2. Give it a name (e.g. "Siege Assignments").
+2. Give it a name (e.g. "RSL Siege Manager").
 3. Under **OAuth2 → General**, note the **Client ID** and generate a **Client Secret**. Save both — they become `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET` in Bicep and in GitHub Secrets.
 4. Under **OAuth2 → Redirects**, add your callback URL. For the prod deployment this will be:
    ```

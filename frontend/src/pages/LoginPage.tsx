@@ -57,7 +57,7 @@ export default function LoginPage() {
         <div className="flex flex-col items-center gap-2">
           <Shield className="h-8 w-8 text-violet-600" />
           <h1 className="text-xl font-semibold text-slate-900">
-            Siege Assignments
+            RSL Siege Manager
           </h1>
         </div>
 
@@ -98,8 +98,8 @@ export default function LoginPage() {
               data-testid="self-host-link"
             >
               {isMembershipDenied
-                ? "Run Siege Assignments for your own clan →"
-                : "Run Siege Assignments for your own clan ↗"}
+                ? "Run RSL Siege Manager for your own clan →"
+                : "Run RSL Siege Manager for your own clan ↗"}
             </a>
           </div>
 

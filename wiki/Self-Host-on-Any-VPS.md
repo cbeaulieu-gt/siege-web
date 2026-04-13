@@ -64,7 +64,7 @@ If you don't have a domain or can't open ports, skip ahead to [Section 6](#6-tun
 The app uses Discord OAuth2 for user login. Only the backend's `/api/auth/callback` endpoint needs to be publicly reachable — the frontend and bot do not need their own public URLs.
 
 1. Go to [discord.com/developers/applications](https://discord.com/developers/applications) and click **New Application**.
-2. Name it (e.g. "Siege Assignments") and click **Create**.
+2. Name it (e.g. "RSL Siege Manager") and click **Create**.
 3. Under **OAuth2 → General**, note the **Client ID** and click **Reset Secret** to generate a **Client Secret**. Copy both — these become `DISCORD_CLIENT_ID` and `DISCORD_CLIENT_SECRET` in your env file.
 4. Under **OAuth2 → Redirects**, click **Add Redirect** and enter your callback URL:
    ```

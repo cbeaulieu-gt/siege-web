@@ -42,7 +42,7 @@ export default function Layout() {
           <div className="flex h-14 items-center gap-6">
             <div className="flex items-center gap-2 text-slate-900">
               <Shield className="h-5 w-5 text-violet-600" />
-              <span className="text-sm font-semibold">Siege Assignments</span>
+              <span className="text-sm font-semibold">RSL Siege Manager</span>
             </div>
             <div className="flex flex-1 items-center gap-1">
               <NavLink to="/sieges" className={navLinkClass}>

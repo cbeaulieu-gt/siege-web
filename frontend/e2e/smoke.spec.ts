@@ -9,7 +9,7 @@ test.describe('Smoke', () => {
     await page.goto('/');
     await expect(page).toHaveURL('/sieges');
     // The main nav brand is always present
-    await expect(page.getByText('Siege Assignments')).toBeVisible();
+    await expect(page.getByText('RSL Siege Manager')).toBeVisible();
   });
 
   test('backend health endpoint returns healthy', async ({ request }) => {

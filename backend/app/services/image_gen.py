@@ -224,7 +224,7 @@ def _build_assignments_html(
 </style>
 </head>
 <body>
-  <h1>Siege Assignments &mdash; {siege_date}</h1>
+  <h1>RSL Siege Manager &mdash; {siege_date}</h1>
   {sections_html}
 </body>
 </html>"""
