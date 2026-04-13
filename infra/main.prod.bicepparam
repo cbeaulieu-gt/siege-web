@@ -107,6 +107,14 @@ param botMemory = '0.5Gi'
 // Injected as VITE_PUBLIC_URL into the frontend container for canonical/og tags.
 param publicUrl = 'https://rslsiege.com'
 
+// The bare hostname (no https://) Bicep binds the managed TLS certificate to.
+// Prerequisites before deploying with this set:
+//   1. Add a CNAME record at your DNS provider pointing rslsiege.com to the
+//      Container App's Azure FQDN (e.g. siege-web-frontend-prod.*.azurecontainerapps.io).
+//   2. Cloudflare users: set the CNAME to DNS-only (grey cloud) during first deploy
+//      so Azure can perform CNAME validation. Re-enable the proxy after the cert is issued.
+param customDomainHostname = 'rslsiege.com'
+
 // ── Replica scaling ────────────────────────────────────────────────────────────
 // API stays warm in prod — Playwright cold starts on a scaled-to-zero replica
 // are too slow for an acceptable user experience.

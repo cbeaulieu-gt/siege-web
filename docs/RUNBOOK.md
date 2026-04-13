@@ -702,3 +702,89 @@ is still running the old revision or the new revision shows a failed status.
 4. Check for connection pool exhaustion (see Board loads slowly, Step 3 above).
    If the pool is exhausted, restarting the `siege-api` Container App (Section 1) will
    reset all connections as a temporary fix while you investigate the root cause.
+
+---
+
+## 8. Custom Domain and TLS Certificate
+
+The custom domain binding and managed TLS certificate are declared in Bicep and survive
+every infrastructure re-deployment. You should never need to manually re-bind the domain
+or re-provision the certificate under normal operations.
+
+### How it works
+
+`infra/modules/container-apps.bicep` uses a two-phase approach when `customDomainHostname`
+is set in the `.bicepparam` file:
+
+- **Phase 1** — registers the hostname on the frontend with `bindingType: 'Disabled'` so
+  Azure can verify DNS ownership.
+- **Phase 2** — provisions a `Microsoft.App/managedEnvironments/managedCertificates`
+  resource (CNAME validation) and rebinds the frontend with `bindingType: 'SniEnabled'`
+  and the certificate ID.
+
+Re-running the Bicep deployment with the same `customDomainHostname` value is idempotent —
+the binding and cert are preserved.
+
+### Certificate renewal
+
+Azure auto-renews managed certificates before expiry. No operator action is required.
+
+### Re-provisioning a failed certificate
+
+If the certificate enters a failed state (visible in the Azure portal under the Container
+Apps Environment → Certificates, or reported by `az containerapp env certificate list`):
+
+1. **Check DNS first** — the certificate is issued via CNAME validation. Confirm the CNAME
+   still resolves to the Container App FQDN:
+   ```bash
+   # Replace with your domain and expected FQDN
+   nslookup rslsiege.com
+   ```
+
+2. **Cloudflare users** — if the Cloudflare proxy (orange cloud) is enabled, disable it
+   temporarily (set to DNS-only / grey cloud) so Azure can validate the CNAME directly.
+   Re-enable after the cert is issued.
+
+3. **Delete the stale certificate and re-deploy** — remove the certificate resource from
+   the managed environment, then run the Bicep deployment again to re-provision it:
+   ```bash
+   # List certificates in the environment
+   az containerapp env certificate list \
+     --name {ENVIRONMENT_NAME} \
+     --resource-group {RESOURCE_GROUP} \
+     --output table
+
+   # Delete the stale certificate by name
+   az containerapp env certificate delete \
+     --name {ENVIRONMENT_NAME} \
+     --resource-group {RESOURCE_GROUP} \
+     --certificate {CERT_NAME} \
+     --yes
+   ```
+   Then trigger a Bicep re-deployment (via `infra-deploy.yml` or `az deployment group create`)
+   with `customDomainHostname` set — Azure will re-provision the cert and re-bind.
+
+### Checking the current binding state
+
+```bash
+az containerapp show \
+  --name {CONTAINER_APP_FRONTEND} \
+  --resource-group {RESOURCE_GROUP} \
+  --query "properties.configuration.ingress.customDomains" \
+  --output json
+```
+
+Expected output when fully bound:
+
+```json
+[
+  {
+    "bindingType": "SniEnabled",
+    "certificateId": "/subscriptions/.../managedCertificates/...",
+    "name": "rslsiege.com"
+  }
+]
+```
+
+If `bindingType` is `"Disabled"`, Phase 2 of the Bicep deployment did not complete — re-run
+the infrastructure deployment after confirming DNS is correct.

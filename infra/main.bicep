@@ -128,6 +128,9 @@ param frontendMinReplicas int = 1
 @description('Public-facing URL for canonical/og tags (e.g. https://rslsiege.com). Leave empty for dev.')
 param publicUrl string = ''
 
+@description('Custom hostname to bind to the frontend (e.g. rslsiege.com). Leave empty to skip custom domain binding. DNS must point to the Container App FQDN via CNAME before deploying with this set.')
+param customDomainHostname string = ''
+
 // ── Modules ──────────────────────────────────────────────────────────────────
 
 module logAnalytics 'modules/log-analytics.bicep' = {
@@ -236,6 +239,8 @@ module containerApps 'modules/container-apps.bicep' = {
     apiMinReplicas: apiMinReplicas
     frontendMinReplicas: frontendMinReplicas
     publicUrl: publicUrl
+    containerAppsEnvironmentName: containerEnv.outputs.environmentName
+    customDomainHostname: customDomainHostname
   }
 }
 
