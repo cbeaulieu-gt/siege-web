@@ -271,12 +271,15 @@ export default function LandingPage() {
               {/* Feature bullets */}
               <ul className="space-y-4" data-testid="feature-list">
                 {[
+                  "Drag-and-drop member bucket per building",
+                  "Member management with roles, scroll counts, and Discord sync",
+                  "Post condition and member preference system",
+                  "Building-level slot awareness with support for broken buildings",
                   "Auto-fill algorithm that respects pin state and attack-day thresholds",
                   "16 validation rules enforced live as you edit",
-                  "Drag-and-drop member bucket per building",
+                  "Side-by-side siege comparison for planning",
                   "Generated PNG boards posted to Discord automatically",
                   "Per-member DM notifications with delivery tracking",
-                  "Side-by-side siege comparison for planning",
                 ].map((text) => (
                   <li key={text} className="flex items-start gap-3">
                     <CheckIcon />
