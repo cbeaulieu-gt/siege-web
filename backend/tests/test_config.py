@@ -59,6 +59,14 @@ class TestSettingsDefaults:
         s = self._make_settings()
         assert s.auth_disabled is False
 
+    def test_discord_required_role_defaults_to_clan_deputies(self):
+        s = self._make_settings()
+        assert s.discord_required_role == "Clan Deputies"
+
+    def test_discord_required_role_accepts_override(self):
+        s = self._make_settings(discord_required_role="Admin")
+        assert s.discord_required_role == "Admin"
+
     def test_new_fields_accept_provided_values(self):
         s = self._make_settings(
             discord_client_id="cid",

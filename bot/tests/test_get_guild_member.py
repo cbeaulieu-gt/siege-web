@@ -109,6 +109,10 @@ async def test_get_guild_member_found_returns_200_with_member_data(client):
     assert "111" in data["roles"]
     assert "222" in data["roles"]
     assert str(GUILD_ID) not in data["roles"]
+    # role_names must parallel roles (name strings, @everyone excluded)
+    assert "role-111" in data["role_names"]
+    assert "role-222" in data["role_names"]
+    assert "@everyone" not in data["role_names"]
 
 
 @pytest.mark.asyncio
@@ -126,7 +130,9 @@ async def test_get_guild_member_roles_exclude_everyone(client):
         http_api_module._bot = None
 
     assert response.status_code == 200
-    assert response.json()["roles"] == []
+    data = response.json()
+    assert data["roles"] == []
+    assert data["role_names"] == []
 
 
 # ---------------------------------------------------------------------------

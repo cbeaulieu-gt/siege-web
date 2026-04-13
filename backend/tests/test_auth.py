@@ -386,7 +386,9 @@ async def test_callback_happy_path(monkeypatch):
             ):
                 with patch(
                     "app.api.auth._check_guild_membership",
-                    new=AsyncMock(return_value={"is_member": True}),
+                    new=AsyncMock(
+                        return_value={"is_member": True, "role_names": ["Clan Deputies"]}
+                    ),
                 ):
                     async with AsyncClient(
                         transport=ASGITransport(app=app),
@@ -437,6 +439,129 @@ async def test_callback_not_in_guild_redirects(monkeypatch):
 
     assert response.status_code == 302
     assert response.headers["location"] == "/login?error=unauthorized"
+
+
+@pytest.mark.asyncio
+async def test_callback_insufficient_role_redirects(monkeypatch):
+    """Guild member without the required Discord role redirects to /login?error=insufficient_role."""
+    monkeypatch.setattr("app.config.settings.environment", "development")
+    monkeypatch.setattr("app.config.settings.discord_required_role", "Clan Deputies")
+
+    state = secrets.token_hex(32)
+    with patch(
+        "app.api.auth._exchange_code_for_token",
+        new=AsyncMock(return_value="discord-access-token"),
+    ):
+        with patch(
+            "app.api.auth._get_discord_user",
+            new=AsyncMock(return_value={"id": "discord-norole"}),
+        ):
+            with patch(
+                "app.api.auth._check_guild_membership",
+                # Member is in the guild but only has a different role
+                new=AsyncMock(
+                    return_value={"is_member": True, "role_names": ["some-other-role"]}
+                ),
+            ):
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test",
+                    follow_redirects=False,
+                ) as client:
+                    client.cookies.set("oauth_state", state)
+                    response = await client.get(
+                        "/api/auth/callback",
+                        params={"code": "auth-code", "state": state},
+                    )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/login?error=insufficient_role"
+
+
+@pytest.mark.asyncio
+async def test_callback_insufficient_role_missing_role_names_key_redirects(monkeypatch):
+    """Guild member response without role_names key is treated as no roles (rejected)."""
+    monkeypatch.setattr("app.config.settings.environment", "development")
+    monkeypatch.setattr("app.config.settings.discord_required_role", "Clan Deputies")
+
+    state = secrets.token_hex(32)
+    with patch(
+        "app.api.auth._exchange_code_for_token",
+        new=AsyncMock(return_value="discord-access-token"),
+    ):
+        with patch(
+            "app.api.auth._get_discord_user",
+            new=AsyncMock(return_value={"id": "discord-legacy"}),
+        ):
+            with patch(
+                "app.api.auth._check_guild_membership",
+                # Old bot response without role_names — should default to empty list
+                new=AsyncMock(return_value={"is_member": True}),
+            ):
+                async with AsyncClient(
+                    transport=ASGITransport(app=app),
+                    base_url="http://test",
+                    follow_redirects=False,
+                ) as client:
+                    client.cookies.set("oauth_state", state)
+                    response = await client.get(
+                        "/api/auth/callback",
+                        params={"code": "auth-code", "state": state},
+                    )
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/login?error=insufficient_role"
+
+
+@pytest.mark.asyncio
+async def test_callback_with_required_role_proceeds_to_member_lookup(monkeypatch):
+    """Guild member WITH the required role passes the role check and proceeds normally."""
+    monkeypatch.setattr("app.config.settings.environment", "development")
+    monkeypatch.setattr("app.config.settings.discord_required_role", "Clan Deputies")
+    monkeypatch.setattr("app.config.settings.session_secret", TEST_SESSION_SECRET)
+
+    member = _make_member(id=10, discord_id="discord-deputy")
+    mock_db = _make_mock_db(member=member)
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none = MagicMock(return_value=member)
+    mock_db.execute = AsyncMock(return_value=mock_result)
+
+    async def override_get_db():
+        yield mock_db
+
+    state = secrets.token_hex(32)
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch(
+            "app.api.auth._exchange_code_for_token",
+            new=AsyncMock(return_value="discord-access-token"),
+        ):
+            with patch(
+                "app.api.auth._get_discord_user",
+                new=AsyncMock(return_value={"id": "discord-deputy"}),
+            ):
+                with patch(
+                    "app.api.auth._check_guild_membership",
+                    new=AsyncMock(
+                        return_value={"is_member": True, "role_names": ["Clan Deputies", "Member"]}
+                    ),
+                ):
+                    async with AsyncClient(
+                        transport=ASGITransport(app=app),
+                        base_url="http://test",
+                        follow_redirects=False,
+                    ) as client:
+                        client.cookies.set("oauth_state", state)
+                        response = await client.get(
+                            "/api/auth/callback",
+                            params={"code": "auth-code", "state": state},
+                        )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 302
+    assert response.headers["location"] == "/"
+    assert "session" in response.cookies
 
 
 @pytest.mark.asyncio
@@ -498,7 +623,9 @@ async def test_callback_no_member_record_redirects(monkeypatch):
             ):
                 with patch(
                     "app.api.auth._check_guild_membership",
-                    new=AsyncMock(return_value={"is_member": True}),
+                    new=AsyncMock(
+                        return_value={"is_member": True, "role_names": ["Clan Deputies"]}
+                    ),
                 ):
                     async with AsyncClient(
                         transport=ASGITransport(app=app),

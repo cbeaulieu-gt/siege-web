@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     # Dev-only auth bypass — startup guard rejects True outside development.
     auth_disabled: bool = False
 
+    # Discord role required to log in. Members without this role are rejected
+    # at OAuth callback with an insufficient_role error.
+    discord_required_role: str = "Clan Deputies"
+
 
 settings = Settings()
 
