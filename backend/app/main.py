@@ -34,6 +34,8 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
+logger = logging.getLogger(__name__)
+
 configure_telemetry()
 
 
@@ -68,9 +70,13 @@ app = FastAPI(
 )
 
 app.add_middleware(RequestLoggingMiddleware)
+
+_cors_origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+logger.info("CORS allowed origins: %s", _cors_origins)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

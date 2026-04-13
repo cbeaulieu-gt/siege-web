@@ -337,6 +337,25 @@ Azure Container Apps provide a public FQDN automatically (e.g. `siege-web-fronte
 
 To use a custom domain (e.g. `siege.yourclan.com`):
 
+### Wire the custom domain into Bicep
+
+The `publicUrl` Bicep parameter sets `VITE_PUBLIC_URL` on the frontend container so canonical and og:url meta tags use your domain instead of the Container Apps FQDN. Set it in `infra/main.prod.bicepparam`:
+
+```bicep
+param publicUrl = 'https://siege.yourclan.com'
+```
+
+The backend's `ALLOWED_ORIGINS` env var controls which origins the CORS middleware accepts. By default it is set to the dev frontend URL — when using a custom domain you must update it on the backend Container App at runtime. This is not an infrastructure parameter; set it directly on the container after deploy:
+
+```powershell
+az containerapp update `
+    --name siege-web-api-prod `
+    --resource-group siege-rg-prod `
+    --set-env-vars "ALLOWED_ORIGINS=https://siege.yourclan.com"
+```
+
+This takes effect immediately for new requests (Azure creates a new revision). No Bicep re-deploy is needed for this change.
+
 1. In the Azure portal, navigate to the Container App → **Custom domains** → **Add custom domain**.
 2. Follow the wizard: it shows the CNAME and TXT records you need to add at your DNS provider.
 3. Azure automatically provisions a managed TLS certificate (Let's Encrypt) once DNS propagates.

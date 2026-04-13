@@ -169,9 +169,29 @@ BOT_SERVICE_TOKEN=<generated value>
 
 Both the backend and the bot read this value — make sure it is the same in both services (the single `.env.production` file loaded by both services via `env_file` ensures this when using the production compose overlay).
 
-### Tier 3 — Azure / deploy-only
+### Tier 3 — Custom domain / deploy-only
 
-Leave these blank or omit them. They are only used by the Azure deployment pipeline.
+These variables are optional for a basic deployment but required when you use a custom domain.
+
+**`ALLOWED_ORIGINS`** — Comma-separated list of origins the backend allows for CORS. Defaults to `http://localhost:5173` (local dev frontend). When self-hosting behind a reverse proxy or custom domain, set this to your public URL so the browser can make API calls:
+
+```
+ALLOWED_ORIGINS=https://siege.example.com
+```
+
+If you serve the app from multiple origins (e.g. with and without `www`), separate them with commas:
+
+```
+ALLOWED_ORIGINS=https://siege.example.com,https://www.siege.example.com
+```
+
+**`VITE_PUBLIC_URL`** — Canonical URL injected into the frontend for `<link rel="canonical">` and `og:url` meta tags. Set it to the same value as your public-facing URL:
+
+```
+VITE_PUBLIC_URL=https://siege.example.com
+```
+
+Leave both unset (or use the defaults) for a purely local deployment.
 
 ### Lock down the env file
 

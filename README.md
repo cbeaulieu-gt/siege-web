@@ -157,7 +157,7 @@ Copy `.env.deploy.example` to both files and fill in the values.
 |---|---|
 | **1 — Always required** | `DATABASE_URL`, `ENVIRONMENT`, `AUTH_DISABLED`, `SESSION_SECRET` |
 | **2 — Discord / real auth** | OAuth2 credentials, bot token, guild ID, channel names, API keys, `DISCORD_REQUIRED_ROLE` |
-| **3 — Azure / deploy only** | `IMPORT_EXCEL_PATH` and anything used only by Bicep or CI |
+| **3 — Azure / deploy only** | `ALLOWED_ORIGINS`, `IMPORT_EXCEL_PATH` and anything used only by Bicep or CI |
 
 `AUTH_DISABLED=true` (the default in `.env.example`) bypasses login entirely — anyone who can reach the URL has full access. Never use this outside a local dev environment.
 
