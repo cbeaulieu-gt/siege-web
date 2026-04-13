@@ -65,12 +65,12 @@ describe("LandingPage (anonymous user)", () => {
     });
   });
 
-  it("renders the feature list with 6 bullets", async () => {
+  it("renders the feature list with 9 bullets", async () => {
     renderLanding();
     await waitFor(() => {
       const list = screen.getByTestId("feature-list");
       const bullets = list.querySelectorAll("li");
-      expect(bullets.length).toBe(6);
+      expect(bullets.length).toBe(9);
     });
   });
 
