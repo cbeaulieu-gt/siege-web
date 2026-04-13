@@ -443,7 +443,8 @@ async def test_callback_not_in_guild_redirects(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_callback_insufficient_role_redirects(monkeypatch):
-    """Guild member without the required Discord role redirects to /login?error=insufficient_role."""
+    """Guild member without required Discord role redirects to
+    /login?error=insufficient_role."""
     monkeypatch.setattr("app.config.settings.environment", "development")
     monkeypatch.setattr("app.config.settings.discord_required_role", "Clan Deputies")
 
