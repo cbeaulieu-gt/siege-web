@@ -60,11 +60,6 @@ const SLIDES: CarouselSlide[] = [
     title: "Generated Discord image",
     description: "The PNG posted to your channel",
   },
-  {
-    placeholder: "Notification tracking",
-    title: "Notification tracking",
-    description: "DM batch delivery status",
-  },
 ];
 
 // ---------------------------------------------------------------------------
