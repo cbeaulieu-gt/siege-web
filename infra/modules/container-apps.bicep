@@ -321,7 +321,7 @@ resource containerAppsEnv 'Microsoft.App/managedEnvironments@2024-03-01' existin
 // the cert is issued and the binding is active you can re-enable the proxy.
 resource managedCert 'Microsoft.App/managedEnvironments/managedCertificates@2024-03-01' = if (hasCustomDomain) {
   parent: containerAppsEnv
-  name: '${replace(customDomainHostname, '.', '-')}-cert'
+  name: take('${replace(customDomainHostname, '.', '-')}-cert', 60)
   location: location
   properties: {
     subjectName: customDomainHostname
@@ -341,6 +341,10 @@ resource managedCert 'Microsoft.App/managedEnvironments/managedCertificates@2024
 // customDomains bindingType and certificateId. Bicep's symbolic reference to
 // frontendApp.properties.template copies the current template (containers,
 // scale rules, etc.) so we don't duplicate container config here.
+// MAINTENANCE WARNING: This resource duplicates the frontendApp configuration
+// to update the custom domain binding from Disabled to SniEnabled. If you change
+// the frontendApp ingress, registries, or secrets, you MUST mirror those changes
+// here or the binding deployment will revert them.
 resource frontendAppCertBinding 'Microsoft.App/containerApps@2024-03-01' = if (hasCustomDomain) {
   name: frontendAppName
   location: location

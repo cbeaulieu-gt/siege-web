@@ -385,25 +385,32 @@ Then run the infrastructure deploy (via the `infra-deploy.yml` workflow or `az d
 
 ### After the custom domain is active
 
-Update `discordRedirectUri` to use the new domain. First, update the Key Vault secret:
+Update `discordRedirectUri` to use the new domain. This is a plain Bicep parameter (not a Key Vault secret), so update it in your `.bicepparam` file and redeploy:
 
-```powershell
-az keyvault secret set `
-    --vault-name <your-vault-name> `
-    --name "discord-redirect-uri" `
-    --value "https://siege.yourclan.com/api/auth/callback"
-```
+1. In `infra/main.prod.bicepparam`, set the new value:
 
-> Get your vault name with: `az keyvault list --resource-group siege-rg-prod --query "[0].name" --output tsv`
+   ```bicep
+   param discordRedirectUri = 'https://siege.yourclan.com/api/auth/callback'
+   ```
 
-Then force a new revision of the API Container App to pick up the updated secret:
+2. Redeploy infrastructure (either via the `infra-deploy.yml` workflow or directly):
 
-```powershell
-az containerapp update `
-    --name siege-web-api-prod `
-    --resource-group siege-rg-prod `
-    --revision-suffix "redirect-update"
-```
+   ```powershell
+   az deployment group create `
+       --resource-group siege-rg-prod `
+       --template-file infra/main.bicep `
+       --parameters infra/main.prod.bicepparam
+   ```
+
+   Or pass it as a one-off override without editing the file:
+
+   ```powershell
+   az deployment group create `
+       --resource-group siege-rg-prod `
+       --template-file infra/main.bicep `
+       --parameters infra/main.prod.bicepparam `
+       --parameters discordRedirectUri="https://siege.yourclan.com/api/auth/callback"
+   ```
 
 Also update the redirect URI in the Discord Developer Portal (your app → OAuth2 → Redirects) to match.
 
