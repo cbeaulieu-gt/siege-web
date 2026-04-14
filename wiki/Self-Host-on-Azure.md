@@ -335,46 +335,86 @@ Repeat for `dev`, substituting `siege-rg-dev`, `siegeacrdev`, `siegeacrdev.azure
 
 Azure Container Apps provide a public FQDN automatically (e.g. `siege-web-frontend-prod.wonderfulrock-12345678.westus.azurecontainerapps.io`). If that's acceptable, skip this section.
 
-To use a custom domain (e.g. `siege.yourclan.com`):
+Custom domain binding — including the managed TLS certificate — is declared in Bicep and survives every infrastructure re-deployment. You do not need to bind the domain or provision the certificate manually.
 
-### Wire the custom domain into Bicep
+### How the Bicep-managed binding works
 
-The `publicUrl` Bicep parameter sets `VITE_PUBLIC_URL` on the frontend container so canonical and og:url meta tags use your domain instead of the Container Apps FQDN. Set it in `infra/main.prod.bicepparam`:
+The `customDomainHostname` parameter (bare hostname, no `https://`) triggers a two-phase provisioning sequence inside `infra/modules/container-apps.bicep`:
 
-```bicep
-param publicUrl = 'https://siege.yourclan.com'
-```
+1. **Phase 1** — registers the hostname on the frontend Container App with `bindingType: 'Disabled'`. This tells Azure which hostname to validate without yet serving TLS for it.
+2. **Phase 2** — provisions an `Azure-managed certificate` (`Microsoft.App/managedEnvironments/managedCertificates`) via CNAME validation, then rebinds the frontend with `bindingType: 'SniEnabled'` and the issued certificate ID.
 
-The backend's `ALLOWED_ORIGINS` env var controls which origins the CORS middleware accepts. By default it is set to the dev frontend URL — when using a custom domain you must update it on the backend Container App at runtime. This is not an infrastructure parameter; set it directly on the container after deploy:
+Both phases run in a single `az deployment group create` call. On subsequent re-deployments the hostname is already registered and the cert already issued, so both phases are no-ops — the binding is preserved automatically.
+
+### Prerequisites before enabling the custom domain parameter
+
+**Step 1 — get your Container App FQDN** (if you haven't already):
 
 ```powershell
-az containerapp update `
-    --name siege-web-api-prod `
+az containerapp show `
+    --name siege-web-frontend-prod `
     --resource-group siege-rg-prod `
-    --set-env-vars "ALLOWED_ORIGINS=https://siege.yourclan.com"
+    --query "properties.configuration.ingress.fqdn" `
+    --output tsv
 ```
 
-This takes effect immediately for new requests (Azure creates a new revision). No Bicep re-deploy is needed for this change.
+**Step 2 — configure DNS at your registrar / DNS provider:**
 
-1. In the Azure portal, navigate to the Container App → **Custom domains** → **Add custom domain**.
-2. Follow the wizard: it shows the CNAME and TXT records you need to add at your DNS provider.
-3. Azure automatically provisions a managed TLS certificate (Let's Encrypt) once DNS propagates.
-4. After the custom domain is active, update `discordRedirectUri` in Key Vault and in the Discord Developer Portal to use the new domain:
-   ```powershell
-   az keyvault secret set `
-       --vault-name <your-vault-name> `
-       --name "discord-redirect-uri" `
-       --value "https://siege.yourclan.com/api/auth/callback"
+Add a CNAME record for your domain pointing to the Container App FQDN:
+
+| Type | Host | Value |
+|---|---|---|
+| `CNAME` | `siege.yourclan.com` (or `@` for an apex domain) | `siege-web-frontend-prod.wonderfulrock-12345678.westus.azurecontainerapps.io` |
+
+> **Apex domains:** most DNS providers do not support a bare CNAME on the apex (`@`). Use a CNAME-flattening provider (e.g. Cloudflare) or a subdomain instead.
+
+> **Cloudflare users:** set the CNAME record to **DNS-only (grey cloud)** during the first deploy. Azure performs CNAME validation to issue the certificate, and Cloudflare's proxy intercepts that validation. Once the certificate has been issued and the binding shows `SniEnabled`, you can re-enable the proxy (orange cloud).
+
+Allow 5–15 minutes for DNS to propagate before deploying.
+
+### Enable the parameter in Bicep
+
+Set both parameters in `infra/main.prod.bicepparam`:
+
+```bicep
+param publicUrl           = 'https://siege.yourclan.com'  // sets VITE_PUBLIC_URL (canonical/og tags)
+param customDomainHostname = 'siege.yourclan.com'         // bare hostname — no https://
+```
+
+Then run the infrastructure deploy (via the `infra-deploy.yml` workflow or `az deployment group create` directly). The managed certificate is provisioned and the binding is activated in one pass.
+
+Setting `customDomainHostname` also automatically configures the backend's `ALLOWED_ORIGINS` env var to `https://<your-domain>`, so CORS is handled without any manual steps.
+
+### After the custom domain is active
+
+Update `discordRedirectUri` to use the new domain. This is a plain Bicep parameter (not a Key Vault secret), so update it in your `.bicepparam` file and redeploy:
+
+1. In `infra/main.prod.bicepparam`, set the new value:
+
+   ```bicep
+   param discordRedirectUri = 'https://siege.yourclan.com/api/auth/callback'
    ```
-   Then force a new Container App revision to pick up the updated secret:
+
+2. Redeploy infrastructure (either via the `infra-deploy.yml` workflow or directly):
+
    ```powershell
-   az containerapp update `
-       --name siege-web-api-prod `
+   az deployment group create `
        --resource-group siege-rg-prod `
-       --revision-suffix "redirect-update"
+       --template-file infra/main.bicep `
+       --parameters infra/main.prod.bicepparam
    ```
 
-> Get your vault name with: `az keyvault list --resource-group siege-rg-prod --query "[0].name" --output tsv`
+   Or pass it as a one-off override without editing the file:
+
+   ```powershell
+   az deployment group create `
+       --resource-group siege-rg-prod `
+       --template-file infra/main.bicep `
+       --parameters infra/main.prod.bicepparam `
+       --parameters discordRedirectUri="https://siege.yourclan.com/api/auth/callback"
+   ```
+
+Also update the redirect URI in the Discord Developer Portal (your app → OAuth2 → Redirects) to match.
 
 ---
 
