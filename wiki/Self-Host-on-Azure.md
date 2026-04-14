@@ -383,6 +383,8 @@ param customDomainHostname = 'siege.yourclan.com'         // bare hostname — n
 
 Then run the infrastructure deploy (via the `infra-deploy.yml` workflow or `az deployment group create` directly). The managed certificate is provisioned and the binding is activated in one pass.
 
+Setting `customDomainHostname` also automatically configures the backend's `ALLOWED_ORIGINS` env var to `https://<your-domain>`, so CORS is handled without any manual steps.
+
 ### After the custom domain is active
 
 Update `discordRedirectUri` to use the new domain. This is a plain Bicep parameter (not a Key Vault secret), so update it in your `.bicepparam` file and redeploy:

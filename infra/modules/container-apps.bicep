@@ -177,6 +177,10 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
               { name: 'DISCORD_CLIENT_SECRET', secretRef: 'discord-client-secret' }
               { name: 'DISCORD_REDIRECT_URI', value: discordRedirectUri }
               { name: 'BOT_SERVICE_TOKEN', secretRef: 'discord-bot-api-key' }
+              // When a custom domain is configured, allow CORS from that origin so
+              // the browser can reach /api/* from the custom domain frontend.
+              // Falls back to localhost:5173 for dev deployments without a custom domain.
+              { name: 'ALLOWED_ORIGINS', value: !empty(customDomainHostname) ? 'https://${customDomainHostname}' : 'http://localhost:5173' }
             ],
             // Only inject the Application Insights connection string when one
             // has been provided — keeps dev deployments lightweight.
