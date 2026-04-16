@@ -209,7 +209,50 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
   }
 }
 
+// ── Custom domain: managed certificate ───────────────────────────────────────
+//
+// These two resources are only created when hasCustomDomain is true.
+// On subsequent re-deployments both are idempotent: the cert is already issued
+// and the binding is already SniEnabled — ARM simply confirms desired state
+// matches live state and makes no changes.
+
+// Reference to the managed environment so we can attach a child certificate
+// resource to it. Using an `existing` reference avoids duplicating the
+// environment definition here and keeps the dependency graph correct.
+resource containerAppsEnv 'Microsoft.App/managedEnvironments@2024-03-01' existing = if (hasCustomDomain) {
+  name: containerAppsEnvironmentName
+}
+
+// Managed certificate issued by Azure (DigiCert) for the custom hostname.
+// Azure performs CNAME validation by looking up whether the hostname's CNAME
+// record resolves to the Container App's FQDN — no pre-registration of the
+// hostname on the app is required for cert issuance.
+//
+// NOTE for Cloudflare users: set the CNAME to DNS-only (grey cloud) during
+// first deploy so Azure can reach your domain for CNAME validation. Re-enable
+// the proxy after the cert is issued and the binding is active.
+resource managedCert 'Microsoft.App/managedEnvironments/managedCertificates@2024-03-01' = if (hasCustomDomain) {
+  parent: containerAppsEnv
+  name: take('${replace(customDomainHostname, '.', '-')}-cert', 60)
+  location: location
+  properties: {
+    subjectName: customDomainHostname
+    domainControlValidation: 'CNAME'
+  }
+}
+
 // ── siege-frontend ────────────────────────────────────────────────────────────
+//
+// When a custom domain is configured, the single frontendApp resource binds
+// directly with bindingType 'SniEnabled' and the managed cert ID. ARM resolves
+// the dependency through the certificateId reference: managedCert is provisioned
+// (and the cert issued via CNAME validation) before frontendApp is updated.
+//
+// This collapses the previous two-resource Phase 1/Phase 2 pattern that caused
+// ARM to reject the template with "resource defined multiple times". The two-phase
+// approach was based on a misunderstanding: managedCert validates DNS ownership
+// independently via CNAME lookup; the hostname does not need to be pre-registered
+// on the app with bindingType 'Disabled' first.
 
 resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: frontendAppName
@@ -226,28 +269,15 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
         external: true
         targetPort: 80
         transport: 'http'
-        // Step 1 of 2 for custom domain binding.
-        //
-        // Azure managed certificates have a bootstrapping circular dependency:
-        // the certificate resource needs the hostname pre-registered on the app
-        // to perform domain validation, but the app's ingress needs the cert ID
-        // to bind with SniEnabled. We break this cycle with a two-phase approach:
-        //
-        //   Phase 1 (this resource): register the hostname with bindingType
-        //   'Disabled' so DNS ownership is verified and the cert can be issued.
-        //
-        //   Phase 2 (frontendAppCertBinding below): after the managedCertificate
-        //   resource is provisioned, re-deploy the app with bindingType
-        //   'SniEnabled' and the cert resource ID.
-        //
-        // On a fresh environment this completes in one `az deployment group create`
-        // run. On subsequent runs the hostname is already registered so Phase 1 is
-        // a no-op, and Phase 2 refreshes the binding if the cert was rotated.
+        // When a custom domain is configured, bind with SniEnabled and the
+        // managed cert. Bicep infers the dependency on managedCert through the
+        // certificateId symbolic reference — no explicit dependsOn needed.
         customDomains: hasCustomDomain
           ? [
               {
                 name: customDomainHostname
-                bindingType: 'Disabled'
+                bindingType: 'SniEnabled'
+                certificateId: managedCert.id
               }
             ]
           : []
@@ -295,100 +325,6 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
       }
     }
   }
-}
-
-// ── Custom domain: Phase 2 ────────────────────────────────────────────────────
-//
-// Phase 1 (frontendApp above) registered the hostname with bindingType 'Disabled'
-// so Azure could verify DNS ownership. Phase 2 provisions the managed TLS
-// certificate and re-binds the frontend with 'SniEnabled'.
-//
-// The two resources below are only created when hasCustomDomain is true.
-// On subsequent re-deployments both resources are idempotent: the cert is
-// already issued and the binding is already SniEnabled — ARM simply confirms
-// the desired state matches the live state and makes no changes.
-
-// Reference to the managed environment so we can attach a child certificate
-// resource to it. Using an `existing` reference avoids duplicating the
-// environment definition here and keeps the dependency graph correct.
-resource containerAppsEnv 'Microsoft.App/managedEnvironments@2024-03-01' existing = if (hasCustomDomain) {
-  name: containerAppsEnvironmentName
-}
-
-// Managed certificate issued by Azure (Let's Encrypt / DigiCert) for the
-// custom hostname. Azure performs CNAME validation: the hostname must already
-// resolve to the Container App's FQDN via a CNAME record before this resource
-// can be successfully created.
-//
-// NOTE for Cloudflare users: disable the proxy (grey cloud) on the CNAME record
-// during first deploy so Azure can reach your domain for CNAME validation. Once
-// the cert is issued and the binding is active you can re-enable the proxy.
-resource managedCert 'Microsoft.App/managedEnvironments/managedCertificates@2024-03-01' = if (hasCustomDomain) {
-  parent: containerAppsEnv
-  name: take('${replace(customDomainHostname, '.', '-')}-cert', 60)
-  location: location
-  properties: {
-    subjectName: customDomainHostname
-    domainControlValidation: 'CNAME'
-  }
-  dependsOn: [
-    frontendApp
-  ]
-}
-
-// Second deployment of the frontend Container App that upgrades the custom
-// domain binding from 'Disabled' (Phase 1) to 'SniEnabled' now that the
-// managed certificate has been issued.
-//
-// ARM Container App updates are full PUTs, not PATCHes — all required properties
-// must be included. This resource is an exact copy of frontendApp except for the
-// customDomains bindingType and certificateId. Bicep's symbolic reference to
-// frontendApp.properties.template copies the current template (containers,
-// scale rules, etc.) so we don't duplicate container config here.
-// MAINTENANCE WARNING: This resource duplicates the frontendApp configuration
-// to update the custom domain binding from Disabled to SniEnabled. If you change
-// the frontendApp ingress, registries, or secrets, you MUST mirror those changes
-// here or the binding deployment will revert them.
-resource frontendAppCertBinding 'Microsoft.App/containerApps@2024-03-01' = if (hasCustomDomain) {
-  name: frontendAppName
-  location: location
-  tags: { project: appPrefix, environment: environment }
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    environmentId: containerAppsEnvironmentId
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 80
-        transport: 'http'
-        customDomains: [
-          {
-            name: customDomainHostname
-            bindingType: 'SniEnabled'
-            certificateId: managedCert.id
-          }
-        ]
-      }
-      registries: [
-        {
-          server: acrLoginServer
-          username: acrUsername
-          passwordSecretRef: 'acr-password'
-        }
-      ]
-      secrets: [
-        {
-          name: 'acr-password'
-          value: acrPassword
-        }
-      ]
-    }
-    template: frontendApp.properties.template
-  }
-  // No explicit dependsOn needed: Bicep infers the dependency on managedCert
-  // through the certificateId reference above.
 }
 
 // ── siege-bot ─────────────────────────────────────────────────────────────────
