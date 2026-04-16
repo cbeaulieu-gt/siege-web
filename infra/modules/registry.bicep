@@ -40,7 +40,7 @@ output registryName string = registry.name
 output loginServer string = registry.properties.loginServer
 
 @secure()
-output acrUsername string = listCredentials(registry.id, '2023-07-01').username
+output acrUsername string = registry.listCredentials().username
 
 @secure()
-output acrPassword string = listCredentials(registry.id, '2023-07-01').passwords[0].value
+output acrPassword string = registry.listCredentials().passwords[0].value
