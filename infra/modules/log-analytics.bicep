@@ -30,6 +30,7 @@ resource workspace 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
 output workspaceId string = workspace.id
 output workspaceName string = workspace.name
 output customerId string = workspace.properties.customerId
+@secure()
 output primarySharedKey string = workspace.listKeys().primarySharedKey
 
 // Resource ID used to link Application Insights in workspace-based mode
