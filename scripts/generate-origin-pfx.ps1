@@ -179,6 +179,24 @@ $bstr      = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Passw
 $plainPass = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
 [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
 
+# ── Detect whether the openssl legacy provider is available ───────────────────
+#
+# OpenSSL 3.x splits legacy ciphers (RC2, 3DES, MD4, DES) into a separate
+# loadable "legacy" provider module. Git for Windows ships only the "default"
+# provider -- the ossl-modules directory does not exist in that install.
+# Passing -legacy when the module is absent causes a hard failure:
+#   "pkcs12: unable to load provider legacy"
+#
+# We probe at runtime: `openssl list -providers` only lists providers that are
+# actually loadable. If the output contains a line with "legacy" we know the
+# module is present and include -legacy to produce a maximally compatible PFX.
+# Otherwise we omit it; OpenSSL 3.x will then use AES-256-CBC, which Azure Key
+# Vault accepts without issue.
+
+$providerOutput = & $opensslExe list -providers 2>&1
+$hasLegacyProvider = @($providerOutput | Where-Object { $_ -match 'legacy' }).Count -gt 0
+Write-Verbose "Legacy provider available: $hasLegacyProvider"
+
 # ── Run openssl pkcs12 ────────────────────────────────────────────────────────
 #
 # Flags explained:
@@ -189,11 +207,10 @@ $plainPass = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
 #   -passout pass:  -- password for the output PFX (plain text passed inline)
 #   -passin pass:   -- password to decrypt the input key (empty = unencrypted)
 #   -name           -- friendly name embedded in the PFX (informational only)
-#
-# Note: -legacy is needed on OpenSSL 3.x when the consumer (Azure Key Vault)
-# cannot handle the newer PKCS#12 v2 encryption scheme. Azure KV accepts both
-# RC2/3DES (legacy) and AES-256-CBC (modern). We use -legacy for maximum
-# compatibility across OpenSSL 1.x and 3.x consumers.
+#   -legacy         -- included only when the legacy provider module is present;
+#                      produces RC2/3DES encryption for broadest consumer compat.
+#                      Omitted on Git-for-Windows openssl (default provider only),
+#                      where AES-256-CBC output is generated instead.
 
 Write-Verbose "Building PFX with openssl pkcs12 -export..."
 
@@ -206,8 +223,11 @@ $opensslArgs = @(
     '-passout', "pass:$plainPass"
     '-passin',  'pass:'
     '-name',    'cloudflare-origin-cert'
-    '-legacy'
 )
+
+if ($hasLegacyProvider) {
+    $opensslArgs += '-legacy'
+}
 
 try {
     $result = & $opensslExe @opensslArgs 2>&1
@@ -224,7 +244,11 @@ if ($exitCode -ne 0) {
     # openssl writes errors to stderr, which PowerShell captures as ErrorRecord
     # objects mixed into $result. Join them for a readable message.
     $detail = ($result | ForEach-Object { $_.ToString() }) -join "`n"
-    throw "openssl pkcs12 failed (exit $exitCode):`n$detail"
+    $hint = ''
+    if ($detail -match 'unable to load key|bad decrypt|Error reading key') {
+        $hint = "`nHint: The input key may be passphrase-encrypted; this script expects an unencrypted Cloudflare Origin private key."
+    }
+    throw "openssl pkcs12 failed (exit $exitCode):`n$detail$hint"
 }
 
 Write-Verbose "openssl completed successfully."
