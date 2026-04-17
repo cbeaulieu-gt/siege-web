@@ -194,7 +194,7 @@ $plainPass = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
 # Vault accepts without issue.
 
 $providerOutput = & $opensslExe list -providers 2>&1
-$hasLegacyProvider = @($providerOutput | Where-Object { $_ -match 'legacy' }).Count -gt 0
+$hasLegacyProvider = @($providerOutput | Where-Object { $_ -match '\blegacy\b' }).Count -gt 0
 Write-Verbose "Legacy provider available: $hasLegacyProvider"
 
 # ── Run openssl pkcs12 ────────────────────────────────────────────────────────
