@@ -129,12 +129,12 @@ param customDomainHostname = 'rslsiege.com'
 // See docs/RUNBOOK.md "Custom Domain — Cloudflare Origin Cert Rotation" for
 // the full step-by-step guide.
 
-param enableCustomDomain = false
+param enableCustomDomain = true
 
 // Set to the versionless secret URL after uploading the PFX to Key Vault.
 // Versionless URL lets KV serve the latest version automatically on rotation.
 // Example: 'https://siege-web-kv-prod-abc123.vault.azure.net/secrets/cloudflare-origin-cert'
-param kvCertSecretUrl = ''
+param kvCertSecretUrl = 'https://siege-web-kv-prod-yf3fl2.vault.azure.net/secrets/cloudflare-origin-cert'
 
 // ── Replica scaling ────────────────────────────────────────────────────────────
 // API stays warm in prod — Playwright cold starts on a scaled-to-zero replica
