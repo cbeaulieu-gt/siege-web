@@ -808,7 +808,16 @@ Note the **versionless secret URL** -- it looks like:
 
 **Step 5 -- Update the param file and trigger Phase 2 deploy**
 
-Edit `infra/main.prod.bicepparam` and set:
+Edit [`infra/main.prod.bicepparam`](../infra/main.prod.bicepparam) (prod only — dev does not set
+this param and correctly inherits the `false` default from
+[`infra/main.bicep`](../infra/main.bicep)):
+
+- Around **line 132** (at time of writing): change `enableCustomDomain = false` → `true`.
+- Around **line 137** (at time of writing): set `kvCertSecretUrl` to the versionless URL from
+  Step 4 above.
+
+The file contains an inline comment block (around lines 113–130) that walks through the
+two-phase procedure in-situ — read it for additional context.
 
 ```bicep
 param enableCustomDomain = true
@@ -868,6 +877,42 @@ az keyvault secret set `
   --content-type application/x-pkcs12
 ```
 
+**Step 3.5 -- Grant yourself Key Vault Secrets Officer**
+
+The vault has `enableRbacAuthorization: true` (see `infra/modules/keyvault.bicep`). The
+Bicep deployment only grants `Key Vault Secrets User` (read-only) to runtime managed
+identities — write access is not assigned to operator accounts by the deployment pipeline.
+Without this step, Step 3's `az keyvault secret set` returns `(Forbidden)`.
+
+Role selection notes:
+
+- **Not** `Key Vault Secrets User` — that is read-only; it is what the Container App
+  managed identities receive at deploy time.
+- **Not** `Key Vault Certificates Officer` — that role covers Key Vault certificate
+  *objects* (`/certificates/*`). This runbook uploads the PFX as a **secret** with
+  `application/x-pkcs12` content type (see Step 3), which Container Apps' `keyVaultUrl`
+  binding consumes directly. The correct role for writing secrets is `Key Vault Secrets
+  Officer`.
+
+> **Placeholder convention**: `{RESOURCE_GROUP}` and `{KEY_VAULT_NAME}` are literal
+> placeholders — replace them with your actual values before running.
+
+```powershell
+$MyObjectId = az ad signed-in-user show --query id -o tsv
+$VaultName  = az keyvault list -g {RESOURCE_GROUP} --query "[0].name" -o tsv
+$VaultId    = az keyvault show --name $VaultName --query id -o tsv
+
+az role assignment create `
+  --role "Key Vault Secrets Officer" `
+  --assignee $MyObjectId `
+  --scope $VaultId
+```
+
+RBAC propagation through the Key Vault data plane is eventually consistent. Wait 30--60
+seconds before running Step 4. If Step 4 returns `(Forbidden)` shortly after this step,
+the role has almost certainly not propagated yet -- retry after another minute rather than
+re-running this step.
+
 **Step 4 -- Trigger Infra Deploy**
 
 Re-run the Infra Deploy workflow. Container Apps detects the new secret version and
@@ -875,6 +920,27 @@ rotates the certificate automatically within a few minutes. No `enableCustomDoma
 change is needed -- it should remain `true`.
 
 **Step 5 -- Verify** (repeat Step 7 above)
+
+**Step 6 -- (Optional) Revoke operator write access**
+
+Operator write access to Key Vault is only needed during cert rotations, which happen
+rarely. Following least-privilege hygiene, revoke the role assignment once the rotation
+is confirmed working -- especially on prod.
+
+```powershell
+$MyObjectId = az ad signed-in-user show --query id -o tsv
+$VaultName  = az keyvault list -g {RESOURCE_GROUP} --query "[0].name" -o tsv
+$VaultId    = az keyvault show --name $VaultName --query id -o tsv
+
+az role assignment delete `
+  --role "Key Vault Secrets Officer" `
+  --assignee $MyObjectId `
+  --scope $VaultId
+```
+
+This step is not a gate on completing the rotation -- the cert is already in Key Vault
+and the deploy has run. Revoke at your convenience, but do not skip it indefinitely on
+production.
 
 ---
 

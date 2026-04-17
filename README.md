@@ -180,6 +180,8 @@ Deployment uses a two-phase approach controlled by `enableCustomDomain` in
   created but no cert is bound.
 - **Phase 2** (`enableCustomDomain = true`): Upload the PFX to Key Vault, then redeploy.
   Azure imports the cert and binds it to the frontend Container App.
+  (Flip `enableCustomDomain` at line 132 and set `kvCertSecretUrl` at line 137 in
+  `infra/main.prod.bicepparam`.)
 
 See `scripts/generate-origin-pfx.ps1` to convert the Cloudflare-issued PEM files to PFX,
 and `docs/RUNBOOK.md` section 8 for the full step-by-step guide including cert rotation.
