@@ -109,7 +109,10 @@ On PR to `main`:
 - **Backend**: black check → ruff → pytest (uses test DB URL from env)
 - **Frontend**: npm ci → eslint → npm build
 
-Deployment pipeline (merge to main → ACR push → Container Apps deploy) is planned but not yet configured.
+Two deployment workflows exist and are fully operational:
+
+- **`.github/workflows/deploy.yml`** — triggered automatically on push to `main` (deploys to dev) and on `v*` tag push (deploys to prod). Builds Docker images, pushes to ACR, then updates Container App revisions with the new image tag.
+- **`.github/workflows/infra-deploy.yml`** — manual-only (`workflow_dispatch`). Runs `az deployment group create` with the Bicep templates in `infra/`. Use this for any infrastructure change (new resource, config update, cert binding). Requires secrets configured under GitHub Settings → Environments (dev / prod).
 
 ## Environment Variables
 
