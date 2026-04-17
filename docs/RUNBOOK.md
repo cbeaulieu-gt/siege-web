@@ -705,72 +705,184 @@ is still running the old revision or the new revision shows a failed status.
 
 ---
 
-## 8. Custom Domain and TLS Certificate
+## 8. Custom Domain -- Cloudflare Origin Cert Rotation
 
-The custom domain binding and managed TLS certificate are declared in Bicep and survive
-every infrastructure re-deployment. You should never need to manually re-bind the domain
-or re-provision the certificate under normal operations.
+The production custom domain (`rslsiege.com`) uses a **Cloudflare Origin Certificate**
+rather than an Azure-managed certificate. This is a deliberate architecture decision:
 
-### How it works
+- Azure managed certs require CNAME or HTTP validation by DigiCert. Apex domains
+  (`rslsiege.com` without `www`) cannot have CNAME records (RFC 1912), and Cloudflare's
+  proxy intercepts DigiCert's validation requests, so Azure-managed certs do not work
+  with this topology.
+- Cloudflare Origin Certificates are free, issued directly in the Cloudflare dashboard,
+  and can be configured for up to 15-year validity. They are only trusted by Cloudflare
+  (not by browsers directly), which is correct: all traffic flows through Cloudflare
+  first, then from Cloudflare to Azure using the origin cert.
 
-`infra/modules/container-apps.bicep` uses a two-phase approach when `customDomainHostname`
-is set in the `.bicepparam` file:
+The Bicep infrastructure uses a **two-phase deploy** controlled by the `enableCustomDomain`
+parameter in `infra/main.prod.bicepparam`:
 
-- **Phase 1** — registers the hostname on the frontend with `bindingType: 'Disabled'` so
-  Azure can verify DNS ownership.
-- **Phase 2** — provisions a `Microsoft.App/managedEnvironments/managedCertificates`
-  resource (CNAME validation) and rebinds the frontend with `bindingType: 'SniEnabled'`
-  and the certificate ID.
+- **Phase 1** (`enableCustomDomain = false`): Key Vault and user-assigned managed identity
+  (UAMI) are created. No cert is imported and no domain binding is applied to the Container
+  App. This lets the infrastructure deploy succeed even before a cert exists.
+- **Phase 2** (`enableCustomDomain = true`): The Container Apps environment imports the
+  PFX from Key Vault using the UAMI. The frontend Container App binds the cert with
+  `SniEnabled`. Cloudflare proxy can stay ON throughout -- Azure never does public validation.
 
-Re-running the Bicep deployment with the same `customDomainHostname` value is idempotent —
-the binding and cert are preserved.
+---
 
-### Certificate renewal
+### First-time setup (Phase 1 -> Phase 2)
 
-Azure auto-renews managed certificates before expiry. No operator action is required.
+Follow these steps in order the first time you set up the custom domain on a fresh
+environment.
 
-### Re-provisioning a failed certificate
+**Step 1 -- Confirm Phase 1 infrastructure is deployed**
 
-If the certificate enters a failed state (visible in the Azure portal under the Container
-Apps Environment → Certificates, or reported by `az containerapp env certificate list`):
+The Infra Deploy workflow must have run at least once with `enableCustomDomain = false`.
+Verify the Key Vault and UAMI exist:
 
-1. **Check DNS first** — the certificate is issued via CNAME validation. Confirm the CNAME
-   still resolves to the Container App FQDN:
-   ```bash
-   # Replace with your domain and expected FQDN
-   nslookup rslsiege.com
-   ```
+```powershell
+az keyvault list --resource-group {RESOURCE_GROUP} --output table
+az identity list --resource-group {RESOURCE_GROUP} --output table
+# Look for: siege-web-kv-prod-<suffix> and siege-web-cert-uami-prod
+```
 
-2. **Cloudflare users** — if the Cloudflare proxy (orange cloud) is enabled, disable it
-   temporarily (set to DNS-only / grey cloud) so Azure can validate the CNAME directly.
-   Re-enable after the cert is issued.
+**Step 2 -- Generate a Cloudflare Origin Certificate**
 
-3. **Delete the stale certificate and re-deploy** — remove the certificate resource from
-   the managed environment, then run the Bicep deployment again to re-provision it:
-   ```bash
-   # List certificates in the environment
-   az containerapp env certificate list \
-     --name {ENVIRONMENT_NAME} \
-     --resource-group {RESOURCE_GROUP} \
-     --output table
+1. Log in to the Cloudflare dashboard -> select the `rslsiege.com` zone.
+2. Go to **SSL/TLS** -> **Origin Server** -> **Create Certificate**.
+3. Select:
+   - Key type: RSA (2048) -- Azure Key Vault does not support ECDSA p384/p521.
+   - Hostnames: `rslsiege.com`, `*.rslsiege.com`
+   - Certificate validity: 15 years (maximum; no cost difference).
+4. Click **Create**.
+5. Copy the **Certificate** (PEM block) and save as `rslsiege-origin-cert.pem`.
+6. Copy the **Private Key** (PEM block) and save as `rslsiege-origin-key.pem`.
+   **Keep this file secure** -- store it in a local password manager or encrypted volume.
+   It is never committed to git.
 
-   # Delete the stale certificate by name
-   az containerapp env certificate delete \
-     --name {ENVIRONMENT_NAME} \
-     --resource-group {RESOURCE_GROUP} \
-     --certificate {CERT_NAME} \
-     --yes
-   ```
-   Then trigger a Bicep re-deployment (via `infra-deploy.yml` or `az deployment group create`)
-   with `customDomainHostname` set — Azure will re-provision the cert and re-bind.
+**Step 3 -- Convert to PFX**
+
+Run the helper script on your local machine (requires openssl, which ships with
+Git for Windows):
+
+```powershell
+$pw = Read-Host -AsSecureString -Prompt "Enter a strong PFX password"
+.\scripts\generate-origin-pfx.ps1 `
+    -CertPath .\rslsiege-origin-cert.pem `
+    -KeyPath  .\rslsiege-origin-key.pem `
+    -OutPath  .\rslsiege-origin.pfx `
+    -Password $pw `
+    -Verbose
+```
+
+The script emits a `NextStep` property with the exact upload command. Save the password in
+your password manager -- you will need it if you ever need to inspect the PFX offline.
+
+**Step 4 -- Upload the PFX to Key Vault**
+
+```powershell
+az keyvault secret set `
+  --vault-name {KEY_VAULT_NAME} `
+  --name cloudflare-origin-cert `
+  --file .\rslsiege-origin.pfx `
+  --encoding base64 `
+  --content-type application/x-pkcs12
+```
+
+Verify it was stored correctly:
+
+```powershell
+az keyvault secret show `
+  --vault-name {KEY_VAULT_NAME} `
+  --name cloudflare-origin-cert `
+  --query "{Id:id, ContentType:contentType, Updated:attributes.updated}" `
+  --output table
+```
+
+Note the **versionless secret URL** -- it looks like:
+`https://{KEY_VAULT_NAME}.vault.azure.net/secrets/cloudflare-origin-cert`
+(no version GUID at the end). This is what you put in `kvCertSecretUrl`.
+
+**Step 5 -- Update the param file and trigger Phase 2 deploy**
+
+Edit `infra/main.prod.bicepparam` and set:
+
+```bicep
+param enableCustomDomain = true
+param kvCertSecretUrl = 'https://{KEY_VAULT_NAME}.vault.azure.net/secrets/cloudflare-origin-cert'
+```
+
+Commit and push the change, then trigger the **Infra Deploy** workflow manually
+(GitHub Actions -> Infra Deploy -> Run workflow -> prod).
+
+The deploy will:
+1. Import the PFX from Key Vault into the Container Apps environment.
+2. Bind the cert to the frontend Container App with `SniEnabled`.
+
+**Step 6 -- Set Cloudflare SSL mode and enable the proxy**
+
+1. In the Cloudflare dashboard -> **SSL/TLS** -> **Overview** -> set encryption mode to
+   **Full (strict)**. This forces Cloudflare to validate the origin cert rather than
+   accepting any certificate.
+2. Go to **DNS** -> find the `rslsiege.com` A (or CNAME) record -> click the orange cloud
+   icon to enable the proxy (orange cloud = proxied).
+
+**Step 7 -- Verify end-to-end**
+
+```bash
+# Should return 200 with {"status":"ok","db":"connected"}
+curl -v https://rslsiege.com/api/health
+
+# Confirm the cert is served from Cloudflare (not Azure directly)
+# The issuer should be "Cloudflare Inc ECC CA-3" or similar, not the Origin cert
+curl -v --head https://rslsiege.com 2>&1 | grep -i issuer
+```
+
+In the Azure portal: Container Apps Environment -> Certificates -> confirm
+`rslsiege-com-origin-cert` shows status `Succeeded`.
+
+---
+
+### Certificate rotation (annual or on-demand)
+
+Cloudflare Origin Certificates have a configurable validity period (up to 15 years).
+When the cert approaches expiry, follow these steps.
+
+**Step 1 -- Generate a new Origin Certificate** (repeat Step 2 above)
+
+**Step 2 -- Convert to PFX** (repeat Step 3 above, same or new password)
+
+**Step 3 -- Upload new version to Key Vault**
+
+```powershell
+# Re-running `az keyvault secret set` with the same --name creates a new
+# version automatically. The versionless URL continues to point at the latest.
+az keyvault secret set `
+  --vault-name {KEY_VAULT_NAME} `
+  --name cloudflare-origin-cert `
+  --file .\rslsiege-origin-new.pfx `
+  --encoding base64 `
+  --content-type application/x-pkcs12
+```
+
+**Step 4 -- Trigger Infra Deploy**
+
+Re-run the Infra Deploy workflow. Container Apps detects the new secret version and
+rotates the certificate automatically within a few minutes. No `enableCustomDomain`
+change is needed -- it should remain `true`.
+
+**Step 5 -- Verify** (repeat Step 7 above)
+
+---
 
 ### Checking the current binding state
 
-```bash
-az containerapp show \
-  --name {CONTAINER_APP_FRONTEND} \
-  --resource-group {RESOURCE_GROUP} \
-  --query "properties.configuration.ingress.customDomains" \
+```powershell
+az containerapp show `
+  --name {CONTAINER_APP_FRONTEND} `
+  --resource-group {RESOURCE_GROUP} `
+  --query "properties.configuration.ingress.customDomains" `
   --output json
 ```
 
@@ -780,11 +892,31 @@ Expected output when fully bound:
 [
   {
     "bindingType": "SniEnabled",
-    "certificateId": "/subscriptions/.../managedCertificates/...",
+    "certificateId": "/subscriptions/.../managedEnvironments/.../certificates/rslsiege-com-origin-cert",
     "name": "rslsiege.com"
   }
 ]
 ```
 
-If `bindingType` is `"Disabled"`, Phase 2 of the Bicep deployment did not complete — re-run
-the infrastructure deployment after confirming DNS is correct.
+If `bindingType` is missing or `"Disabled"`, Phase 2 has not run -- trigger the
+Infra Deploy workflow with `enableCustomDomain = true`.
+
+---
+
+### Checking the UAMI role assignment
+
+If the cert import fails with an authorization error, verify the UAMI has the correct
+role on Key Vault:
+
+```powershell
+$uamiId = az identity show `
+  --name siege-web-cert-uami-prod `
+  --resource-group {RESOURCE_GROUP} `
+  --query principalId --output tsv
+
+az role assignment list `
+  --assignee $uamiId `
+  --scope (az keyvault show --name {KEY_VAULT_NAME} --resource-group {RESOURCE_GROUP} --query id --output tsv) `
+  --output table
+# Expected role: Key Vault Secrets User (4633458b-17de-408a-b874-0445c86b69e6)
+```
