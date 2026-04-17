@@ -1,0 +1,2060 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "languageVersion": "2.0",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.41.2.15936",
+      "templateHash": "3384418432308899841"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "environment": {
+      "type": "string",
+      "defaultValue": "dev",
+      "allowedValues": [
+        "dev",
+        "prod"
+      ],
+      "metadata": {
+        "description": "Environment name: dev or prod"
+      }
+    },
+    "appPrefix": {
+      "type": "string",
+      "defaultValue": "siege",
+      "metadata": {
+        "description": "Short prefix used in resource names"
+      }
+    },
+    "acrSku": {
+      "type": "string",
+      "defaultValue": "Basic",
+      "metadata": {
+        "description": "Container Registry SKU (Basic for dev, Standard for prod)"
+      }
+    },
+    "acrNameOverride": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Override the generated ACR name. Leave empty to use the default convention (appPrefix + \"acr\" + environment)."
+      }
+    },
+    "imageTag": {
+      "type": "string",
+      "defaultValue": "latest",
+      "metadata": {
+        "description": "Image tag to deploy"
+      }
+    },
+    "postgresAdminUser": {
+      "type": "string",
+      "defaultValue": "siegeadmin",
+      "metadata": {
+        "description": "PostgreSQL administrator username"
+      }
+    },
+    "postgresAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "PostgreSQL administrator password"
+      }
+    },
+    "discordToken": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Discord bot token"
+      }
+    },
+    "discordGuildId": {
+      "type": "string",
+      "metadata": {
+        "description": "Discord guild (server) ID"
+      }
+    },
+    "discordBotApiKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "API key used by backend to call the bot HTTP API"
+      }
+    },
+    "botApiKey": {
+      "type": "securestring",
+      "metadata": {
+        "description": "API key the bot validates on inbound HTTP requests"
+      }
+    },
+    "sessionSecret": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Secret key for signing JWT session cookies"
+      }
+    },
+    "discordClientId": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Discord OAuth2 application client ID"
+      }
+    },
+    "discordClientSecret": {
+      "type": "securestring",
+      "metadata": {
+        "description": "Discord OAuth2 application client secret"
+      }
+    },
+    "discordRedirectUri": {
+      "type": "string",
+      "metadata": {
+        "description": "Discord OAuth2 redirect URI (full callback URL)"
+      }
+    },
+    "postgresGeoRedundantBackup": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Enable geo-redundant PostgreSQL backup (set true for prod)"
+      }
+    },
+    "postgresSku": {
+      "type": "string",
+      "defaultValue": "Standard_B1ms",
+      "metadata": {
+        "description": "PostgreSQL SKU name (Standard_B1ms for dev, Standard_D2ds_v5 for prod)"
+      }
+    },
+    "postgresSkuTier": {
+      "type": "string",
+      "defaultValue": "Burstable",
+      "allowedValues": [
+        "Burstable",
+        "GeneralPurpose",
+        "MemoryOptimized"
+      ],
+      "metadata": {
+        "description": "PostgreSQL SKU tier (Burstable | GeneralPurpose | MemoryOptimized)"
+      }
+    },
+    "postgresStorageGB": {
+      "type": "int",
+      "defaultValue": 32,
+      "metadata": {
+        "description": "PostgreSQL storage size in GB"
+      }
+    },
+    "postgresBackupRetentionDays": {
+      "type": "int",
+      "defaultValue": 7,
+      "minValue": 7,
+      "maxValue": 35,
+      "metadata": {
+        "description": "PostgreSQL backup retention in days (7–35)"
+      }
+    },
+    "postgresHighAvailability": {
+      "type": "string",
+      "defaultValue": "Disabled",
+      "allowedValues": [
+        "Disabled",
+        "SameZone",
+        "ZoneRedundant"
+      ],
+      "metadata": {
+        "description": "PostgreSQL high availability mode (Disabled | SameZone | ZoneRedundant)"
+      }
+    },
+    "kvSoftDeleteRetentionDays": {
+      "type": "int",
+      "defaultValue": 7,
+      "minValue": 7,
+      "maxValue": 90,
+      "metadata": {
+        "description": "Key Vault soft-delete retention in days (7 for dev, 90 for prod)"
+      }
+    },
+    "logRetentionDays": {
+      "type": "int",
+      "defaultValue": 30,
+      "metadata": {
+        "description": "Log Analytics retention in days (30 for dev, 90 for prod)"
+      }
+    },
+    "apiCpu": {
+      "type": "string",
+      "defaultValue": "0.5",
+      "metadata": {
+        "description": "API Container App CPU (e.g. \"0.5\" dev, \"1.0\" prod)"
+      }
+    },
+    "apiMemory": {
+      "type": "string",
+      "defaultValue": "1Gi",
+      "metadata": {
+        "description": "API Container App memory (e.g. \"1Gi\" dev, \"2Gi\" prod)"
+      }
+    },
+    "apiMaxReplicas": {
+      "type": "int",
+      "defaultValue": 3,
+      "metadata": {
+        "description": "API Container App max replicas"
+      }
+    },
+    "frontendCpu": {
+      "type": "string",
+      "defaultValue": "0.25",
+      "metadata": {
+        "description": "Frontend Container App CPU"
+      }
+    },
+    "frontendMemory": {
+      "type": "string",
+      "defaultValue": "0.5Gi",
+      "metadata": {
+        "description": "Frontend Container App memory"
+      }
+    },
+    "botCpu": {
+      "type": "string",
+      "defaultValue": "0.25",
+      "metadata": {
+        "description": "Bot Container App CPU"
+      }
+    },
+    "botMemory": {
+      "type": "string",
+      "defaultValue": "0.5Gi",
+      "metadata": {
+        "description": "Bot Container App memory"
+      }
+    },
+    "apiMinReplicas": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Minimum replicas for the API app (0 = scale to zero when idle)"
+      }
+    },
+    "frontendMinReplicas": {
+      "type": "int",
+      "defaultValue": 1,
+      "metadata": {
+        "description": "Minimum replicas for the frontend app (0 = scale to zero when idle)"
+      }
+    },
+    "publicUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Public-facing URL for canonical/og tags (e.g. https://rslsiege.com). Leave empty for dev."
+      }
+    },
+    "customDomainHostname": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Custom hostname to bind to the frontend (e.g. rslsiege.com). Leave empty to skip custom domain binding."
+      }
+    },
+    "enableCustomDomain": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "When true, imports the Cloudflare Origin Cert from Key Vault and binds it to the frontend. Set false on first deploy, true after the PFX has been uploaded to KV."
+      }
+    },
+    "kvCertSecretUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Versionless Key Vault secret URL for the Cloudflare Origin Cert PFX (e.g. https://<vault>.vault.azure.net/secrets/cloudflare-origin-cert). Required when enableCustomDomain is true."
+      }
+    }
+  },
+  "resources": {
+    "logAnalytics": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "logAnalytics",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "appPrefix": {
+            "value": "[parameters('appPrefix')]"
+          },
+          "retentionInDays": {
+            "value": "[parameters('logRetentionDays')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "14306495017179754377"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "metadata": {
+                "description": "Environment name (dev, prod)"
+              }
+            },
+            "appPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Short prefix for resource naming"
+              }
+            },
+            "retentionInDays": {
+              "type": "int",
+              "defaultValue": 30,
+              "metadata": {
+                "description": "Log retention in days (30 for dev, 90 for prod)"
+              }
+            }
+          },
+          "variables": {
+            "workspaceName": "[format('{0}-logs-{1}-{2}', parameters('appPrefix'), parameters('environment'), uniqueString(resourceGroup().id))]"
+          },
+          "resources": {
+            "workspace": {
+              "type": "Microsoft.OperationalInsights/workspaces",
+              "apiVersion": "2022-10-01",
+              "name": "[variables('workspaceName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "project": "[parameters('appPrefix')]",
+                "environment": "[parameters('environment')]"
+              },
+              "properties": {
+                "sku": {
+                  "name": "PerGB2018"
+                },
+                "retentionInDays": "[parameters('retentionInDays')]"
+              }
+            }
+          },
+          "outputs": {
+            "workspaceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
+            },
+            "workspaceName": {
+              "type": "string",
+              "value": "[variables('workspaceName')]"
+            },
+            "customerId": {
+              "type": "string",
+              "value": "[reference('workspace').customerId]"
+            },
+            "primarySharedKey": {
+              "type": "securestring",
+              "value": "[listKeys('workspace', '2022-10-01').primarySharedKey]"
+            },
+            "resourceId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
+            }
+          }
+        }
+      }
+    },
+    "registry": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "registry",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "appPrefix": {
+            "value": "[parameters('appPrefix')]"
+          },
+          "acrSku": {
+            "value": "[parameters('acrSku')]"
+          },
+          "acrNameOverride": {
+            "value": "[parameters('acrNameOverride')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "languageVersion": "2.0",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "14469272671555498428"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "metadata": {
+                "description": "Environment name (dev, prod)"
+              }
+            },
+            "appPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Short prefix for resource naming"
+              }
+            },
+            "acrSku": {
+              "type": "string",
+              "defaultValue": "Basic",
+              "metadata": {
+                "description": "SKU for the container registry (Basic, Standard, Premium)"
+              }
+            },
+            "acrNameOverride": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Override the generated ACR name (must be globally unique, 5-50 alphanumeric chars). Leave empty to use the default: appPrefix + \"acr\" + environment."
+              }
+            }
+          },
+          "variables": {
+            "sanitizedName": "[if(empty(parameters('acrNameOverride')), format('{0}acr{1}', parameters('appPrefix'), parameters('environment')), parameters('acrNameOverride'))]"
+          },
+          "resources": {
+            "registry": {
+              "type": "Microsoft.ContainerRegistry/registries",
+              "apiVersion": "2023-07-01",
+              "name": "[variables('sanitizedName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "project": "[parameters('appPrefix')]",
+                "environment": "[parameters('environment')]"
+              },
+              "sku": {
+                "name": "[parameters('acrSku')]"
+              },
+              "properties": {
+                "adminUserEnabled": true
+              }
+            }
+          },
+          "outputs": {
+            "registryId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ContainerRegistry/registries', variables('sanitizedName'))]"
+            },
+            "registryName": {
+              "type": "string",
+              "value": "[variables('sanitizedName')]"
+            },
+            "loginServer": {
+              "type": "string",
+              "value": "[reference('registry').loginServer]"
+            },
+            "acrUsername": {
+              "type": "securestring",
+              "value": "[listCredentials('registry', '2023-07-01').username]"
+            },
+            "acrPassword": {
+              "type": "securestring",
+              "value": "[listCredentials('registry', '2023-07-01').passwords[0].value]"
+            }
+          }
+        }
+      }
+    },
+    "postgres": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "postgres",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "appPrefix": {
+            "value": "[parameters('appPrefix')]"
+          },
+          "adminUsername": {
+            "value": "[parameters('postgresAdminUser')]"
+          },
+          "adminPassword": {
+            "value": "[parameters('postgresAdminPassword')]"
+          },
+          "geoRedundantBackup": {
+            "value": "[parameters('postgresGeoRedundantBackup')]"
+          },
+          "postgresSku": {
+            "value": "[parameters('postgresSku')]"
+          },
+          "postgresSkuTier": {
+            "value": "[parameters('postgresSkuTier')]"
+          },
+          "storageSizeGB": {
+            "value": "[parameters('postgresStorageGB')]"
+          },
+          "backupRetentionDays": {
+            "value": "[parameters('postgresBackupRetentionDays')]"
+          },
+          "highAvailabilityMode": {
+            "value": "[parameters('postgresHighAvailability')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "3287802066895011978"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "metadata": {
+                "description": "Environment name (dev, prod)"
+              }
+            },
+            "appPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Short prefix for resource naming"
+              }
+            },
+            "adminUsername": {
+              "type": "string",
+              "metadata": {
+                "description": "PostgreSQL administrator username"
+              }
+            },
+            "adminPassword": {
+              "type": "securestring",
+              "metadata": {
+                "description": "PostgreSQL administrator password"
+              }
+            },
+            "geoRedundantBackup": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "Enable geo-redundant backup (recommended for prod)"
+              }
+            },
+            "postgresSku": {
+              "type": "string",
+              "defaultValue": "Standard_B1ms",
+              "metadata": {
+                "description": "PostgreSQL SKU name (e.g. Standard_B1ms for dev, Standard_D2ds_v5 for prod)"
+              }
+            },
+            "postgresSkuTier": {
+              "type": "string",
+              "defaultValue": "Burstable",
+              "allowedValues": [
+                "Burstable",
+                "GeneralPurpose",
+                "MemoryOptimized"
+              ],
+              "metadata": {
+                "description": "PostgreSQL SKU tier (Burstable | GeneralPurpose | MemoryOptimized)"
+              }
+            },
+            "storageSizeGB": {
+              "type": "int",
+              "defaultValue": 32,
+              "metadata": {
+                "description": "Storage size in GB (32 for dev, 64+ for prod)"
+              }
+            },
+            "backupRetentionDays": {
+              "type": "int",
+              "defaultValue": 7,
+              "minValue": 7,
+              "maxValue": 35,
+              "metadata": {
+                "description": "Backup retention in days (7–35)"
+              }
+            },
+            "highAvailabilityMode": {
+              "type": "string",
+              "defaultValue": "Disabled",
+              "allowedValues": [
+                "Disabled",
+                "SameZone",
+                "ZoneRedundant"
+              ],
+              "metadata": {
+                "description": "High availability mode (Disabled | SameZone | ZoneRedundant)"
+              }
+            }
+          },
+          "variables": {
+            "serverName": "[format('{0}-pg-{1}-{2}', parameters('appPrefix'), parameters('environment'), uniqueString(resourceGroup().id))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers",
+              "apiVersion": "2023-06-01-preview",
+              "name": "[variables('serverName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "project": "[parameters('appPrefix')]",
+                "environment": "[parameters('environment')]"
+              },
+              "sku": {
+                "name": "[parameters('postgresSku')]",
+                "tier": "[parameters('postgresSkuTier')]"
+              },
+              "properties": {
+                "version": "16",
+                "administratorLogin": "[parameters('adminUsername')]",
+                "administratorLoginPassword": "[parameters('adminPassword')]",
+                "storage": {
+                  "storageSizeGB": "[parameters('storageSizeGB')]"
+                },
+                "backup": {
+                  "backupRetentionDays": "[parameters('backupRetentionDays')]",
+                  "geoRedundantBackup": "[if(parameters('geoRedundantBackup'), 'Enabled', 'Disabled')]"
+                },
+                "highAvailability": {
+                  "mode": "[parameters('highAvailabilityMode')]"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
+              "apiVersion": "2023-06-01-preview",
+              "name": "[format('{0}/{1}', variables('serverName'), 'siege')]",
+              "properties": {
+                "charset": "UTF8",
+                "collation": "en_US.utf8"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('serverName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules",
+              "apiVersion": "2023-06-01-preview",
+              "name": "[format('{0}/{1}', variables('serverName'), 'AllowAzureServices')]",
+              "properties": {
+                "startIpAddress": "0.0.0.0",
+                "endIpAddress": "0.0.0.0"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('serverName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "serverId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('serverName'))]"
+            },
+            "serverName": {
+              "type": "string",
+              "value": "[variables('serverName')]"
+            },
+            "serverFqdn": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('serverName')), '2023-06-01-preview').fullyQualifiedDomainName]"
+            },
+            "databaseName": {
+              "type": "string",
+              "value": "siege"
+            }
+          }
+        }
+      }
+    },
+    "keyVault": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "keyVault",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "appPrefix": {
+            "value": "[parameters('appPrefix')]"
+          },
+          "databaseUrl": {
+            "value": "[format('postgresql+asyncpg://{0}:{1}@{2}/siege', parameters('postgresAdminUser'), parameters('postgresAdminPassword'), reference('postgres').outputs.serverFqdn.value)]"
+          },
+          "discordToken": {
+            "value": "[parameters('discordToken')]"
+          },
+          "discordGuildId": {
+            "value": "[parameters('discordGuildId')]"
+          },
+          "discordBotApiKey": {
+            "value": "[parameters('discordBotApiKey')]"
+          },
+          "botApiKey": {
+            "value": "[parameters('botApiKey')]"
+          },
+          "sessionSecret": {
+            "value": "[parameters('sessionSecret')]"
+          },
+          "discordClientId": {
+            "value": "[parameters('discordClientId')]"
+          },
+          "discordClientSecret": {
+            "value": "[parameters('discordClientSecret')]"
+          },
+          "softDeleteRetentionDays": {
+            "value": "[parameters('kvSoftDeleteRetentionDays')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "9745968477941693280"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "metadata": {
+                "description": "Environment name (dev, prod)"
+              }
+            },
+            "appPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Short prefix for resource naming"
+              }
+            },
+            "databaseUrl": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Full database connection URL (postgresql+asyncpg://user:pass@host/db)"
+              }
+            },
+            "discordToken": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Discord bot token"
+              }
+            },
+            "discordGuildId": {
+              "type": "string",
+              "metadata": {
+                "description": "Discord guild (server) ID"
+              }
+            },
+            "discordBotApiKey": {
+              "type": "securestring",
+              "metadata": {
+                "description": "API key used by backend to call the bot HTTP API"
+              }
+            },
+            "botApiKey": {
+              "type": "securestring",
+              "metadata": {
+                "description": "API key the bot HTTP API validates on inbound requests"
+              }
+            },
+            "sessionSecret": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Secret key for signing JWT session cookies"
+              }
+            },
+            "discordClientId": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Discord OAuth2 application client ID"
+              }
+            },
+            "discordClientSecret": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Discord OAuth2 application client secret"
+              }
+            },
+            "softDeleteRetentionDays": {
+              "type": "int",
+              "defaultValue": 7,
+              "minValue": 7,
+              "maxValue": 90,
+              "metadata": {
+                "description": "Number of days to retain soft-deleted vault/secrets (7 for dev, 90 for prod)"
+              }
+            }
+          },
+          "variables": {
+            "vaultName": "[format('{0}-kv-{1}-{2}', parameters('appPrefix'), parameters('environment'), take(uniqueString(resourceGroup().id), 6))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.KeyVault/vaults",
+              "apiVersion": "2023-07-01",
+              "name": "[variables('vaultName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "project": "[parameters('appPrefix')]",
+                "environment": "[parameters('environment')]"
+              },
+              "properties": {
+                "sku": {
+                  "family": "A",
+                  "name": "standard"
+                },
+                "tenantId": "[subscription().tenantId]",
+                "enableRbacAuthorization": true,
+                "enableSoftDelete": true,
+                "softDeleteRetentionInDays": "[parameters('softDeleteRetentionDays')]",
+                "publicNetworkAccess": "Enabled"
+              }
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', variables('vaultName'), 'database-url')]",
+              "properties": {
+                "value": "[parameters('databaseUrl')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', variables('vaultName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', variables('vaultName'), 'discord-token')]",
+              "properties": {
+                "value": "[parameters('discordToken')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', variables('vaultName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', variables('vaultName'), 'discord-guild-id')]",
+              "properties": {
+                "value": "[parameters('discordGuildId')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', variables('vaultName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', variables('vaultName'), 'discord-bot-api-key')]",
+              "properties": {
+                "value": "[parameters('discordBotApiKey')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', variables('vaultName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', variables('vaultName'), 'bot-api-key')]",
+              "properties": {
+                "value": "[parameters('botApiKey')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', variables('vaultName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', variables('vaultName'), 'session-secret')]",
+              "properties": {
+                "value": "[parameters('sessionSecret')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', variables('vaultName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', variables('vaultName'), 'discord-client-id')]",
+              "properties": {
+                "value": "[parameters('discordClientId')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', variables('vaultName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.KeyVault/vaults/secrets",
+              "apiVersion": "2023-07-01",
+              "name": "[format('{0}/{1}', variables('vaultName'), 'discord-client-secret')]",
+              "properties": {
+                "value": "[parameters('discordClientSecret')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', variables('vaultName'))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "vaultId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.KeyVault/vaults', variables('vaultName'))]"
+            },
+            "vaultName": {
+              "type": "string",
+              "value": "[variables('vaultName')]"
+            },
+            "vaultUri": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults', variables('vaultName')), '2023-07-01').vaultUri]"
+            },
+            "secretDatabaseUrlUri": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vaultName'), 'database-url'), '2023-07-01').secretUri]"
+            },
+            "secretDiscordTokenUri": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vaultName'), 'discord-token'), '2023-07-01').secretUri]"
+            },
+            "secretDiscordBotApiKeyUri": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vaultName'), 'discord-bot-api-key'), '2023-07-01').secretUri]"
+            },
+            "secretBotApiKeyUri": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('vaultName'), 'bot-api-key'), '2023-07-01').secretUri]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "postgres"
+      ]
+    },
+    "appInsights": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "appInsights",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "appPrefix": {
+            "value": "[parameters('appPrefix')]"
+          },
+          "logAnalyticsWorkspaceId": {
+            "value": "[reference('logAnalytics').outputs.resourceId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "13566335759361301703"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "metadata": {
+                "description": "Environment name (dev, prod)"
+              }
+            },
+            "appPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Short prefix for resource naming"
+              }
+            },
+            "logAnalyticsWorkspaceId": {
+              "type": "string",
+              "metadata": {
+                "description": "Log Analytics workspace resource ID — Application Insights sends telemetry here (workspace-based mode)"
+              }
+            }
+          },
+          "variables": {
+            "appInsightsName": "[format('{0}-ai-{1}-{2}', parameters('appPrefix'), parameters('environment'), uniqueString(resourceGroup().id))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Insights/components",
+              "apiVersion": "2020-02-02",
+              "name": "[variables('appInsightsName')]",
+              "location": "[parameters('location')]",
+              "kind": "web",
+              "tags": {
+                "project": "[parameters('appPrefix')]",
+                "environment": "[parameters('environment')]"
+              },
+              "properties": {
+                "Application_Type": "web",
+                "WorkspaceResourceId": "[parameters('logAnalyticsWorkspaceId')]",
+                "RetentionInDays": 90,
+                "DisableLocalAuth": false,
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled"
+              }
+            }
+          ],
+          "outputs": {
+            "appInsightsId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.Insights/components', variables('appInsightsName'))]"
+            },
+            "appInsightsName": {
+              "type": "string",
+              "value": "[variables('appInsightsName')]"
+            },
+            "connectionString": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.Insights/components', variables('appInsightsName')), '2020-02-02').ConnectionString]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "logAnalytics"
+      ]
+    },
+    "certIdentity": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "certIdentity",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "appPrefix": {
+            "value": "[parameters('appPrefix')]"
+          },
+          "vaultName": {
+            "value": "[reference('keyVault').outputs.vaultName.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "1265273465449342282"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "metadata": {
+                "description": "Environment name (dev, prod)"
+              }
+            },
+            "appPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Short prefix for resource naming"
+              }
+            },
+            "vaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the existing Key Vault where the origin cert PFX will be stored"
+              }
+            }
+          },
+          "variables": {
+            "kvSecretsUserRoleId": "4633458b-17de-408a-b874-0445c86b69e6"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2023-01-31",
+              "name": "[format('{0}-cert-uami-{1}', parameters('appPrefix'), parameters('environment'))]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "project": "[parameters('appPrefix')]",
+                "environment": "[parameters('environment')]",
+                "purpose": "container-apps-cert-import"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('vaultName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('vaultName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cert-uami-{1}', parameters('appPrefix'), parameters('environment'))), variables('kvSecretsUserRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('kvSecretsUserRoleId'))]",
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cert-uami-{1}', parameters('appPrefix'), parameters('environment'))), '2023-01-31').principalId]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cert-uami-{1}', parameters('appPrefix'), parameters('environment')))]"
+              ]
+            }
+          ],
+          "outputs": {
+            "identityId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cert-uami-{1}', parameters('appPrefix'), parameters('environment')))]"
+            },
+            "identityClientId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cert-uami-{1}', parameters('appPrefix'), parameters('environment'))), '2023-01-31').clientId]"
+            },
+            "identityPrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', format('{0}-cert-uami-{1}', parameters('appPrefix'), parameters('environment'))), '2023-01-31').principalId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "keyVault"
+      ]
+    },
+    "containerEnv": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "containerEnv",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "appPrefix": {
+            "value": "[parameters('appPrefix')]"
+          },
+          "logAnalyticsCustomerId": {
+            "value": "[reference('logAnalytics').outputs.customerId.value]"
+          },
+          "logAnalyticsPrimaryKey": {
+            "value": "[listOutputsWithSecureValues('logAnalytics', '2025-04-01').primarySharedKey]"
+          },
+          "certIdentityId": {
+            "value": "[reference('certIdentity').outputs.identityId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "10474952269079514694"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "metadata": {
+                "description": "Environment name (dev, prod)"
+              }
+            },
+            "appPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Short prefix for resource naming"
+              }
+            },
+            "logAnalyticsCustomerId": {
+              "type": "string",
+              "metadata": {
+                "description": "Log Analytics workspace customer ID"
+              }
+            },
+            "logAnalyticsPrimaryKey": {
+              "type": "securestring",
+              "metadata": {
+                "description": "Log Analytics workspace primary shared key"
+              }
+            },
+            "certIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Resource ID of the user-assigned managed identity used to import certs from Key Vault. Leave empty to omit (identity block will be SystemAssigned)."
+              }
+            }
+          },
+          "variables": {
+            "envName": "[format('{0}-cae-{1}-{2}', parameters('appPrefix'), parameters('environment'), uniqueString(resourceGroup().id))]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.App/managedEnvironments",
+              "apiVersion": "2024-08-02-preview",
+              "name": "[variables('envName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "project": "[parameters('appPrefix')]",
+                "environment": "[parameters('environment')]"
+              },
+              "identity": "[if(empty(parameters('certIdentityId')), createObject('type', 'None'), createObject('type', 'UserAssigned', 'userAssignedIdentities', createObject(format('{0}', parameters('certIdentityId')), createObject())))]",
+              "properties": {
+                "appLogsConfiguration": {
+                  "destination": "log-analytics",
+                  "logAnalyticsConfiguration": {
+                    "customerId": "[parameters('logAnalyticsCustomerId')]",
+                    "sharedKey": "[parameters('logAnalyticsPrimaryKey')]"
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "environmentId": {
+              "type": "string",
+              "value": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]"
+            },
+            "environmentName": {
+              "type": "string",
+              "value": "[variables('envName')]"
+            },
+            "defaultDomain": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.App/managedEnvironments', variables('envName')), '2024-08-02-preview').defaultDomain]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "certIdentity",
+        "logAnalytics"
+      ]
+    },
+    "containerApps": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "containerApps",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "location": {
+            "value": "[parameters('location')]"
+          },
+          "environment": {
+            "value": "[parameters('environment')]"
+          },
+          "appPrefix": {
+            "value": "[parameters('appPrefix')]"
+          },
+          "containerAppsEnvironmentId": {
+            "value": "[reference('containerEnv').outputs.environmentId.value]"
+          },
+          "acrLoginServer": {
+            "value": "[reference('registry').outputs.loginServer.value]"
+          },
+          "imageTag": {
+            "value": "[parameters('imageTag')]"
+          },
+          "keyVaultUri": {
+            "value": "[reference('keyVault').outputs.vaultUri.value]"
+          },
+          "discordGuildId": {
+            "value": "[parameters('discordGuildId')]"
+          },
+          "discordRedirectUri": {
+            "value": "[parameters('discordRedirectUri')]"
+          },
+          "acrUsername": {
+            "value": "[listOutputsWithSecureValues('registry', '2025-04-01').acrUsername]"
+          },
+          "acrPassword": {
+            "value": "[listOutputsWithSecureValues('registry', '2025-04-01').acrPassword]"
+          },
+          "appInsightsConnectionString": {
+            "value": "[reference('appInsights').outputs.connectionString.value]"
+          },
+          "apiCpu": {
+            "value": "[parameters('apiCpu')]"
+          },
+          "apiMemory": {
+            "value": "[parameters('apiMemory')]"
+          },
+          "apiMaxReplicas": {
+            "value": "[parameters('apiMaxReplicas')]"
+          },
+          "frontendCpu": {
+            "value": "[parameters('frontendCpu')]"
+          },
+          "frontendMemory": {
+            "value": "[parameters('frontendMemory')]"
+          },
+          "botCpu": {
+            "value": "[parameters('botCpu')]"
+          },
+          "botMemory": {
+            "value": "[parameters('botMemory')]"
+          },
+          "apiMinReplicas": {
+            "value": "[parameters('apiMinReplicas')]"
+          },
+          "frontendMinReplicas": {
+            "value": "[parameters('frontendMinReplicas')]"
+          },
+          "publicUrl": {
+            "value": "[parameters('publicUrl')]"
+          },
+          "containerAppsEnvironmentName": {
+            "value": "[reference('containerEnv').outputs.environmentName.value]"
+          },
+          "customDomainHostname": {
+            "value": "[parameters('customDomainHostname')]"
+          },
+          "enableCustomDomain": {
+            "value": "[parameters('enableCustomDomain')]"
+          },
+          "certIdentityId": {
+            "value": "[reference('certIdentity').outputs.identityId.value]"
+          },
+          "kvCertSecretUrl": {
+            "value": "[parameters('kvCertSecretUrl')]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "9991076952580632559"
+            }
+          },
+          "parameters": {
+            "location": {
+              "type": "string",
+              "metadata": {
+                "description": "Azure region for all resources"
+              }
+            },
+            "environment": {
+              "type": "string",
+              "metadata": {
+                "description": "Environment name (dev, prod)"
+              }
+            },
+            "appPrefix": {
+              "type": "string",
+              "metadata": {
+                "description": "Short prefix for resource naming"
+              }
+            },
+            "containerAppsEnvironmentId": {
+              "type": "string",
+              "metadata": {
+                "description": "Container Apps Environment resource ID"
+              }
+            },
+            "containerAppsEnvironmentName": {
+              "type": "string",
+              "metadata": {
+                "description": "Container Apps Environment name — required for the BYO certificate child resource"
+              }
+            },
+            "customDomainHostname": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Custom hostname to bind to the frontend (e.g. rslsiege.com). Leave empty to skip custom domain setup."
+              }
+            },
+            "enableCustomDomain": {
+              "type": "bool",
+              "defaultValue": false,
+              "metadata": {
+                "description": "When true, binds the Cloudflare Origin Cert from Key Vault to the frontend. Set false on first deploy (before the PFX is uploaded to KV) to avoid a chicken-and-egg error."
+              }
+            },
+            "certIdentityId": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Resource ID of the user-assigned managed identity used to authenticate to Key Vault for cert import. Required when enableCustomDomain is true."
+              }
+            },
+            "kvCertSecretUrl": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Key Vault secret URL for the Cloudflare Origin Cert PFX (e.g. https://vault.vault.azure.net/secrets/cloudflare-origin-cert). Required when enableCustomDomain is true."
+              }
+            },
+            "acrLoginServer": {
+              "type": "string",
+              "metadata": {
+                "description": "Container registry login server (e.g. myregistry.azurecr.io)"
+              }
+            },
+            "imageTag": {
+              "type": "string",
+              "defaultValue": "latest",
+              "metadata": {
+                "description": "Image tag to deploy"
+              }
+            },
+            "keyVaultUri": {
+              "type": "string",
+              "metadata": {
+                "description": "Key Vault URI for secret references"
+              }
+            },
+            "discordGuildId": {
+              "type": "string",
+              "metadata": {
+                "description": "Discord guild ID (non-secret)"
+              }
+            },
+            "discordRedirectUri": {
+              "type": "string",
+              "metadata": {
+                "description": "Discord OAuth2 redirect URI (non-secret; public URL visible in browser address bar)"
+              }
+            },
+            "acrUsername": {
+              "type": "string",
+              "metadata": {
+                "description": "ACR admin username for image pull authentication"
+              }
+            },
+            "acrPassword": {
+              "type": "securestring",
+              "metadata": {
+                "description": "ACR admin password for image pull authentication"
+              }
+            },
+            "appInsightsConnectionString": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Application Insights connection string for telemetry (pass empty string to disable)"
+              }
+            },
+            "publicUrl": {
+              "type": "string",
+              "defaultValue": "",
+              "metadata": {
+                "description": "Public-facing URL injected as VITE_PUBLIC_URL into the frontend container (e.g. https://rslsiege.com). Leave empty to omit the variable."
+              }
+            },
+            "apiCpu": {
+              "type": "string",
+              "defaultValue": "0.5",
+              "metadata": {
+                "description": "CPU cores for the API app (e.g. \"0.5\" for dev, \"1.0\" for prod)"
+              }
+            },
+            "apiMemory": {
+              "type": "string",
+              "defaultValue": "1Gi",
+              "metadata": {
+                "description": "Memory for the API app (e.g. \"1Gi\" for dev, \"2Gi\" for prod)"
+              }
+            },
+            "apiMaxReplicas": {
+              "type": "int",
+              "defaultValue": 3,
+              "metadata": {
+                "description": "Max replicas for the API app"
+              }
+            },
+            "apiMinReplicas": {
+              "type": "int",
+              "defaultValue": 1,
+              "metadata": {
+                "description": "Minimum replicas for the API app (0 = scale to zero when idle)"
+              }
+            },
+            "frontendMinReplicas": {
+              "type": "int",
+              "defaultValue": 1,
+              "metadata": {
+                "description": "Minimum replicas for the frontend app (0 = scale to zero when idle)"
+              }
+            },
+            "frontendCpu": {
+              "type": "string",
+              "defaultValue": "0.25",
+              "metadata": {
+                "description": "CPU cores for the frontend app (e.g. \"0.25\")"
+              }
+            },
+            "frontendMemory": {
+              "type": "string",
+              "defaultValue": "0.5Gi",
+              "metadata": {
+                "description": "Memory for the frontend app (e.g. \"0.5Gi\")"
+              }
+            },
+            "botCpu": {
+              "type": "string",
+              "defaultValue": "0.25",
+              "metadata": {
+                "description": "CPU cores for the bot app (e.g. \"0.25\")"
+              }
+            },
+            "botMemory": {
+              "type": "string",
+              "defaultValue": "0.5Gi",
+              "metadata": {
+                "description": "Memory for the bot app (e.g. \"0.5Gi\")"
+              }
+            }
+          },
+          "variables": {
+            "apiAppName": "[format('{0}-api-{1}', parameters('appPrefix'), parameters('environment'))]",
+            "frontendAppName": "[format('{0}-frontend-{1}', parameters('appPrefix'), parameters('environment'))]",
+            "botAppName": "[format('{0}-bot-{1}', parameters('appPrefix'), parameters('environment'))]",
+            "bindCert": "[and(parameters('enableCustomDomain'), not(empty(parameters('customDomainHostname'))))]",
+            "certResourceName": "[if(variables('bindCert'), take(format('{0}-origin-cert', replace(parameters('customDomainHostname'), '.', '-')), 60), 'placeholder-cert')]"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2024-03-01",
+              "name": "[variables('apiAppName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "project": "[parameters('appPrefix')]",
+                "environment": "[parameters('environment')]"
+              },
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "environmentId": "[parameters('containerAppsEnvironmentId')]",
+                "configuration": {
+                  "ingress": {
+                    "external": false,
+                    "targetPort": 8000,
+                    "transport": "http",
+                    "allowInsecure": true
+                  },
+                  "registries": [
+                    {
+                      "server": "[parameters('acrLoginServer')]",
+                      "username": "[parameters('acrUsername')]",
+                      "passwordSecretRef": "acr-password"
+                    }
+                  ],
+                  "secrets": [
+                    {
+                      "name": "acr-password",
+                      "value": "[parameters('acrPassword')]"
+                    },
+                    {
+                      "name": "database-url",
+                      "keyVaultUrl": "[format('{0}secrets/database-url', parameters('keyVaultUri'))]",
+                      "identity": "system"
+                    },
+                    {
+                      "name": "discord-bot-api-key",
+                      "keyVaultUrl": "[format('{0}secrets/discord-bot-api-key', parameters('keyVaultUri'))]",
+                      "identity": "system"
+                    },
+                    {
+                      "name": "session-secret",
+                      "keyVaultUrl": "[format('{0}secrets/session-secret', parameters('keyVaultUri'))]",
+                      "identity": "system"
+                    },
+                    {
+                      "name": "discord-client-id",
+                      "keyVaultUrl": "[format('{0}secrets/discord-client-id', parameters('keyVaultUri'))]",
+                      "identity": "system"
+                    },
+                    {
+                      "name": "discord-client-secret",
+                      "keyVaultUrl": "[format('{0}secrets/discord-client-secret', parameters('keyVaultUri'))]",
+                      "identity": "system"
+                    }
+                  ]
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "name": "siege-api",
+                      "image": "[format('{0}/siege-api:{1}', parameters('acrLoginServer'), parameters('imageTag'))]",
+                      "resources": {
+                        "cpu": "[json(parameters('apiCpu'))]",
+                        "memory": "[parameters('apiMemory')]"
+                      },
+                      "env": "[concat(createArray(createObject('name', 'DATABASE_URL', 'secretRef', 'database-url'), createObject('name', 'DISCORD_BOT_API_KEY', 'secretRef', 'discord-bot-api-key'), createObject('name', 'DISCORD_BOT_API_URL', 'value', format('http://{0}', variables('botAppName'))), createObject('name', 'DISCORD_GUILD_ID', 'value', parameters('discordGuildId')), createObject('name', 'ENVIRONMENT', 'value', parameters('environment')), createObject('name', 'SESSION_SECRET', 'secretRef', 'session-secret'), createObject('name', 'DISCORD_CLIENT_ID', 'secretRef', 'discord-client-id'), createObject('name', 'DISCORD_CLIENT_SECRET', 'secretRef', 'discord-client-secret'), createObject('name', 'DISCORD_REDIRECT_URI', 'value', parameters('discordRedirectUri')), createObject('name', 'BOT_SERVICE_TOKEN', 'secretRef', 'discord-bot-api-key'), createObject('name', 'ALLOWED_ORIGINS', 'value', if(not(empty(parameters('customDomainHostname'))), format('https://{0}', parameters('customDomainHostname')), 'http://localhost:5173'))), if(empty(parameters('appInsightsConnectionString')), createArray(), createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('appInsightsConnectionString')))))]",
+                      "probes": [
+                        {
+                          "type": "Liveness",
+                          "httpGet": {
+                            "path": "/api/health",
+                            "port": 8000
+                          },
+                          "initialDelaySeconds": 15,
+                          "periodSeconds": 30
+                        }
+                      ]
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": "[parameters('apiMinReplicas')]",
+                    "maxReplicas": "[parameters('apiMaxReplicas')]"
+                  }
+                }
+              }
+            },
+            {
+              "condition": "[variables('bindCert')]",
+              "type": "Microsoft.App/managedEnvironments/certificates",
+              "apiVersion": "2024-08-02-preview",
+              "name": "[format('{0}/{1}', parameters('containerAppsEnvironmentName'), variables('certResourceName'))]",
+              "location": "[parameters('location')]",
+              "properties": {
+                "certificateKeyVaultProperties": {
+                  "identity": "[parameters('certIdentityId')]",
+                  "keyVaultUrl": "[parameters('kvCertSecretUrl')]"
+                }
+              }
+            },
+            {
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2024-03-01",
+              "name": "[variables('frontendAppName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "project": "[parameters('appPrefix')]",
+                "environment": "[parameters('environment')]"
+              },
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "environmentId": "[parameters('containerAppsEnvironmentId')]",
+                "configuration": {
+                  "ingress": {
+                    "external": true,
+                    "targetPort": 80,
+                    "transport": "http",
+                    "customDomains": "[if(variables('bindCert'), createArray(createObject('name', parameters('customDomainHostname'), 'bindingType', 'SniEnabled', 'certificateId', resourceId('Microsoft.App/managedEnvironments/certificates', parameters('containerAppsEnvironmentName'), variables('certResourceName')))), createArray())]"
+                  },
+                  "registries": [
+                    {
+                      "server": "[parameters('acrLoginServer')]",
+                      "username": "[parameters('acrUsername')]",
+                      "passwordSecretRef": "acr-password"
+                    }
+                  ],
+                  "secrets": [
+                    {
+                      "name": "acr-password",
+                      "value": "[parameters('acrPassword')]"
+                    }
+                  ]
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "name": "siege-frontend",
+                      "image": "[format('{0}/siege-frontend:{1}', parameters('acrLoginServer'), parameters('imageTag'))]",
+                      "resources": {
+                        "cpu": "[json(parameters('frontendCpu'))]",
+                        "memory": "[parameters('frontendMemory')]"
+                      },
+                      "env": "[concat(createArray(createObject('name', 'VITE_API_URL', 'value', ''), createObject('name', 'API_UPSTREAM', 'value', format('http://{0}', variables('apiAppName')))), if(empty(parameters('appInsightsConnectionString')), createArray(), createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('appInsightsConnectionString')))), if(empty(parameters('publicUrl')), createArray(), createArray(createObject('name', 'VITE_PUBLIC_URL', 'value', parameters('publicUrl')))))]"
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": "[parameters('frontendMinReplicas')]",
+                    "maxReplicas": 2
+                  }
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.App/managedEnvironments/certificates', parameters('containerAppsEnvironmentName'), variables('certResourceName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.App/containerApps",
+              "apiVersion": "2024-03-01",
+              "name": "[variables('botAppName')]",
+              "location": "[parameters('location')]",
+              "tags": {
+                "project": "[parameters('appPrefix')]",
+                "environment": "[parameters('environment')]"
+              },
+              "identity": {
+                "type": "SystemAssigned"
+              },
+              "properties": {
+                "environmentId": "[parameters('containerAppsEnvironmentId')]",
+                "configuration": {
+                  "ingress": {
+                    "external": false,
+                    "targetPort": 8001,
+                    "transport": "http",
+                    "allowInsecure": true
+                  },
+                  "registries": [
+                    {
+                      "server": "[parameters('acrLoginServer')]",
+                      "username": "[parameters('acrUsername')]",
+                      "passwordSecretRef": "acr-password"
+                    }
+                  ],
+                  "secrets": [
+                    {
+                      "name": "acr-password",
+                      "value": "[parameters('acrPassword')]"
+                    },
+                    {
+                      "name": "discord-token",
+                      "keyVaultUrl": "[format('{0}secrets/discord-token', parameters('keyVaultUri'))]",
+                      "identity": "system"
+                    },
+                    {
+                      "name": "database-url",
+                      "keyVaultUrl": "[format('{0}secrets/database-url', parameters('keyVaultUri'))]",
+                      "identity": "system"
+                    },
+                    {
+                      "name": "bot-api-key",
+                      "keyVaultUrl": "[format('{0}secrets/bot-api-key', parameters('keyVaultUri'))]",
+                      "identity": "system"
+                    }
+                  ]
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "name": "siege-bot",
+                      "image": "[format('{0}/siege-bot:{1}', parameters('acrLoginServer'), parameters('imageTag'))]",
+                      "resources": {
+                        "cpu": "[json(parameters('botCpu'))]",
+                        "memory": "[parameters('botMemory')]"
+                      },
+                      "env": "[concat(createArray(createObject('name', 'DISCORD_TOKEN', 'secretRef', 'discord-token'), createObject('name', 'DATABASE_URL', 'secretRef', 'database-url'), createObject('name', 'BOT_API_KEY', 'secretRef', 'bot-api-key'), createObject('name', 'DISCORD_GUILD_ID', 'value', parameters('discordGuildId')), createObject('name', 'ENVIRONMENT', 'value', parameters('environment'))), if(empty(parameters('appInsightsConnectionString')), createArray(), createArray(createObject('name', 'APPLICATIONINSIGHTS_CONNECTION_STRING', 'value', parameters('appInsightsConnectionString')))))]",
+                      "probes": [
+                        {
+                          "type": "Liveness",
+                          "httpGet": {
+                            "path": "/api/health",
+                            "port": 8001
+                          },
+                          "initialDelaySeconds": 20,
+                          "periodSeconds": 30
+                        }
+                      ]
+                    }
+                  ],
+                  "scale": {
+                    "minReplicas": 1,
+                    "maxReplicas": 1
+                  }
+                }
+              }
+            }
+          ],
+          "outputs": {
+            "apiAppName": {
+              "type": "string",
+              "value": "[variables('apiAppName')]"
+            },
+            "apiAppPrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.App/containerApps', variables('apiAppName')), '2024-03-01', 'full').identity.principalId]"
+            },
+            "frontendAppName": {
+              "type": "string",
+              "value": "[variables('frontendAppName')]"
+            },
+            "frontendAppFqdn": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.App/containerApps', variables('frontendAppName')), '2024-03-01').configuration.ingress.fqdn]"
+            },
+            "frontendAppPrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.App/containerApps', variables('frontendAppName')), '2024-03-01', 'full').identity.principalId]"
+            },
+            "botAppName": {
+              "type": "string",
+              "value": "[variables('botAppName')]"
+            },
+            "botAppPrincipalId": {
+              "type": "string",
+              "value": "[reference(resourceId('Microsoft.App/containerApps', variables('botAppName')), '2024-03-01', 'full').identity.principalId]"
+            }
+          }
+        }
+      },
+      "dependsOn": [
+        "appInsights",
+        "certIdentity",
+        "containerEnv",
+        "keyVault",
+        "registry"
+      ]
+    },
+    "kvRoleAssignments": {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2025-04-01",
+      "name": "kvRoleAssignments",
+      "properties": {
+        "expressionEvaluationOptions": {
+          "scope": "inner"
+        },
+        "mode": "Incremental",
+        "parameters": {
+          "vaultName": {
+            "value": "[reference('keyVault').outputs.vaultName.value]"
+          },
+          "apiPrincipalId": {
+            "value": "[reference('containerApps').outputs.apiAppPrincipalId.value]"
+          },
+          "frontendPrincipalId": {
+            "value": "[reference('containerApps').outputs.frontendAppPrincipalId.value]"
+          },
+          "botPrincipalId": {
+            "value": "[reference('containerApps').outputs.botAppPrincipalId.value]"
+          }
+        },
+        "template": {
+          "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "metadata": {
+            "_generator": {
+              "name": "bicep",
+              "version": "0.41.2.15936",
+              "templateHash": "18266113684279168351"
+            }
+          },
+          "parameters": {
+            "vaultName": {
+              "type": "string",
+              "metadata": {
+                "description": "Name of the existing Key Vault"
+              }
+            },
+            "apiPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of the API Container App managed identity"
+              }
+            },
+            "frontendPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of the Frontend Container App managed identity"
+              }
+            },
+            "botPrincipalId": {
+              "type": "string",
+              "metadata": {
+                "description": "Principal ID of the Bot Container App managed identity"
+              }
+            }
+          },
+          "variables": {
+            "kvSecretsUserRoleId": "4633458b-17de-408a-b874-0445c86b69e6"
+          },
+          "resources": [
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('vaultName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('vaultName')), parameters('apiPrincipalId'), variables('kvSecretsUserRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('kvSecretsUserRoleId'))]",
+                "principalId": "[parameters('apiPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('vaultName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('vaultName')), parameters('frontendPrincipalId'), variables('kvSecretsUserRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('kvSecretsUserRoleId'))]",
+                "principalId": "[parameters('frontendPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', parameters('vaultName'))]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', parameters('vaultName')), parameters('botPrincipalId'), variables('kvSecretsUserRoleId'))]",
+              "properties": {
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('kvSecretsUserRoleId'))]",
+                "principalId": "[parameters('botPrincipalId')]",
+                "principalType": "ServicePrincipal"
+              }
+            }
+          ]
+        }
+      },
+      "dependsOn": [
+        "containerApps",
+        "keyVault"
+      ]
+    }
+  },
+  "outputs": {
+    "registryLoginServer": {
+      "type": "string",
+      "value": "[reference('registry').outputs.loginServer.value]"
+    },
+    "postgresServerFqdn": {
+      "type": "string",
+      "value": "[reference('postgres').outputs.serverFqdn.value]"
+    },
+    "keyVaultName": {
+      "type": "string",
+      "value": "[reference('keyVault').outputs.vaultName.value]"
+    },
+    "appInsightsName": {
+      "type": "string",
+      "value": "[reference('appInsights').outputs.appInsightsName.value]"
+    },
+    "containerAppsEnvironmentName": {
+      "type": "string",
+      "value": "[reference('containerEnv').outputs.environmentName.value]"
+    },
+    "frontendFqdn": {
+      "type": "string",
+      "value": "[reference('containerApps').outputs.frontendAppFqdn.value]"
+    },
+    "apiAppName": {
+      "type": "string",
+      "value": "[reference('containerApps').outputs.apiAppName.value]"
+    },
+    "botAppName": {
+      "type": "string",
+      "value": "[reference('containerApps').outputs.botAppName.value]"
+    },
+    "certIdentityId": {
+      "type": "string",
+      "value": "[reference('certIdentity').outputs.identityId.value]"
+    }
+  }
+}

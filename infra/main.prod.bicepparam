@@ -2,7 +2,7 @@ using 'main.bicep'
 
 // ── Production parameter file ─────────────────────────────────────────────────
 //
-// Deploy command:
+// Deploy command (Infra Deploy workflow handles this automatically):
 //
 //   az deployment group create \
 //     --resource-group siege-rg-prod \
@@ -107,13 +107,34 @@ param botMemory = '0.5Gi'
 // Injected as VITE_PUBLIC_URL into the frontend container for canonical/og tags.
 param publicUrl = 'https://rslsiege.com'
 
-// The bare hostname (no https://) Bicep binds the managed TLS certificate to.
-// Prerequisites before deploying with this set:
-//   1. Add a CNAME record at your DNS provider pointing rslsiege.com to the
-//      Container App's Azure FQDN (e.g. siege-web-frontend-prod.*.azurecontainerapps.io).
-//   2. Cloudflare users: set the CNAME to DNS-only (grey cloud) during first deploy
-//      so Azure can perform CNAME validation. Re-enable the proxy after the cert is issued.
+// The bare hostname (no https://) for the custom domain binding.
 param customDomainHostname = 'rslsiege.com'
+
+// ── Cloudflare Origin Certificate — two-phase deploy gate ─────────────────────
+//
+// PHASE 1 (first deploy, before PFX is in KV):
+//   Set enableCustomDomain = false (current setting).
+//   The Key Vault and user-assigned managed identity are created.
+//   No certificate resource or domain binding is created — the deploy succeeds
+//   without a cert in KV.
+//
+// PHASE 2 (after PFX is uploaded to KV):
+//   1. Upload the PFX to Key Vault: follow RUNBOOK.md Section 9.
+//   2. Set enableCustomDomain = true here.
+//   3. Set kvCertSecretUrl to the versionless secret URL, e.g.:
+//        https://<vault-name>.vault.azure.net/secrets/cloudflare-origin-cert
+//   4. Trigger the Infra Deploy workflow (manual dispatch).
+//   5. Set Cloudflare SSL/TLS mode to "Full (strict)" and turn the proxy ON.
+//
+// See docs/RUNBOOK.md "Custom Domain — Cloudflare Origin Cert Rotation" for
+// the full step-by-step guide.
+
+param enableCustomDomain = false
+
+// Set to the versionless secret URL after uploading the PFX to Key Vault.
+// Versionless URL lets KV serve the latest version automatically on rotation.
+// Example: 'https://siege-web-kv-prod-abc123.vault.azure.net/secrets/cloudflare-origin-cert'
+param kvCertSecretUrl = ''
 
 // ── Replica scaling ────────────────────────────────────────────────────────────
 // API stays warm in prod — Playwright cold starts on a scaled-to-zero replica
