@@ -62,10 +62,12 @@ Discord OAuth2 authentication is fully implemented:
 - Azure Bicep IaC: all modules authored (ACR, Log Analytics, App Insights, PostgreSQL, Key Vault, Container Apps); dev + prod param files in place
 - Vitest frontend unit tests: BoardPage and notification polling (SiegeSettingsPage) covered
 - Azure Container Apps health check fixes (Key Vault role assignments, nginx envsubst, ACR naming)
+- GitHub Actions CD pipeline: `deploy.yml` (push to main → dev; `v*` tag → prod) and `infra-deploy.yml` (manual Bicep) both operational
+- Custom domain Bicep fix (issue #228): switched from Azure-managed cert (incompatible with Cloudflare proxy + apex domain) to Cloudflare Origin Cert stored as PFX in Key Vault; user-assigned managed identity grants Container Apps environment `Key Vault Secrets User` on KV; two-phase deploy gate (`enableCustomDomain` param) prevents failure when cert has not yet been uploaded
 
 **Remaining (pre-launch):**
+- Execute custom domain Phase 2: generate Cloudflare Origin Cert, run `scripts/generate-origin-pfx.ps1`, upload PFX to Key Vault, redeploy with `enableCustomDomain = true`
 - Production Azure environment provisioning (stand up `siege-web-prod` resource group from Bicep)
-- GitHub Actions deployment pipeline: merge to main → build → push to ACR → deploy to prod
 - Performance validation: board load target < 2s, image generation target < 5s
 - Application Insights SDK integration in backend and bot services
 - Planner sign-off walkthrough

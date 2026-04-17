@@ -149,6 +149,41 @@ Copy `.env.deploy.example` to both files and fill in the values.
 .\bootstrap-images.ps1 -Env prod -EnvFile .env.deploy.prod
 ```
 
+### CI/CD Pipelines
+
+Two GitHub Actions workflows handle deployments:
+
+| Workflow | File | When it runs | What it does |
+|---|---|---|---|
+| **Deploy** | `.github/workflows/deploy.yml` | Push to `main` (deploys dev); push a `v*` tag (deploys prod) | Builds Docker images, pushes to ACR, deploys Container Apps |
+| **Infra Deploy** | `.github/workflows/infra-deploy.yml` | Manual (`workflow_dispatch`) only | Runs `az deployment group create` with the Bicep templates |
+
+The infra workflow is intentionally manual -- infrastructure changes require a human to
+initiate them. The application deploy is automatic on merge to main (dev) or on tagging
+(prod). Both workflows require environment secrets configured under GitHub Settings ->
+Environments (dev / prod).
+
+### Custom Domain (Cloudflare Origin Cert)
+
+The production custom domain `rslsiege.com` uses a **Cloudflare Origin Certificate** stored
+in Azure Key Vault rather than an Azure-managed certificate. This is required because:
+
+1. `rslsiege.com` is an apex domain -- apex domains cannot have CNAME records, so Azure's
+   CNAME-based certificate validation cannot work.
+2. The Cloudflare proxy is permanently ON for DDoS protection -- even if a CNAME existed,
+   Cloudflare's proxy would intercept DigiCert's validation requests.
+
+Deployment uses a two-phase approach controlled by `enableCustomDomain` in
+`infra/main.prod.bicepparam`:
+
+- **Phase 1** (`enableCustomDomain = false`): Deploy infra. Key Vault + managed identity are
+  created but no cert is bound.
+- **Phase 2** (`enableCustomDomain = true`): Upload the PFX to Key Vault, then redeploy.
+  Azure imports the cert and binds it to the frontend Container App.
+
+See `scripts/generate-origin-pfx.ps1` to convert the Cloudflare-issued PEM files to PFX,
+and `docs/RUNBOOK.md` section 8 for the full step-by-step guide including cert rotation.
+
 ## Environment Variables
 
 `.env.example` is organized into three tiers:

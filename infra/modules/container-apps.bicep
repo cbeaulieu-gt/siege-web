@@ -10,11 +10,20 @@ param appPrefix string
 @description('Container Apps Environment resource ID')
 param containerAppsEnvironmentId string
 
-@description('Container Apps Environment name — required for the managed certificate child resource')
+@description('Container Apps Environment name — required for the BYO certificate child resource')
 param containerAppsEnvironmentName string
 
 @description('Custom hostname to bind to the frontend (e.g. rslsiege.com). Leave empty to skip custom domain setup.')
 param customDomainHostname string = ''
+
+@description('When true, binds the Cloudflare Origin Cert from Key Vault to the frontend. Set false on first deploy (before the PFX is uploaded to KV) to avoid a chicken-and-egg error.')
+param enableCustomDomain bool = false
+
+@description('Resource ID of the user-assigned managed identity used to authenticate to Key Vault for cert import. Required when enableCustomDomain is true.')
+param certIdentityId string = ''
+
+@description('Key Vault secret URL for the Cloudflare Origin Cert PFX (e.g. https://vault.vault.azure.net/secrets/cloudflare-origin-cert). Required when enableCustomDomain is true.')
+param kvCertSecretUrl string = ''
 
 @description('Container registry login server (e.g. myregistry.azurecr.io)')
 param acrLoginServer string
@@ -88,9 +97,20 @@ var apiAppName = '${appPrefix}-api-${environment}'
 var frontendAppName = '${appPrefix}-frontend-${environment}'
 var botAppName = '${appPrefix}-bot-${environment}'
 
-// Whether a custom domain has been specified. Used to conditionally create
-// the managed certificate and update the frontend ingress binding.
-var hasCustomDomain = !empty(customDomainHostname)
+// Whether a custom domain binding should actually be applied. Both conditions
+// must be true: the hostname must be non-empty AND the enableCustomDomain flag
+// must be set. This supports the two-phase deploy:
+//   Phase 1 (enableCustomDomain = false): infrastructure deploys, KV + UAMI
+//            are created, user uploads PFX to KV.
+//   Phase 2 (enableCustomDomain = true):  cert resource is imported from KV
+//            and bound to the frontend. No DNS validation needed — CF handles
+//            all public resolution; Azure only talks to KV.
+var bindCert = enableCustomDomain && !empty(customDomainHostname)
+
+// Stable, predictable certificate resource name derived from the hostname.
+// Dots are replaced with hyphens to satisfy Azure resource name rules.
+// The name is capped at 60 chars to avoid ARM validation errors.
+var certResourceName = bindCert ? take('${replace(customDomainHostname, '.', '-')}-origin-cert', 60) : 'placeholder-cert'
 
 // ── siege-api ────────────────────────────────────────────────────────────────
 
@@ -209,50 +229,92 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
   }
 }
 
-// ── Custom domain: managed certificate ───────────────────────────────────────
+// ── Cloudflare Origin Certificate (BYO from Key Vault) ────────────────────────
 //
-// These two resources are only created when hasCustomDomain is true.
-// On subsequent re-deployments both are idempotent: the cert is already issued
-// and the binding is already SniEnabled — ARM simply confirms desired state
-// matches live state and makes no changes.
+// DESIGN: Why BYO cert instead of Azure-managed cert?
+//
+// Azure managed certificates (Microsoft.App/managedEnvironments/managedCertificates)
+// use CNAME validation by DigiCert — Azure must be able to resolve your hostname
+// directly. This fails for two reasons in this topology:
+//
+//   1. rslsiege.com is an apex domain. CNAME records at the zone apex (naked domain)
+//      are not allowed in standard DNS (RFC 1912). Azure's validator cannot find the
+//      required CNAME record.
+//   2. Cloudflare proxy is permanently ON for DDoS protection and WAF. Even if a
+//      CNAME existed, Cloudflare's proxy intercepts the validation request — DigiCert
+//      sees Cloudflare IPs, not Azure's, so validation fails.
+//
+// Solution: Cloudflare Origin Certificates (free, 15-year validity). Generated in
+// the Cloudflare dashboard, converted to PFX via scripts/generate-origin-pfx.ps1,
+// and uploaded to Key Vault as a secret. Azure never talks to a public CA —
+// no validation needed. Cloudflare acts as the public CA to browsers (its own
+// trusted cert); the origin cert is only used for the Cloudflare → Azure leg.
+//
+// NETWORK SECURITY NOTE: Key Vault is accessible from public networks with RBAC.
+// This is acceptable because:
+//   - Access requires valid Azure AD token from the UAMI (not just network access)
+//   - No PII/PHI/financial data is stored in this vault (only infra secrets)
+//   - Private endpoint would require VNet integration ($$$) without meaningful security gain
+// Revisit if: compliance requirements change (PCI, HIPAA), or threat model includes
+// nation-state actors with Azure AD compromise capability.
+//
+// PHASE GATE (enableCustomDomain param):
+// The cert resource is only created when enableCustomDomain = true. On first
+// deploy (flag = false), the KV and UAMI are provisioned but no cert binding
+// occurs. After the user uploads the PFX to KV, a second deploy with the flag
+// set to true completes the binding. This avoids an ARM deployment failure that
+// would occur if the KV cert reference pointed at a non-existent secret.
 
-// Reference to the managed environment so we can attach a child certificate
-// resource to it. Using an `existing` reference avoids duplicating the
-// environment definition here and keeps the dependency graph correct.
-resource containerAppsEnv 'Microsoft.App/managedEnvironments@2024-03-01' existing = if (hasCustomDomain) {
+// API VERSION NOTE: Using preview `2024-08-02-preview` because the environment-level
+// user-assigned identity block is not present in the GA API `2024-03-01`. The preview
+// surface is scoped to this resource only; all other managed-env operations stay on GA.
+// MIGRATION: revert to GA once the identity block ships in a GA API version.
+// Track: https://aka.ms/azure-rest-api-specs (Microsoft.App API changelog).
+resource containerAppsEnv 'Microsoft.App/managedEnvironments@2024-08-02-preview' existing = {
   name: containerAppsEnvironmentName
 }
 
-// Managed certificate issued by Azure (DigiCert) for the custom hostname.
-// Azure performs CNAME validation by looking up whether the hostname's CNAME
-// record resolves to the Container App's FQDN — no pre-registration of the
-// hostname on the app is required for cert issuance.
+// API VERSION NOTE: Using preview `2024-08-02-preview` because `certificateKeyVaultProperties`
+// is not present in the GA API `2024-03-01`. This property is the KV-import path that lets
+// Container Apps pull the PFX directly from Key Vault without staging it through Bicep.
+// The preview surface is scoped to this resource only; all other resources stay on GA.
+// MIGRATION: revert to GA once certificateKeyVaultProperties ships in a GA API version.
+// Track: https://aka.ms/azure-rest-api-specs (Microsoft.App API changelog).
 //
-// NOTE for Cloudflare users: set the CNAME to DNS-only (grey cloud) during
-// first deploy so Azure can reach your domain for CNAME validation. Re-enable
-// the proxy after the cert is issued and the binding is active.
-resource managedCert 'Microsoft.App/managedEnvironments/managedCertificates@2024-03-01' = if (hasCustomDomain) {
+// BYO certificate resource: Container Apps imports the PFX from Key Vault using
+// the environment's user-assigned managed identity. The certificateKeyVaultProperties
+// block takes:
+//   identity   — the resource ID of the UAMI (or "System" for system-assigned)
+//   keyVaultUrl — the versioned or versionless URL of the KV secret holding the PFX
+//
+// This resource is only created when both enableCustomDomain=true and a non-empty
+// customDomainHostname are provided. Bicep conditional resources are declared
+// with an `if` expression on the resource statement.
+resource originCert 'Microsoft.App/managedEnvironments/certificates@2024-08-02-preview' = if (bindCert) {
   parent: containerAppsEnv
-  name: take('${replace(customDomainHostname, '.', '-')}-cert', 60)
+  name: certResourceName
   location: location
   properties: {
-    subjectName: customDomainHostname
-    domainControlValidation: 'CNAME'
+    // certificateKeyVaultProperties is the KV-import path — the cert bytes
+    // are never stored in the Bicep template or in Container Apps configuration.
+    certificateKeyVaultProperties: {
+      identity: certIdentityId
+      keyVaultUrl: kvCertSecretUrl
+    }
   }
 }
 
 // ── siege-frontend ────────────────────────────────────────────────────────────
 //
-// When a custom domain is configured, the single frontendApp resource binds
-// directly with bindingType 'SniEnabled' and the managed cert ID. ARM resolves
-// the dependency through the certificateId reference: managedCert is provisioned
-// (and the cert issued via CNAME validation) before frontendApp is updated.
+// When bindCert is true, the frontend binds the origin cert with SniEnabled.
+// When false, no customDomains block is emitted and the app is reachable only
+// via its default *.azurecontainerapps.io FQDN.
 //
-// This collapses the previous two-resource Phase 1/Phase 2 pattern that caused
-// ARM to reject the template with "resource defined multiple times". The two-phase
-// approach was based on a misunderstanding: managedCert validates DNS ownership
-// independently via CNAME lookup; the hostname does not need to be pre-registered
-// on the app with bindingType 'Disabled' first.
+// certificateId format for BYO (unmanaged) certs:
+//   /subscriptions/{sub}/resourceGroups/{rg}/providers/
+//   Microsoft.App/managedEnvironments/{env}/certificates/{name}
+// This is the .id property of the originCert resource — Bicep resolves it
+// symbolically, which also creates an implicit dependsOn.
 
 resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: frontendAppName
@@ -269,15 +331,15 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
         external: true
         targetPort: 80
         transport: 'http'
-        // When a custom domain is configured, bind with SniEnabled and the
-        // managed cert. Bicep infers the dependency on managedCert through the
-        // certificateId symbolic reference — no explicit dependsOn needed.
-        customDomains: hasCustomDomain
+        // When bindCert is true, attach the origin cert and enable SNI.
+        // Bicep infers the dependency on originCert through the symbolic reference
+        // to originCert.id — no explicit dependsOn needed.
+        customDomains: bindCert
           ? [
               {
                 name: customDomainHostname
                 bindingType: 'SniEnabled'
-                certificateId: managedCert.id
+                certificateId: originCert.id
               }
             ]
           : []

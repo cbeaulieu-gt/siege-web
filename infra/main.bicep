@@ -128,8 +128,32 @@ param frontendMinReplicas int = 1
 @description('Public-facing URL for canonical/og tags (e.g. https://rslsiege.com). Leave empty for dev.')
 param publicUrl string = ''
 
-@description('Custom hostname to bind to the frontend (e.g. rslsiege.com). Leave empty to skip custom domain binding. DNS must point to the Container App FQDN via CNAME before deploying with this set.')
+@description('Custom hostname to bind to the frontend (e.g. rslsiege.com). Leave empty to skip custom domain binding.')
 param customDomainHostname string = ''
+
+// ── Cloudflare Origin Certificate ────────────────────────────────────────────
+//
+// Two-phase deployment process:
+//
+//   Phase 1 — First deploy (enableCustomDomain = false, default):
+//     - Key Vault, UAMI, and role assignment are created.
+//     - No cert resource or domain binding is created on the Container App.
+//     - User generates the Cloudflare Origin Cert, converts to PFX, and
+//       uploads to Key Vault as a secret named 'cloudflare-origin-cert'.
+//
+//   Phase 2 — Second deploy (enableCustomDomain = true):
+//     - Container Apps environment imports the PFX from Key Vault.
+//     - Frontend Container App is bound with SniEnabled + the imported cert.
+//     - Cloudflare SSL mode is set to Full (strict) and proxy is turned ON.
+//
+// This flag is the deployment gate. It defaults to false so a bare infrastructure
+// deploy never fails waiting for a cert that hasn't been uploaded yet.
+
+@description('When true, imports the Cloudflare Origin Cert from Key Vault and binds it to the frontend. Set false on first deploy, true after the PFX has been uploaded to KV.')
+param enableCustomDomain bool = false
+
+@description('Versionless Key Vault secret URL for the Cloudflare Origin Cert PFX (e.g. https://<vault>.vault.azure.net/secrets/cloudflare-origin-cert). Required when enableCustomDomain is true.')
+param kvCertSecretUrl string = ''
 
 // ── Modules ──────────────────────────────────────────────────────────────────
 
@@ -203,6 +227,23 @@ module appInsights 'modules/app-insights.bicep' = {
   }
 }
 
+// ── User-assigned managed identity for cert import ───────────────────────────
+//
+// The UAMI and its KV role assignment are always deployed (not gated on
+// enableCustomDomain) so that the identity is ready the moment the user
+// uploads the PFX. Deploying the identity only on Phase 2 would mean the
+// role assignment wasn't in place, causing the import to fail.
+
+module certIdentity 'modules/cert-identity.bicep' = {
+  name: 'certIdentity'
+  params: {
+    location: location
+    environment: environment
+    appPrefix: appPrefix
+    vaultName: keyVault.outputs.vaultName
+  }
+}
+
 module containerEnv 'modules/container-env.bicep' = {
   name: 'containerEnv'
   params: {
@@ -211,6 +252,8 @@ module containerEnv 'modules/container-env.bicep' = {
     appPrefix: appPrefix
     logAnalyticsCustomerId: logAnalytics.outputs.customerId
     logAnalyticsPrimaryKey: logAnalytics.outputs.primarySharedKey
+    // Pass the UAMI so the environment can authenticate to KV during cert import.
+    certIdentityId: certIdentity.outputs.identityId
   }
 }
 
@@ -241,6 +284,9 @@ module containerApps 'modules/container-apps.bicep' = {
     publicUrl: publicUrl
     containerAppsEnvironmentName: containerEnv.outputs.environmentName
     customDomainHostname: customDomainHostname
+    enableCustomDomain: enableCustomDomain
+    certIdentityId: certIdentity.outputs.identityId
+    kvCertSecretUrl: kvCertSecretUrl
   }
 }
 
@@ -274,3 +320,4 @@ output containerAppsEnvironmentName string = containerEnv.outputs.environmentNam
 output frontendFqdn string = containerApps.outputs.frontendAppFqdn
 output apiAppName string = containerApps.outputs.apiAppName
 output botAppName string = containerApps.outputs.botAppName
+output certIdentityId string = certIdentity.outputs.identityId
