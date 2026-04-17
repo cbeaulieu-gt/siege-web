@@ -250,12 +250,13 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
 // no validation needed. Cloudflare acts as the public CA to browsers (its own
 // trusted cert); the origin cert is only used for the Cloudflare → Azure leg.
 //
-// NETWORK SECURITY NOTE: This module does not create private endpoints for Key
-// Vault. Public network access with RBAC is simpler and adequate for this
-// workload's threat model (KV access requires a valid Azure AD token from the
-// UAMI). Adding private endpoints would require VNet integration for the Container
-// Apps environment (additional cost and complexity). Revisit if compliance
-// requirements change.
+// NETWORK SECURITY NOTE: Key Vault is accessible from public networks with RBAC.
+// This is acceptable because:
+//   - Access requires valid Azure AD token from the UAMI (not just network access)
+//   - No PII/PHI/financial data is stored in this vault (only infra secrets)
+//   - Private endpoint would require VNet integration ($$$) without meaningful security gain
+// Revisit if: compliance requirements change (PCI, HIPAA), or threat model includes
+// nation-state actors with Azure AD compromise capability.
 //
 // PHASE GATE (enableCustomDomain param):
 // The cert resource is only created when enableCustomDomain = true. On first
@@ -264,14 +265,22 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
 // set to true completes the binding. This avoids an ARM deployment failure that
 // would occur if the KV cert reference pointed at a non-existent secret.
 
-// certificateKeyVaultProperties was added to Microsoft.App/managedEnvironments/certificates
-// in API version 2024-08-02-preview. The 2024-03-01 GA version does not include this
-// property, so we must use the preview API for the cert and its parent reference.
-// Using preview only for the two cert-related resources; all other resources keep 2024-03-01.
+// API VERSION NOTE: Using preview `2024-08-02-preview` because the environment-level
+// user-assigned identity block is not present in the GA API `2024-03-01`. The preview
+// surface is scoped to this resource only; all other managed-env operations stay on GA.
+// MIGRATION: revert to GA once the identity block ships in a GA API version.
+// Track: https://aka.ms/azure-rest-api-specs (Microsoft.App API changelog).
 resource containerAppsEnv 'Microsoft.App/managedEnvironments@2024-08-02-preview' existing = {
   name: containerAppsEnvironmentName
 }
 
+// API VERSION NOTE: Using preview `2024-08-02-preview` because `certificateKeyVaultProperties`
+// is not present in the GA API `2024-03-01`. This property is the KV-import path that lets
+// Container Apps pull the PFX directly from Key Vault without staging it through Bicep.
+// The preview surface is scoped to this resource only; all other resources stay on GA.
+// MIGRATION: revert to GA once certificateKeyVaultProperties ships in a GA API version.
+// Track: https://aka.ms/azure-rest-api-specs (Microsoft.App API changelog).
+//
 // BYO certificate resource: Container Apps imports the PFX from Key Vault using
 // the environment's user-assigned managed identity. The certificateKeyVaultProperties
 // block takes:

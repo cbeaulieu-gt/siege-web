@@ -76,6 +76,10 @@
 .NOTES
     Author : Claude Code (on behalf of cbeaulieu-gt)
     Requires: openssl on PATH (Git for Windows, system OpenSSL, or WSL openssl)
+
+    Security: The PFX password is briefly visible in process listings during
+    openssl execution due to command-line argument limitations. Run this script
+    on a trusted workstation, not on shared/monitored systems.
 #>
 
 [CmdletBinding(SupportsShouldProcess)]

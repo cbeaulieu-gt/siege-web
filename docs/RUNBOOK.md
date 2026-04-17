@@ -705,7 +705,7 @@ is still running the old revision or the new revision shows a failed status.
 
 ---
 
-## 8. Custom Domain -- Cloudflare Origin Cert Rotation
+## Custom Domain — Cloudflare Origin Cert Rotation
 
 The production custom domain (`rslsiege.com`) uses a **Cloudflare Origin Certificate**
 rather than an Azure-managed certificate. This is a deliberate architecture decision:
@@ -780,6 +780,8 @@ The script emits a `NextStep` property with the exact upload command. Save the p
 your password manager -- you will need it if you ever need to inspect the PFX offline.
 
 **Step 4 -- Upload the PFX to Key Vault**
+
+> **Placeholder convention**: `{RESOURCE_GROUP}`, `{KEY_VAULT_NAME}`, and other curly-brace tokens in this section are literal placeholders — replace them with your actual values before running. They are not shell variables; do not prefix with `$`.
 
 ```powershell
 az keyvault secret set `
