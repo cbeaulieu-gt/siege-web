@@ -808,7 +808,16 @@ Note the **versionless secret URL** -- it looks like:
 
 **Step 5 -- Update the param file and trigger Phase 2 deploy**
 
-Edit `infra/main.prod.bicepparam` and set:
+Edit [`infra/main.prod.bicepparam`](../infra/main.prod.bicepparam) (prod only — dev does not set
+this param and correctly inherits the `false` default from
+[`infra/main.bicep`](../infra/main.bicep)):
+
+- Around **line 132** (at time of writing): change `enableCustomDomain = false` → `true`.
+- Around **line 137** (at time of writing): set `kvCertSecretUrl` to the versionless URL from
+  Step 4 above.
+
+The file contains an inline comment block (around lines 113–130) that walks through the
+two-phase procedure in-situ — read it for additional context.
 
 ```bicep
 param enableCustomDomain = true
