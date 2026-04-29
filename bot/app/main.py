@@ -47,5 +47,9 @@ async def main() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    configure_telemetry()
+    # Configure telemetry with the HTTP sidecar app so FastAPIInstrumentor
+    # can wrap it.  OTEL_SERVICE_NAME must be set in the container environment
+    # (see infra/modules/container-apps.bicep) to populate cloud_RoleName
+    # in Application Insights.
+    configure_telemetry(http_app)
     asyncio.run(main())
