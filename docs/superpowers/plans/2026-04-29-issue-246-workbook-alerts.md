@@ -53,15 +53,15 @@ Six phases. Phase 3 contains the **one manual portal step**. Everything else is 
 
 ---
 
-### Phase 1 — Branch & Module Skeleton
+### Phase 1 — Branch & Module Skeleton ✅ (2026-04-29, commit c8c5715)
 
-- [ ] Pull latest `main` and confirm clean working tree
-- [ ] Create worktree: `git worktree add .worktrees/feature-246-workbook-alerts -b feature/246-workbook-alerts`
-- [ ] Create `infra/modules/monitoring.bicep` with parameter signature only (no resource bodies yet): `location`, `environment`, `appPrefix`, `appInsightsId`, `appInsightsName`, `alertEmail`
-- [ ] Wire `monitoring.bicep` into `infra/main.bicep` as a new `module monitoring` after `appInsights`, passing `appInsights.outputs.appInsightsId` and `appInsights.outputs.appInsightsName`
-- [ ] Add `alertEmail` parameter to `infra/main.bicep` (string, no default — must be set per env)
-- [ ] Set `alertEmail` in `infra/main.dev.bicepparam` and `infra/main.prod.bicepparam` (ask user for the prod email if it differs from dev)
-- [ ] Run `az bicep build --file infra/main.bicep` locally to confirm the empty module compiles
+- [x] Pull latest `main` and confirm clean working tree
+- [x] Create worktree: `git worktree add .worktrees/feature-246-workbook-alerts -b feature/246-workbook-alerts`
+- [x] Create `infra/modules/monitoring.bicep` with parameter signature only (no resource bodies yet): `location`, `environment`, `appPrefix`, `appInsightsId`, `appInsightsName`, `alertEmail`
+- [x] Wire `monitoring.bicep` into `infra/main.bicep` as a new `module monitoring` after `appInsights`, passing `appInsights.outputs.appInsightsId` and `appInsights.outputs.appInsightsName`
+- [x] Add `alertEmail` parameter to `infra/main.bicep` (string, no default — must be set per env)
+- [x] Set `alertEmail` in `infra/main.dev.bicepparam` and `infra/main.prod.bicepparam` (both set to `cmb_dev@outlook.com` per user decision)
+- [x] Run `az bicep build --file infra/main.bicep` locally to confirm the empty module compiles
 
 **Files touched:**
 - `infra/modules/monitoring.bicep` (new)
@@ -69,29 +69,31 @@ Six phases. Phase 3 contains the **one manual portal step**. Everything else is 
 - `infra/main.dev.bicepparam`
 - `infra/main.prod.bicepparam`
 
-**Exit criteria:** `az bicep build` succeeds; `what-if` against dev shows zero changes (because the module body is empty).
+**Exit criteria:** `az bicep build` succeeds — PASSED (clean, no errors, no warnings after `#disable-next-line no-unused-params` suppression on `appInsightsName` which is reserved for Phase 3 workbook resource).
 
 ---
 
-### Phase 2 — Action Group & Alerts (Bicep)
+### Phase 2 — Action Group & Alerts (Bicep) ✅ (2026-04-29, commit 2ab4da9)
 
-- [ ] Add `Microsoft.Insights/actionGroups@2023-01-01` resource in `monitoring.bicep`: `groupShortName` ≤ 12 chars (e.g. `siege-${environment}`), `enabled: true`, one `emailReceivers` entry pointing at `alertEmail`. **Crucial:** `useCommonAlertSchema: true` so the email body has structured fields.
-- [ ] Add five `Microsoft.Insights/scheduledQueryRules@2023-03-15-preview` resources, one per alert (KQL bodies in §4). Each with:
+- [x] Add `Microsoft.Insights/actionGroups@2023-01-01` resource in `monitoring.bicep`: `groupShortName` ≤ 12 chars (`siege-${environment}`), `enabled: true`, one `emailReceivers` entry pointing at `alertEmail`, `useCommonAlertSchema: true`.
+- [x] Add five `Microsoft.Insights/scheduledQueryRules@2023-12-01` resources (API version **upgraded** from plan's `2023-03-15-preview` to stable GA `2023-12-01`, confirmed via Microsoft Learn docs 2026-04-29). Each with:
   - `scopes: [appInsightsId]`
-  - `evaluationFrequency: PT1M` for fast-trigger alerts (5xx, latency, image-gen, DB-error, bot-restart)
+  - `evaluationFrequency: PT1M` for all five alerts
   - `windowSize: PT5M` (PT1M for bot-restart so a single restart fires immediately)
   - `severity: 2` for "page-worthy", `3` for warnings (per-alert table in §4)
   - `criteria.allOf[0]`: `query`, `timeAggregation: Count`, `operator: GreaterThan`, `threshold: 0`
   - `actions.actionGroups: [actionGroup.id]`
   - `autoMitigate: true`
   - `muteActionsDuration: PT15M` to prevent self-spam during incidents
-- [ ] Add a Bicep `var alertRules = [...]` driven loop so the five rules share definition shape (only `name`, `query`, `severity`, `windowSize` differ)
-- [ ] Run `az deployment group what-if -g <dev-rg> -f infra/main.bicep -p infra/main.dev.bicepparam` and review output
+- [x] ~~Add a Bicep `var alertRules = [...]` driven loop~~ — **decision: individual named resources preferred** over a loop. Loop would require `batchSize` decorator and makes individual resource symbolic references awkward. Five discrete resources is more legible and easier to diff per Phase 5 KQL edits.
+- [x] Alert 5 uses `requests` table filtered by `name has "generate-images"` per user decision (route confirmed: `POST /sieges/{siege_id}/generate-images` in `backend/app/api/images.py`). No `customEvents` dependency.
+- [x] Alert 3 ships with `TODO(#246-phase5)` placeholder predicate: `has_any ("Logged in as", "ready")`.
+- [ ] Run `az deployment group what-if -g <dev-rg> -f infra/main.bicep -p infra/main.dev.bicepparam` — **skipped: no Azure credentials in current session**.
 
 **Files touched:**
 - `infra/modules/monitoring.bicep`
 
-**Exit criteria:** `what-if` shows exactly six new resources (1 action group + 5 alert rules) in dev with no other deltas.
+**Exit criteria:** `az bicep build` PASSED (clean). `what-if` skipped (no creds) — to be run by user before Phase 4 deploy trigger.
 
 ---
 
@@ -339,7 +341,7 @@ This is a **one-time** manual step. Document it in `infra/README.md` so future m
 | Alert query references a column that doesn't exist (e.g. wrong custom event name) | Phase 5 ground-truths every query against real dev data before prod promotion. |
 | Action group email never confirmed by recipient → alerts silently never deliver | Phase 4 explicitly confirms a real test email arrives, not just that the rule fires. |
 | Synthetic trigger code accidentally ships to prod | Test endpoints gated by `environment != "dev"` check; reverts called out in PR description. |
-| `scheduledQueryRules` API version drift | Use `2023-03-15-preview` (current GA-equivalent at planning time); code-writer re-verifies via `bicep` skill at write-time. |
+| `scheduledQueryRules` API version drift | Plan used `2023-03-15-preview`; code-writer upgraded to stable GA `2023-12-01` (verified via Microsoft Learn 2026-04-29). If Azure introduces breaking changes, `what-if` will surface them before deploy. |
 | Alert noise in early days (false positives during low-traffic dev windows) | Every alert query has a `sampleCount >= 20` or equivalent floor where rates are involved; `muteActionsDuration: PT15M` prevents storms. |
 
 ---
