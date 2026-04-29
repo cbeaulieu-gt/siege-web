@@ -395,6 +395,46 @@ az monitor log-analytics query \
 
 ## 6. Monitoring and Alerts
 
+### Application Insights role names
+
+Each service emits telemetry tagged with a `cloud_RoleName` that determines
+how it appears in the Application Map and in KQL queries.
+
+| Service | `cloud_RoleName` | Set by |
+|---|---|---|
+| Backend API (`siege-api` container) | `siege-api` | `OTEL_SERVICE_NAME=siege-api` env var (Bicep) |
+| Bot HTTP sidecar (`siege-bot` container) | `siege-bot` | `OTEL_SERVICE_NAME=siege-bot` env var (Bicep) |
+
+When writing KQL monitor queries, always filter on the correct role name:
+
+```kusto
+-- Backend requests
+requests
+| where cloud_RoleName == "siege-api"
+| where timestamp > ago(10m)
+
+-- Bot sidecar requests
+requests
+| where cloud_RoleName == "siege-bot"
+| where timestamp > ago(10m)
+
+-- Exceptions from the backend
+exceptions
+| where cloud_RoleName == "siege-api"
+| where timestamp > ago(1h)
+
+-- PostgreSQL dependency calls
+dependencies
+| where cloud_RoleName == "siege-api"
+| where type == "postgresql"
+| where timestamp > ago(1h)
+```
+
+The Application Map should render three named nodes: `siege-api`, `siege-bot`,
+and the PostgreSQL database, connected by traffic edges.  If the map shows
+`unknown_service` instead, verify that `OTEL_SERVICE_NAME` is set on the
+relevant Container App revision (see Bicep `infra/modules/container-apps.bicep`).
+
 ### What to watch
 
 | Signal | Threshold | Action |

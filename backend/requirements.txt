@@ -11,3 +11,4 @@ playwright>=1.49
 PyJWT>=2.9
 cryptography>=43
 azure-monitor-opentelemetry>=1.6
+opentelemetry-instrumentation-fastapi>=0.50b0

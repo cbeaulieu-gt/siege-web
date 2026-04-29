@@ -202,10 +202,17 @@ resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
               // Falls back to localhost:5173 for dev deployments without a custom domain.
               { name: 'ALLOWED_ORIGINS', value: !empty(customDomainHostname) ? 'https://${customDomainHostname}' : 'http://localhost:5173' }
             ],
-            // Only inject the Application Insights connection string when one
-            // has been provided — keeps dev deployments lightweight.
+            // Only inject the Application Insights connection string and
+            // OTEL_SERVICE_NAME when a connection string has been provided.
+            // OTEL_SERVICE_NAME is what the Azure Monitor distro uses to set
+            // the service.name resource attribute, which App Insights surfaces
+            // as cloud_RoleName.  Without it every span lands under the
+            // synthetic "unknown_service" node and the Application Map cannot
+            // render.  The frontend container (nginx, no SDK) does not need
+            // either variable.
             empty(appInsightsConnectionString) ? [] : [
               { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
+              { name: 'OTEL_SERVICE_NAME', value: 'siege-api' }
             ]
           )
           probes: [
@@ -456,8 +463,12 @@ resource botApp 'Microsoft.App/containerApps@2024-03-01' = {
               { name: 'DISCORD_GUILD_ID', value: discordGuildId }
               { name: 'ENVIRONMENT', value: environment }
             ],
+            // Inject App Insights connection string and OTEL_SERVICE_NAME for
+            // the bot sidecar when telemetry is enabled.  See the API comment
+            // block above for the rationale on OTEL_SERVICE_NAME.
             empty(appInsightsConnectionString) ? [] : [
               { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: appInsightsConnectionString }
+              { name: 'OTEL_SERVICE_NAME', value: 'siege-bot' }
             ]
           )
           probes: [

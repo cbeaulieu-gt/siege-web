@@ -36,8 +36,6 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-configure_telemetry()
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -68,6 +66,12 @@ app = FastAPI(
     redoc_url=None,
     lifespan=lifespan,
 )
+
+# Configure telemetry AFTER the app object is created so that
+# FastAPIInstrumentor can wrap it.  OTEL_SERVICE_NAME must be set in the
+# container environment (see infra/modules/container-apps.bicep) to populate
+# cloud_RoleName in Application Insights.
+configure_telemetry(app)
 
 app.add_middleware(RequestLoggingMiddleware)
 
