@@ -101,17 +101,16 @@ Six phases. Phase 3 contains the **one manual portal step**. Everything else is 
 
 > **The one manual portal step.** Hand-authoring `serializedData` for `Microsoft.Insights/workbooks` is brittle — a stray quote breaks the whole workbook with no good error message. The supported workflow is to compose visually in the portal, then export to Bicep/ARM and commit the export.
 
-- [ ] In the **dev** App Insights blade → **Workbooks** → **+ New** → build the workbook with the six tile groups below. Use parameterized `cloud_RoleName` (text param, default `siege-api`) where it makes sense so one tile set serves both services without duplication.
+- [x] In the **dev** App Insights blade → **Workbooks** → **+ New** → build the workbook with the six tile groups below. Use parameterized `cloud_RoleName` (text param, default `siege-api`) where it makes sense so one tile set serves both services without duplication.
   - **Request volume + latency** — `requests | summarize count(), p50=percentile(duration,50), p95=percentile(duration,95) by bin(timestamp,5m), cloud_RoleName | render timechart`
   - **5xx / 4xx rates** — `requests | summarize total=count(), errs5xx=countif(toint(resultCode) >= 500), errs4xx=countif(toint(resultCode) between (400 .. 499)) by bin(timestamp,5m), cloud_RoleName | extend rate5xx=todouble(errs5xx)/total, rate4xx=todouble(errs4xx)/total`
   - **Top 10 exceptions** — `exceptions | summarize count() by type, cloud_RoleName | top 10 by count_`
   - **Bot restart count** — `traces | where cloud_RoleName == "siege-bot" and message has "Bot starting" or message has "Connected to gateway" | summarize count() by bin(timestamp,1h)` (final predicate confirmed in Phase 5 by checking what the bot actually emits at startup)
   - ~~**DB dependency duration p95** — `dependencies | where type == "PostgreSQL" or target contains ".postgres.database.azure.com" | summarize p95=percentile(duration,95) by bin(timestamp,5m), cloud_RoleName`~~ — **DROPPED in v1, blocked by #257** (backend OTel pipeline missing SQLAlchemy + asyncpg instrumentors; `dependencies | where cloud_RoleName == "siege-api"` returns only `InProc` rows — no PostgreSQL spans exist yet)
   - **Image generation duration** — `customEvents | where name == "image_generation" or (name == "Playwright" or operation_Name contains "generate_image") | summarize p50=percentile(toreal(customMeasurements.duration_ms),50), p95=percentile(toreal(customMeasurements.duration_ms),95) by bin(timestamp,15m)` *(the exact event name needs confirmation in Phase 5 — see Open Questions)*
-- [ ] Save workbook to dev App Insights, then **Workbook → Edit → Advanced Editor → ARM Template → Bicep**, copy the export
-- [ ] Paste into `infra/modules/monitoring.bicep` as a `Microsoft.Insights/workbooks@2023-06-01` resource. Strip the portal-injected GUID `name`; replace with `guid(resourceGroup().id, 'siege-app-health', environment)` so re-deploy is idempotent. Set `kind: 'shared'`, `displayName: 'Siege — Application Health (${environment})'`, `category: 'workbook'`, `sourceId: appInsightsId`.
-- [ ] Verify `serializedData` is a single quoted JSON string (not multi-line). Bicep accepts `loadTextContent('workbook.json')` if the inline blob is unwieldy — prefer that for diff legibility: save the JSON to `infra/modules/workbook-app-health.json` and reference via `loadTextContent`.
-- [ ] `what-if` again — should now show one additional resource (the workbook).
+- [x] Save workbook to dev App Insights, then **Workbook → Edit → Advanced Editor → ARM Template → Bicep**, copy the export (workbook authored and exported by user prior to this dispatch; JSON saved at `infra/modules/workbook.template.json`)
+- [x] Wrap in `Microsoft.Insights/workbooks@2023-06-01` resource in `monitoring.bicep`. Name uses `guid(resourceGroup().id, 'siege-app-health')` for stable GUID. `kind: 'shared'`, `sourceId: appInsightsId`. Gallery Template JSON loaded via `loadJsonContent('workbook.template.json')` with chained `replace()` to rewrite embedded dev subscription/RG/AI-resource IDs for environment portability. Bicep build: exit 0, clean. (Phase 3b, commit TBD)
+- [ ] `what-if` again — should now show one additional resource (the workbook). *(deferred to user; no Azure credentials in this session)*
 
 **Files touched:**
 - `infra/modules/monitoring.bicep`

@@ -1,0 +1,89 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\n| where cloud_RoleName == \"siege-api\"\n| summarize Requests = count(),\n            p50 = percentile(duration, 50),\n            p95 = percentile(duration, 95)\n            by bin(timestamp, 5m)\n| order by timestamp asc",
+        "size": 0,
+        "title": "Request volume + p50/p95 latency (siege-api)",
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "linechart"
+      },
+      "name": "Request volume + p50/p95 latency (siege-api)"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\n| where cloud_RoleName == \"siege-api\"\n| summarize Total = count(),\n            Rate5xx = 100.0 * countif(toint(resultCode) >= 500) / count(),\n            Rate4xx = 100.0 * countif(toint(resultCode) between (400 .. 499)) / count()\n            by bin(timestamp, 5m)\n| order by timestamp asc",
+        "size": 0,
+        "title": "5xx / 4xx rates (siege-api)",
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "linechart"
+      },
+      "name": "5xx / 4xx rates (siege-api)"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "exceptions\n| where cloud_RoleName in (\"siege-api\", \"siege-bot\")\n| summarize Count = count() by problemId, cloud_RoleName\n| top 10 by Count desc",
+        "size": 0,
+        "title": "Top 10 exceptions",
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      },
+      "name": "Top 10 exceptions"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "traces\n| where cloud_RoleName == \"siege-bot\"\n| where message has \"FastAPI HTTP sidecar instrumented\"\n| summarize Restarts = count() by bin(timestamp, 1h)\n| order by timestamp asc",
+        "size": 0,
+        "title": "Bot restart count",
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart"
+      },
+      "name": "Bot restart count"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\n| where cloud_RoleName == \"siege-api\"\n| where name has \"generate-images\"\n| summarize p50 = percentile(duration, 50),\n            p95 = percentile(duration, 95),\n            Max = max(duration)\n            by bin(timestamp, 5m)\n| order by timestamp asc",
+        "size": 0,
+        "title": "Image generation duration",
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "linechart"
+      },
+      "name": "Image generation duration"
+    }
+  ],
+  "fallbackResourceIds": [
+    "/subscriptions/213aa1f8-32d1-4ffe-8f4d-6e60f1cd9dc0/resourcegroups/siege-web-dev/providers/microsoft.insights/components/siege-web-ai-dev-e2xv2wolzinjg"
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

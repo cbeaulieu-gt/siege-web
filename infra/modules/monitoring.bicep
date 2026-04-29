@@ -21,8 +21,7 @@ param appPrefix string
 @description('Resource ID of the Application Insights instance to scope alerts against')
 param appInsightsId string
 
-@description('Name of the Application Insights instance (used in the workbook resource added in Phase 3)')
-#disable-next-line no-unused-params
+@description('Name of the Application Insights instance (used in the workbook serializedData substitution)')
 param appInsightsName string
 
 @description('Email address that receives alert notifications')
@@ -289,6 +288,47 @@ requests
   }
 }
 
+// ── Workbook ──────────────────────────────────────────────────────────────────
+//
+// Load the Gallery Template JSON and rewrite the three embedded dev-environment
+// IDs so the same file deploys identically to both dev and prod:
+//
+//   1. Subscription ID  — the `fallbackResourceIds` array in the JSON contains
+//      the dev subscription GUID; replaced with the current deployment's
+//      subscription ID via subscription().subscriptionId.
+//
+//   2. Resource-group name — hard-coded "siege-web-dev" in the JSON; replaced
+//      with the actual RG name at deploy time via resourceGroup().name.
+//
+//   3. App Insights resource name — hard-coded "siege-web-ai-dev-e2xv2wolzinjg";
+//      replaced with the appInsightsName param so prod uses its own resource name.
+//
+// This is the documented Microsoft pattern for environment-portable workbook
+// templates (chained replace() calls on the raw JSON string).
+
+var workbookRaw = string(loadJsonContent('workbook.template.json'))
+var workbookWithSub = replace(workbookRaw, '213aa1f8-32d1-4ffe-8f4d-6e60f1cd9dc0', subscription().subscriptionId)
+var workbookWithRg = replace(workbookWithSub, 'siege-web-dev', resourceGroup().name)
+var serializedWorkbook = replace(workbookWithRg, 'siege-web-ai-dev-e2xv2wolzinjg', appInsightsName)
+
+// `name` must be a stable GUID — Microsoft.Insights/workbooks rejects non-GUID names.
+// guid(resourceGroup().id, 'siege-app-health') produces the same GUID on every
+// re-deploy within a given RG, so re-deploys update rather than create new resources.
+
+resource workbook 'Microsoft.Insights/workbooks@2023-06-01' = {
+  name: guid(resourceGroup().id, 'siege-app-health')
+  location: location
+  kind: 'shared'
+  tags: tags
+  properties: {
+    displayName: 'Siege App Health'
+    category: 'workbook'
+    sourceId: appInsightsId
+    serializedData: serializedWorkbook
+    version: 'Notebook/1.0'
+  }
+}
+
 // ── Outputs ───────────────────────────────────────────────────────────────────
 
 @description('Resource ID of the deployed action group')
@@ -296,3 +336,6 @@ output actionGroupId string = actionGroup.id
 
 @description('Name of the deployed action group')
 output actionGroupName string = actionGroup.name
+
+@description('Resource ID of the deployed workbook')
+output workbookId string = workbook.id
