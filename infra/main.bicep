@@ -14,6 +14,13 @@ param acrSku string = 'Basic'
 @description('Override the generated ACR name. Leave empty to use the default convention (appPrefix + "acr" + environment).')
 param acrNameOverride string = ''
 
+@description('Number of recent SHA/commit-tagged images to keep per repo during the weekly purge. Release tags (v*) are never purged.')
+@minValue(1)
+param acrPurgeKeepCount int = 10
+
+@description('Cron schedule (UTC) for the weekly ACR purge task. Default: Sunday 03:00 UTC.')
+param acrPurgeSchedule string = '0 3 * * Sun'
+
 @description('Image tag to deploy')
 param imageTag string = 'latest'
 
@@ -175,6 +182,8 @@ module registry 'modules/registry.bicep' = {
     appPrefix: appPrefix
     acrSku: acrSku
     acrNameOverride: acrNameOverride
+    purgeKeepCount: acrPurgeKeepCount
+    purgeSchedule: acrPurgeSchedule
   }
 }
 

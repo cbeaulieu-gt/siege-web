@@ -142,3 +142,12 @@ param kvCertSecretUrl = 'https://siege-web-kv-prod-yf3fl2.vault.azure.net/secret
 // Frontend is Nginx only; a 2–3s cold start is acceptable in prod.
 param apiMinReplicas = 1
 param frontendMinReplicas = 0
+
+// ── ACR image retention ───────────────────────────────────────────────────────
+// Prod currently has ~155 manifests (51/52/52 across api/bot/frontend).
+// Release tags (v*) are preserved forever. SHA/commit tags beyond the last 10
+// per repo are deleted weekly. Untagged manifests older than 7 days are removed.
+// After the first deploy, run once on-demand to clear the existing backlog:
+//   az acr task run --name weekly-purge --registry siegeacrprod
+param acrPurgeKeepCount = 10
+param acrPurgeSchedule = '0 3 * * Sun'

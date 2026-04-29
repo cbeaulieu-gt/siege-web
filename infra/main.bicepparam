@@ -25,3 +25,9 @@ param discordBotApiKey = ''
 param botApiKey = ''
 
 param postgresGeoRedundantBackup = false
+
+// ── ACR image retention ───────────────────────────────────────────────────────
+// Release tags (v*) are never purged. SHA/commit tags beyond the keep count
+// are deleted weekly. Untagged manifests older than 7 days are also removed.
+param acrPurgeKeepCount = 10
+param acrPurgeSchedule = '0 3 * * Sun'

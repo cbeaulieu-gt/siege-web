@@ -109,6 +109,8 @@ On PR to `main`:
 - **Backend**: black check → ruff → pytest (uses test DB URL from env)
 - **Frontend**: npm ci → eslint → npm build
 
+Registry image retention is automated via a scheduled ACR Task (`weekly-purge`) in both registries — release tags (`v*`) are preserved forever; SHA/commit tags beyond the last 10 per repo and untagged manifests older than 7 days are deleted every Sunday at 03:00 UTC.
+
 Two deployment workflows exist and are fully operational:
 
 - **`.github/workflows/deploy.yml`** — triggered automatically on push to `main` (deploys to dev) and on `v*` tag push (deploys to prod). Builds Docker images, pushes to ACR, then updates Container App revisions with the new image tag.
