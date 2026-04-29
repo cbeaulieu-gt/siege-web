@@ -33,7 +33,11 @@ class TestConfigureTelemetryNoop:
         mock_configure = MagicMock()
         with patch.dict(
             "sys.modules",
-            {"azure.monitor.opentelemetry": MagicMock(configure_azure_monitor=mock_configure)},
+            {
+                "azure.monitor.opentelemetry": MagicMock(
+                    configure_azure_monitor=mock_configure
+                )
+            },
         ):
             telemetry_module.configure_telemetry()
 
@@ -52,7 +56,11 @@ class TestConfigureTelemetryNoop:
         mock_configure = MagicMock()
         with patch.dict(
             "sys.modules",
-            {"azure.monitor.opentelemetry": MagicMock(configure_azure_monitor=mock_configure)},
+            {
+                "azure.monitor.opentelemetry": MagicMock(
+                    configure_azure_monitor=mock_configure
+                )
+            },
         ):
             telemetry_module.configure_telemetry()
 
@@ -71,7 +79,11 @@ class TestConfigureTelemetryNoop:
         mock_configure = MagicMock()
         with patch.dict(
             "sys.modules",
-            {"azure.monitor.opentelemetry": MagicMock(configure_azure_monitor=mock_configure)},
+            {
+                "azure.monitor.opentelemetry": MagicMock(
+                    configure_azure_monitor=mock_configure
+                )
+            },
         ):
             telemetry_module.configure_telemetry()
 
@@ -103,7 +115,9 @@ class TestConfigureTelemetryActive:
         fake_azure_module = MagicMock()
         fake_azure_module.configure_azure_monitor = mock_configure
 
-        with patch.dict("sys.modules", {"azure.monitor.opentelemetry": fake_azure_module}):
+        with patch.dict(
+            "sys.modules", {"azure.monitor.opentelemetry": fake_azure_module}
+        ):
             telemetry_module.configure_telemetry()
 
         mock_configure.assert_called_once_with(logger_name="app")
@@ -123,7 +137,9 @@ class TestConfigureTelemetryActive:
         fake_azure_module.configure_azure_monitor = mock_configure
 
         # Should not raise — the function catches and logs the exception.
-        with patch.dict("sys.modules", {"azure.monitor.opentelemetry": fake_azure_module}):
+        with patch.dict(
+            "sys.modules", {"azure.monitor.opentelemetry": fake_azure_module}
+        ):
             telemetry_module.configure_telemetry()  # no exception expected
 
 
@@ -140,7 +156,9 @@ class TestConfigureTelemetryFastAPIInstrumentation:
         "LiveEndpoint=https://eastus.livediagnostics.monitor.azure.com/"
     )
 
-    def test_instrument_app_called_when_connection_string_and_service_name_set(self, monkeypatch):
+    def test_instrument_app_called_when_connection_string_and_service_name_set(
+        self, monkeypatch
+    ):
         """FastAPIInstrumentor.instrument_app() is called with the FastAPI app.
 
         When both APPLICATIONINSIGHTS_CONNECTION_STRING and OTEL_SERVICE_NAME
@@ -171,7 +189,9 @@ class TestConfigureTelemetryFastAPIInstrumentation:
             "sys.modules",
             {
                 "azure.monitor.opentelemetry": fake_azure_module,
-                "opentelemetry.instrumentation.fastapi": (fake_fastapi_instrumentor_module),
+                "opentelemetry.instrumentation.fastapi": (
+                    fake_fastapi_instrumentor_module
+                ),
             },
         ):
             telemetry_module.configure_telemetry(fastapi_app)
@@ -208,9 +228,50 @@ class TestConfigureTelemetryFastAPIInstrumentation:
             "sys.modules",
             {
                 "azure.monitor.opentelemetry": fake_azure_module,
-                "opentelemetry.instrumentation.fastapi": (fake_fastapi_instrumentor_module),
+                "opentelemetry.instrumentation.fastapi": (
+                    fake_fastapi_instrumentor_module
+                ),
             },
         ):
             telemetry_module.configure_telemetry(fastapi_app)
 
         mock_configure.assert_called_once_with(logger_name="app")
+
+    def test_instrument_app_not_called_when_app_is_none(self, monkeypatch):
+        """FastAPIInstrumentor.instrument_app() is NOT called when app argument is None.
+
+        When configure_telemetry() is called without a FastAPI app (or with
+        app=None), the function must call configure_azure_monitor() but must
+        skip FastAPIInstrumentor().instrument_app() to avoid passing None to
+        the instrumentor. This pins the branch so a future refactor cannot
+        silently start instrumenting a None app.
+        """
+        monkeypatch.setenv("APPLICATIONINSIGHTS_CONNECTION_STRING", self._FAKE_CS)
+        monkeypatch.setenv("OTEL_SERVICE_NAME", "siege-api")
+
+        import importlib
+
+        import app.telemetry as telemetry_module
+
+        importlib.reload(telemetry_module)
+
+        mock_configure = MagicMock()
+        mock_instrumentor = MagicMock()
+        mock_instrumentor_cls = MagicMock(return_value=mock_instrumentor)
+
+        fake_azure_module = MagicMock()
+        fake_azure_module.configure_azure_monitor = mock_configure
+        fake_fastapi_instrumentor_module = MagicMock()
+        fake_fastapi_instrumentor_module.FastAPIInstrumentor = mock_instrumentor_cls
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "azure.monitor.opentelemetry": fake_azure_module,
+                "opentelemetry.instrumentation.fastapi": fake_fastapi_instrumentor_module,
+            },
+        ):
+            telemetry_module.configure_telemetry(app=None)
+
+        mock_configure.assert_called_once()
+        mock_instrumentor.instrument_app.assert_not_called()
