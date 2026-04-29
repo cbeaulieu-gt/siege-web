@@ -114,3 +114,12 @@ param botMemory = '0.5Gi'
 // Bot is excluded — it holds a Discord WebSocket and must stay warm.
 param apiMinReplicas = 0
 param frontendMinReplicas = 0
+
+// ── ACR image retention ───────────────────────────────────────────────────────
+// Dev currently has ~364 manifests (127/126/111 across api/bot/frontend).
+// Release tags (v*) are preserved forever. SHA/commit tags beyond the last 10
+// per repo are deleted weekly. Untagged manifests older than 7 days are removed.
+// After the first deploy, run once on-demand to clear the existing backlog:
+//   az acr task run --name weekly-purge --registry siegewebacr
+param acrPurgeKeepCount = 10
+param acrPurgeSchedule = '0 3 * * Sun'

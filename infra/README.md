@@ -31,6 +31,43 @@ The registry name follows a fixed pattern: `${appPrefix}acr${environment}`.
 | dev | `siegeacrdev` | `siegeacrdev.azurecr.io` |
 | prod | `siegeacrprod` | `siegeacrprod.azurecr.io` |
 
+## Image retention
+
+Both registries run a **scheduled ACR Task** (`weekly-purge`) that executes `acr purge` every **Sunday at 03:00 UTC**. The task runs inside ACR via its system-assigned managed identity — no Container App or Function is needed.
+
+### Retention rules
+
+| Rule | Detail |
+|---|---|
+| Release tags (`v*`) | **Never deleted.** The SHA filter `^[a-f0-9]{40}$` only matches 40-char lowercase hex commit hashes — release tags (`v1.0.0`, etc.) are never touched. |
+| SHA / commit-hash tags | Keep the **last 10** per repo (`--keep 10`); delete older ones. |
+| Untagged manifests | Delete any untagged manifest older than **7 days** (`--untagged --ago 7d`). |
+
+Repositories covered: `siege-api`, `siege-bot`, `siege-frontend`.
+
+### First-time backlog clearance (mandatory after first deploy)
+
+The task is deployed but **not triggered automatically on deploy**. After the first infra deploy, run the task once on-demand to clear the existing backlog (~364 dev manifests, ~155 prod):
+
+```bash
+# Dev
+az acr task run --name weekly-purge --registry siegewebacr --resource-group siege-web-dev
+
+# Prod
+az acr task run --name weekly-purge --registry siegeacrprod --resource-group siege-web-prod
+```
+
+Verify storage dropped with:
+
+```bash
+az acr show-usage --name siegewebacr --resource-group siege-web-dev
+az acr show-usage --name siegeacrprod --resource-group siege-web-prod
+```
+
+### Changing the schedule or keep count
+
+Pass `acrPurgeSchedule` (cron string, UTC) and `acrPurgeKeepCount` (int ≥ 1) as parameters. The defaults (`'0 3 * * Sun'` / `10`) are set in each `.bicepparam` file and should be the same across environments for predictable behavior.
+
 ## Resource group naming convention
 
 | Environment | Resource group |
