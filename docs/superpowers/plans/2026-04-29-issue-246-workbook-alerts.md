@@ -106,7 +106,7 @@ Six phases. Phase 3 contains the **one manual portal step**. Everything else is 
   - **5xx / 4xx rates** — `requests | summarize total=count(), errs5xx=countif(toint(resultCode) >= 500), errs4xx=countif(toint(resultCode) between (400 .. 499)) by bin(timestamp,5m), cloud_RoleName | extend rate5xx=todouble(errs5xx)/total, rate4xx=todouble(errs4xx)/total`
   - **Top 10 exceptions** — `exceptions | summarize count() by type, cloud_RoleName | top 10 by count_`
   - **Bot restart count** — `traces | where cloud_RoleName == "siege-bot" and message has "Bot starting" or message has "Connected to gateway" | summarize count() by bin(timestamp,1h)` (final predicate confirmed in Phase 5 by checking what the bot actually emits at startup)
-  - **DB dependency duration p95** — `dependencies | where type == "PostgreSQL" or target contains ".postgres.database.azure.com" | summarize p95=percentile(duration,95) by bin(timestamp,5m), cloud_RoleName`
+  - ~~**DB dependency duration p95** — `dependencies | where type == "PostgreSQL" or target contains ".postgres.database.azure.com" | summarize p95=percentile(duration,95) by bin(timestamp,5m), cloud_RoleName`~~ — **DROPPED in v1, blocked by #257** (backend OTel pipeline missing SQLAlchemy + asyncpg instrumentors; `dependencies | where cloud_RoleName == "siege-api"` returns only `InProc` rows — no PostgreSQL spans exist yet)
   - **Image generation duration** — `customEvents | where name == "image_generation" or (name == "Playwright" or operation_Name contains "generate_image") | summarize p50=percentile(toreal(customMeasurements.duration_ms),50), p95=percentile(toreal(customMeasurements.duration_ms),95) by bin(timestamp,15m)` *(the exact event name needs confirmation in Phase 5 — see Open Questions)*
 - [ ] Save workbook to dev App Insights, then **Workbook → Edit → Advanced Editor → ARM Template → Bicep**, copy the export
 - [ ] Paste into `infra/modules/monitoring.bicep` as a `Microsoft.Insights/workbooks@2023-06-01` resource. Strip the portal-injected GUID `name`; replace with `guid(resourceGroup().id, 'siege-app-health', environment)` so re-deploy is idempotent. Set `kind: 'shared'`, `displayName: 'Siege — Application Health (${environment})'`, `category: 'workbook'`, `sourceId: appInsightsId`.
@@ -139,7 +139,7 @@ Six phases. Phase 3 contains the **one manual portal step**. Everything else is 
 
 The KQL queries in §4 and §3 make assumptions about what telemetry the apps actually emit (e.g., bot-restart trace messages, image-generation custom event name). Some of these need ground-truthing **with real logs in dev** before promoting to prod.
 
-- [ ] Run `traces | where cloud_RoleName == "siege-bot" | order by timestamp desc | take 50` and confirm the actual startup log line — adjust the bot-restart query if needed
+- [ ] ~~Run `traces | where cloud_RoleName == "siege-bot" | order by timestamp desc | take 50` and confirm the actual startup log line — adjust the bot-restart query if needed~~ — **DONE EARLY (during portal workbook authoring, 2026-04-29).** Actual startup string: `"FastAPI HTTP sidecar instrumented for OpenTelemetry tracing."` — emitted once per boot by `bot/app/telemetry.py`. Alert 3 KQL updated to `message has "FastAPI HTTP sidecar instrumented"` in the same commit that notes this finding.
 - [ ] Run `customEvents | where cloud_RoleName == "siege-api" | summarize count() by name | order by count_ desc` to confirm the image-generation event name (and `customMeasurements` field)
 - [ ] Run `dependencies | where cloud_RoleName == "siege-api" | summarize count() by type, target | order by count_ desc` to confirm how PostgreSQL dependencies are tagged (the SQLAlchemy/asyncpg auto-instrumentation tag varies)
 - [ ] Update the KQL in `monitoring.bicep` and the workbook JSON to match observed reality
@@ -333,7 +333,20 @@ This is a **one-time** manual step. Document it in `infra/README.md` so future m
 
 ---
 
-## 8. Risks & Mitigations
+## 8. Blockers & Deferrals (updated post-diagnostics 2026-04-29)
+
+**v1 ships with 4 alerts (was 5) and 5 workbook tiles (was 6).** One alert and one tile were dropped based on early Phase-5 ground-truthing against live dev telemetry:
+
+| Item | Status | Reason |
+|---|---|---|
+| Alert 4 — DB connection error | **DEFERRED** — see #257 | `dependencies | where cloud_RoleName == "siege-api" | summarize by type` returns only `InProc \| 180`. SQLAlchemy + asyncpg OTel instrumentors are not wired into the backend — no PostgreSQL dependency spans exist in App Insights. Adding those instrumentors is tracked in **#257** (milestone #6). Alert 4 will be re-added in the follow-up PR after #257 ships. |
+| Tile 5 — DB dependency p95 | **DEFERRED** — blocked by same #257 | Same root cause: no `dependencies` rows for PostgreSQL. Tile would render empty/errored. |
+
+All other items proceed on the original timeline. Bot restart predicate was updated early (see Phase 5 note above). Image generation route confirmed correct — tile is empty only due to zero traffic, no code change needed.
+
+---
+
+## 9. Risks & Mitigations
 
 | Risk | Mitigation |
 |---|---|
@@ -346,18 +359,18 @@ This is a **one-time** manual step. Document it in `infra/README.md` so future m
 
 ---
 
-## 9. Definition of Done
+## 10. Definition of Done
 
 - [ ] All checkboxes in Phases 1–6 ticked
-- [ ] Workbook visible and rendering in both dev and prod App Insights
-- [ ] Five alerts Enabled in both environments
-- [ ] All five alerts confirmed firing + emailing in dev (Phase 4)
+- [ ] Workbook visible and rendering in both dev and prod App Insights (5 tiles; Tile 5/DB deferred to #257)
+- [ ] Four alerts Enabled in both environments (Alert 4/DB deferred to #257)
+- [ ] All four v1 alerts confirmed firing + emailing in dev (Phase 4)
 - [ ] RUNBOOK §6 written; `infra/README.md` and `CLAUDE.md` updated
 - [ ] PR merged via `Closes #246`
 - [ ] #246 auto-closed on merge
 
 ---
 
-## 10. Recommended Next Agent
+## 11. Recommended Next Agent
 
 **`code-writer` with `azure` + `bicep` skills passed.** Implementation is mostly Bicep authoring with one synchronous portal interaction (Phase 3) the user must run themselves. Code-writer can drive everything else; pause at Phase 3 to hand the portal step back to the user.

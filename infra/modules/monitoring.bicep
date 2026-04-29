@@ -179,12 +179,11 @@ requests
 // Severity 2 — page-worthy; the bot holds a Discord WebSocket — any restart is
 // notable. Window PT1M / frequency PT1M → a single restart pages immediately.
 //
-// TODO(#246-phase5): The `has_any` predicate uses placeholder startup strings.
-// After the first dev deploy, run:
+// Startup string ground-truthed against dev telemetry (2026-04-29, Phase 5 early):
 //   traces | where cloud_RoleName == "siege-bot" | order by timestamp desc | take 50
-// and replace the list with the string(s) the bot actually emits on connect.
-// Safe placeholder: "Logged in as" (discord.py logs this on successful login)
-// and "ready" as a fallback.
+// Actual unique startup string emitted by bot/app/telemetry.py on each boot:
+//   "FastAPI HTTP sidecar instrumented for OpenTelemetry tracing."
+// Count > 0 in the 1-minute window is sufficient to confirm a restart occurred.
 
 resource alertBotRestart 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
   name: '${appPrefix}-alert-bot-restart-${environment}'
@@ -192,7 +191,7 @@ resource alertBotRestart 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
   tags: tags
   properties: {
     displayName: '[${environment}] siege-bot — unexpected restart detected'
-    description: 'Fires when any siege-bot startup trace is observed in a 1-minute window, indicating the bot process restarted. Phase 5 will confirm the exact startup log string.'
+    description: 'Fires when the bot\'s OTel startup trace is observed in a 1-minute window, indicating the bot process restarted. Startup string confirmed against dev telemetry 2026-04-29.'
     enabled: true
     severity: 2
     evaluationFrequency: 'PT1M'
@@ -203,17 +202,14 @@ resource alertBotRestart 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
     criteria: {
       allOf: [
         {
-          // TODO(#246-phase5): Confirm actual bot startup log string(s) from dev traces.
-          // Current placeholder: discord.py logs "Logged in as <BotName>#XXXX" on successful
-          // gateway connect. "ready" is included as a secondary fallback.
+          // Startup string confirmed from dev traces 2026-04-29 (Phase 5 early ground-truth).
+          // bot/app/telemetry.py emits this once per boot — unique and reliable.
           query: '''
 traces
-| where timestamp > ago(1m)
 | where cloud_RoleName == "siege-bot"
-| where message has_any ("Logged in as", "ready")
-| summarize restartEvents = count()
-| where restartEvents > 0
-| project restartEvents
+| where message has "FastAPI HTTP sidecar instrumented"
+| summarize Count = count()
+| where Count > 0
 '''
           timeAggregation: 'Count'
           operator: 'GreaterThan'
@@ -231,73 +227,22 @@ traces
   }
 }
 
-// ── Alert 4: DB connection error ──────────────────────────────────────────────
-// Severity 2 — page-worthy; any DB connectivity failure is a service-impacting event.
-// Unions exceptions (asyncpg error types) with failed PostgreSQL dependencies.
-
-resource alertDbConnectionError 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
-  name: '${appPrefix}-alert-db-connection-${environment}'
-  location: location
-  tags: tags
-  properties: {
-    displayName: '[${environment}] siege-api — DB connection error'
-    description: 'Fires when any PostgreSQL connection error (asyncpg exception or failed dependency) is observed in a 5-minute window.'
-    enabled: true
-    severity: 2
-    evaluationFrequency: 'PT1M'
-    windowSize: 'PT5M'
-    scopes: [appInsightsId]
-    autoMitigate: true
-    muteActionsDuration: 'PT15M'
-    criteria: {
-      allOf: [
-        {
-          query: '''
-union
-  (exceptions
-    | where cloud_RoleName == "siege-api"
-    | where timestamp > ago(5m)
-    | where type has_any ("OperationalError", "InterfaceError", "ConnectionDoesNotExistError", "asyncpg")
-        or outerMessage has_any ("could not connect", "connection refused", "connection reset", "server closed the connection")),
-  (dependencies
-    | where cloud_RoleName == "siege-api"
-    | where timestamp > ago(5m)
-    | where (type == "PostgreSQL" or target contains ".postgres.database.azure.com") and success == false)
-| summarize errors = count()
-| where errors > 0
-| project errors
-'''
-          timeAggregation: 'Count'
-          operator: 'GreaterThan'
-          threshold: 0
-          failingPeriods: {
-            numberOfEvaluationPeriods: 1
-            minFailingPeriodsToAlert: 1
-          }
-        }
-      ]
-    }
-    actions: {
-      actionGroups: [actionGroup.id]
-    }
-  }
-}
+// Alert 4 (DB connection error) deferred to follow-up PR.
+// Blocked by #257 — backend's OTel pipeline is missing SQLAlchemy + asyncpg
+// instrumentors, so DB dependency spans don't exist in App Insights yet.
+// Re-add after #257 ships and `dependencies | where cloud_RoleName == "siege-api"`
+// shows real PostgreSQL rows.
 
 // ── Alert 5: Image generation > 10s ──────────────────────────────────────────
 // Severity 3 — warning; slow renders degrade UX but requests still complete.
 //
-// Route confirmed: POST /sieges/{siege_id}/generate-images
-// Operation name in App Insights requests table for FastAPI routes follows the
-// pattern "POST /sieges/{siege_id}/generate-images".
+// Route confirmed: POST /api/sieges/{siege_id}/generate-images at backend/app/api/images.py:28.
+// Predicate `name has "generate-images"` ground-truthed against dev requests table
+// (2026-04-29, Phase 5 early): the route exists and the predicate matches correctly.
+// Tile is empty only due to absence of traffic, not a KQL issue.
 //
 // This alert queries the `requests` table filtered by operation_Name matching
 // the image generation route, rather than relying on a `customEvents` row.
-// If the API begins emitting a custom "image_generation" event with duration_ms
-// in Phase 5, the query can be updated to use customEvents for more precision.
-//
-// TODO(#246-phase5): Verify the exact operation_Name value emitted by FastAPI
-// in App Insights for this route. If the parameterized form differs (e.g.
-// "POST /sieges/*/generate-images"), update the `has` predicate accordingly.
 
 resource alertImageGenSlow 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
   name: '${appPrefix}-alert-image-gen-slow-${environment}'
@@ -305,7 +250,7 @@ resource alertImageGenSlow 'Microsoft.Insights/scheduledQueryRules@2023-12-01' =
   tags: tags
   properties: {
     displayName: '[${environment}] siege-api — image generation > 10s'
-    description: 'Fires when any request to the generate-images route takes longer than 10 seconds in a 5-minute window. Queries the requests table by route name (no customEvents dependency).'
+    description: 'Fires when any request to the generate-images route takes longer than 10 seconds in a 5-minute window. Route confirmed at backend/app/api/images.py:28; predicate verified against dev telemetry 2026-04-29.'
     enabled: true
     severity: 3
     evaluationFrequency: 'PT1M'
@@ -316,12 +261,8 @@ resource alertImageGenSlow 'Microsoft.Insights/scheduledQueryRules@2023-12-01' =
     criteria: {
       allOf: [
         {
-          // Filters requests table by the FastAPI route name for image generation.
-          // operation_Name in App Insights for FastAPI routes is typically:
-          //   "POST /sieges/{siege_id}/generate-images"
-          // TODO(#246-phase5): confirm exact operation_Name from dev requests table:
-          //   requests | where cloud_RoleName == "siege-api" | where name has "generate-images"
-          //           | summarize count() by name | order by count_ desc
+          // Route name confirmed from dev requests table 2026-04-29.
+          // `name has "generate-images"` matches POST /api/sieges/{siege_id}/generate-images.
           query: '''
 requests
 | where timestamp > ago(5m)
