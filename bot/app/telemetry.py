@@ -46,13 +46,9 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
             no FastAPI instrumentation is applied (useful for non-HTTP
             processes or unit tests that only verify the monitor call).
     """
-    connection_string = os.environ.get(
-        "APPLICATIONINSIGHTS_CONNECTION_STRING", ""
-    ).strip()
+    connection_string = os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING", "").strip()
     if not connection_string:
-        logger.debug(
-            "APPLICATIONINSIGHTS_CONNECTION_STRING not set" " — telemetry disabled."
-        )
+        logger.debug("APPLICATIONINSIGHTS_CONNECTION_STRING not set — telemetry disabled.")
         return
 
     try:
@@ -77,6 +73,5 @@ def configure_telemetry(app: FastAPI | None = None) -> None:
     # A failure here is always logged at ERROR and then swallowed.
     except Exception:  # pragma: no cover
         logger.exception(
-            "Failed to configure Azure Monitor OpenTelemetry;"
-            " continuing without telemetry."
+            "Failed to configure Azure Monitor OpenTelemetry; continuing without telemetry."
         )
