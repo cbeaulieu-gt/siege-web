@@ -12,3 +12,5 @@ PyJWT>=2.9
 cryptography>=43
 azure-monitor-opentelemetry>=1.6
 opentelemetry-instrumentation-fastapi>=0.50b0
+opentelemetry-instrumentation-sqlalchemy>=0.50b0
+opentelemetry-instrumentation-asyncpg>=0.50b0
