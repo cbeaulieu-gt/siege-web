@@ -80,6 +80,22 @@
         "visualization": "linechart"
       },
       "name": "Image generation duration"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies\n| where cloud_RoleName == \"siege-api\"\n| where type == \"postgresql\"\n| summarize p50 = percentile(duration, 50),\n            p95 = percentile(duration, 95),\n            Max = max(duration)\n            by bin(timestamp, 5m)\n| order by timestamp asc",
+        "size": 0,
+        "title": "Database query duration (siege-api → PostgreSQL)",
+        "timeContext": {
+          "durationMs": 86400000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "linechart"
+      },
+      "name": "Database query duration (siege-api → PostgreSQL)"
     }
   ],
   "fallbackResourceIds": [
