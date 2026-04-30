@@ -39,6 +39,7 @@ coverage.xml
 *.swo
 .DS_Store
 .claude/worktrees/
+.claude/agent-memory/
 .claude/scheduled_tasks.lock
 .worktrees/
 
