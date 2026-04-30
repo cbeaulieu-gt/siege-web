@@ -487,17 +487,15 @@ Click into Edit mode to modify; layout is deployed from `infra/modules/workbook.
 
 ### 6B. Alert Inventory
 
-Four alert rules are active in both dev and prod.  A fifth alert (DB connection
-errors) can now be wired — DB dependency spans are confirmed in App Insights
-as of 2026-04-30 (PR #265; type `"postgresql"`, Pattern A — see the KQL block
-above):
+Five alert rules are active in both dev and prod:
 
 | Alert | Threshold | Meaning | First action |
 |---|---|---|---|
 | `alert5xxRate` | 5xx rate >1% over 5m | Backend is throwing 500s at >1% of requests | Open dev workbook Tile 2 (4xx/5xx rates), then Tile 3 (top 10 exceptions) to identify the failing endpoint |
-| `alertLatencyP95` | Request p95 >3s over 5m | At least 5% of requests taking >3s | Tile 1 (volume + p50/p95) to confirm it's not just one outlier; Tile 5 (DB p95) for DB causation |
+| `alertLatencyP95` | Request p95 >3s over 5m | At least 5% of requests taking >3s | Tile 1 (volume + p50/p95) to confirm it's not just one outlier; Tile 6 (DB query duration) for DB causation |
 | `alertBotRestart` | Any restart | `siege-bot` process restarted (Container App revision recycled, OOM, crash, or deploy) | Check Container App revisions blade in Azure portal for restart cause; query `traces` for the bot in the 5 min before the alert fired |
 | `alertImageGenSlow` | Image gen p95 >10s | Playwright image generation latency degraded | Check `requests \| where name has "generate-images"`; usually correlates with high concurrent image gen or Playwright pool exhaustion |
+| `alertDbConnectionError` | Any failed PostgreSQL dependency in 5m | siege-api cannot reach the database; all data-path requests will 500 | Check `database-url` secret; check firewall rules; check pool exhaustion — see existing 'DB connection errors' row in 'What to watch' table |
 
 ### 6C. Acknowledgement Policy
 

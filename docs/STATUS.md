@@ -10,11 +10,12 @@ lifecycle. Vitest component tests cover the assignment board and notification po
 is fully deployed for both dev and prod environments via GitHub Actions CD pipelines.
 
 As of 2026-04-30 (v1.0.1, issue #246), the observability layer is live in both dev and prod: an
-Application Insights workbook (5 tiles — request rates, latency p50/p95, exception counts, bot restarts,
-image gen latency) plus 4 active alert rules (`alert5xxRate`, `alertLatencyP95`, `alertBotRestart`,
-`alertImageGenSlow`) wired to an email action group. SQLAlchemy/asyncpg OTel instrumentation shipped in PR #265; dev verification on 2026-04-30 confirmed
-Pattern A (type `"postgresql"`, no span duplication). The DB connection error alert and DB p95 tile
-can now be wired as follow-on work. See RUNBOOK.md §6 for workbook URLs, alert inventory, and acknowledgement policy.
+Application Insights workbook (6 tiles — request rates, latency p50/p95, exception counts, bot restarts,
+image gen latency, DB query duration p95) plus 5 active alert rules (`alert5xxRate`, `alertLatencyP95`,
+`alertBotRestart`, `alertImageGenSlow`, `alertDbConnectionError`) wired to an email action group.
+SQLAlchemy/asyncpg OTel instrumentation shipped in PR #265; dev verification on 2026-04-30 confirmed
+Pattern A (type `"postgresql"`, no span duplication). The DB tile and alert were deferred from #246 and
+are now wired in PR #270. See RUNBOOK.md §6 for workbook URLs, alert inventory, and acknowledgement policy.
 
 ## Phase Completion
 
@@ -103,4 +104,4 @@ CI via GitHub Actions on every PR to `main`:
 
 ## Active Workstream — Infra Hygiene & Cost (Milestone #6)
 
-Issue #246 (workbook + alerts) is closed. **#257** (SQLAlchemy/asyncpg OTel instrumentation) shipped in PR #265 (commit `9a11733`) and is resolved: dev verification on 2026-04-30 confirmed Pattern A — `type == "postgresql"`, single row per `target`, no span duplication; both instrumentors retained. RUNBOOK.md §6 updated accordingly (PR #269). The DB connection error alert rule and DB p95 workbook tile can now be wired as follow-on work.
+Issue #246 (workbook + alerts) is closed. **#257** (SQLAlchemy/asyncpg OTel instrumentation) shipped in PR #265 (commit `9a11733`) and is resolved: dev verification on 2026-04-30 confirmed Pattern A — `type == "postgresql"`, single row per `target`, no span duplication; both instrumentors retained. RUNBOOK.md §6 updated accordingly (PR #269). The two items deferred from #246 pending DB telemetry are now addressed in PR #270: the DB query duration p95 workbook tile (Tile 6) and the DB connection error alert rule (`alertDbConnectionError`, alert 5) are wired and deploy with the next `infra-deploy.yml` run.

@@ -226,11 +226,54 @@ traces
   }
 }
 
-// Alert 4 (DB connection error) deferred to follow-up PR.
-// Blocked by #257 — backend's OTel pipeline is missing SQLAlchemy + asyncpg
-// instrumentors, so DB dependency spans don't exist in App Insights yet.
-// Re-add after #257 ships and `dependencies | where cloud_RoleName == "siege-api"`
-// shows real PostgreSQL rows.
+// ── Alert 4: DB connection error ─────────────────────────────────────────────
+// Severity 2 — page-worthy; any failed PostgreSQL dependency means the backend
+// cannot reach the database and all data-path requests will 500.
+//
+// Previously deferred (PR #246) pending #257. DB dependency spans confirmed in
+// App Insights as of 2026-04-30 (PR #265, commit 9a11733): type == "postgresql",
+// Pattern A (no span duplication). Blocker removed — alert wired here.
+
+resource alertDbConnectionError 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: '${appPrefix}-alert-db-connection-error-${environment}'
+  location: location
+  tags: tags
+  properties: {
+    displayName: '[${environment}] siege-api — DB connection error'
+    description: 'Fires when any PostgreSQL dependency call from siege-api fails in a 5-minute window. DB spans confirmed in App Insights 2026-04-30 (PR #265, Pattern A).'
+    enabled: true
+    severity: 2
+    evaluationFrequency: 'PT1M'
+    windowSize: 'PT5M'
+    scopes: [appInsightsId]
+    autoMitigate: false
+    muteActionsDuration: 'PT15M'
+    criteria: {
+      allOf: [
+        {
+          query: '''
+dependencies
+| where cloud_RoleName == "siege-api"
+| where type == "postgresql"
+| where success == false
+| summarize FailureCount = count()
+| where FailureCount > 0
+'''
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    actions: {
+      actionGroups: [actionGroup.id]
+    }
+  }
+}
 
 // ── Alert 5: Image generation > 10s ──────────────────────────────────────────
 // Severity 3 — warning; slow renders degrade UX but requests still complete.
