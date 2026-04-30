@@ -445,8 +445,41 @@ relevant Container App revision (see Bicep `infra/modules/container-apps.bicep`)
 | DB connection errors | Any | Check `database-url` secret; check firewall rules; check pool exhaustion |
 | Image generation duration | > 10 seconds | Playwright cold start in wrong container; check `siege-api` container |
 
-These signals should be configured as Azure Monitor alerts pointing to the Log Analytics
-Workspace and Application Insights resource.
+These signals are now configured as Azure Monitor alert rules. See the alert inventory below.
+
+### 6A. Workbook URLs
+
+At-a-glance operational vitals (request rates, latency p50/p95, exception count, bot restarts, image gen latency):
+
+- **Dev:** [siege-web-dev workbook](https://portal.azure.com/#@cmbdevoutlook333.onmicrosoft.com/resource/subscriptions/213aa1f8-32d1-4ffe-8f4d-6e60f1cd9dc0/resourceGroups/siege-web-dev/providers/Microsoft.Insights/workbooks/ef1f3d0a-b955-5028-ae97-2b1732a3b5bf/overview)
+- **Prod:** [siege-web-prod workbook](https://portal.azure.com/#@cmbdevoutlook333.onmicrosoft.com/resource/subscriptions/213aa1f8-32d1-4ffe-8f4d-6e60f1cd9dc0/resourceGroups/siege-web-prod/providers/Microsoft.Insights/workbooks/c3bfb777-8256-5580-ab51-65f537101966/overview)
+
+Click into Edit mode to modify; layout is deployed from `infra/modules/workbook.template.json` and re-exporting + committing the JSON propagates changes.
+
+### 6B. Alert Inventory
+
+Four alert rules are active in both dev and prod (a fifth — DB connection errors — is deferred to #257 pending SQLAlchemy/asyncpg OTel instrumentation):
+
+| Alert | Threshold | Meaning | First action |
+|---|---|---|---|
+| `alert5xxRate` | 5xx rate >1% over 5m | Backend is throwing 500s at >1% of requests | Open dev workbook Tile 2 (4xx/5xx rates), then Tile 3 (top 10 exceptions) to identify the failing endpoint |
+| `alertLatencyP95` | Request p95 >3s over 5m | At least 5% of requests taking >3s | Tile 1 (volume + p50/p95) to confirm it's not just one outlier; Tile 5 (DB p95 — pending #257) for DB causation |
+| `alertBotRestart` | Any restart | `siege-bot` process restarted (Container App revision recycled, OOM, crash, or deploy) | Check Container App revisions blade in Azure portal for restart cause; query `traces` for the bot in the 5 min before the alert fired |
+| `alertImageGenSlow` | Image gen p95 >10s | Playwright image generation latency degraded | Check `requests \| where name has "generate-images"`; usually correlates with high concurrent image gen or Playwright pool exhaustion |
+
+### 6C. Acknowledgement Policy
+
+All alert rules have `autoMitigate: false` — they stay in the **Fired** state until manually acknowledged in the Azure portal (Azure Monitor → Alerts → select the fired alert → Change state to Acknowledged or Closed).
+
+`muteActionsDuration: PT15M` is set on every rule. This 15-minute mute window suppresses re-notification emails during an ongoing incident, but does **not** auto-resolve the alert — manual acknowledgement is still required.
+
+The 4-week post-launch evaluation window (tracked in #263) will produce real fire-pattern data. Per-alert auto-mitigation policy will be revisited after that window closes.
+
+### 6D. Action Group
+
+Email-only at v1. A single recipient (`cmb_dev@outlook.com`) receives alert emails. Discord channel routing is deferred as future work (no specific issue yet).
+
+If the action group email confirmation email from Azure never arrived, the action group is registered but no emails will be delivered. Re-confirm by navigating to Azure Monitor → Alerts → Action groups → select the group → Test.
 
 ### Health endpoints
 

@@ -111,6 +111,8 @@ On PR to `main`:
 
 Registry image retention is automated via a scheduled ACR Task (`weekly-purge`) in both registries — release tags (`v*`) are preserved forever; SHA/commit tags beyond the last 10 per repo and untagged manifests older than 7 days are deleted every Sunday at 03:00 UTC.
 
+**Application health workbook:** [siege-web-prod](https://portal.azure.com/#@cmbdevoutlook333.onmicrosoft.com/resource/subscriptions/213aa1f8-32d1-4ffe-8f4d-6e60f1cd9dc0/resourceGroups/siege-web-prod/providers/Microsoft.Insights/workbooks/c3bfb777-8256-5580-ab51-65f537101966/overview) — at-a-glance ops vitals (request rates, latency p50/p95, exception count, bot restarts, image gen latency). Dev equivalent at [siege-web-dev](https://portal.azure.com/#@cmbdevoutlook333.onmicrosoft.com/resource/subscriptions/213aa1f8-32d1-4ffe-8f4d-6e60f1cd9dc0/resourceGroups/siege-web-dev/providers/Microsoft.Insights/workbooks/ef1f3d0a-b955-5028-ae97-2b1732a3b5bf/overview).
+
 Two deployment workflows exist and are fully operational:
 
 - **`.github/workflows/deploy.yml`** — triggered automatically on push to `main` (deploys to dev) and on `v*` tag push (deploys to prod). Builds Docker images, pushes to ACR, then updates Container App revisions with the new image tag.

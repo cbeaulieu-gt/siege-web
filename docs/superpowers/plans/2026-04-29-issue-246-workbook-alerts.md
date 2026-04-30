@@ -157,14 +157,14 @@ The KQL queries in §4 and §3 make assumptions about what telemetry the apps ac
 - [ ] Trigger `infra-deploy.yml` targeting prod
 - [ ] Confirm action group email receiver in prod (email confirmation again)
 - [ ] Confirm five alert rules are Enabled in prod
-- [ ] Update `docs/RUNBOOK.md` — new **Section 6: Alerts & Workbook** containing:
+- [x] Update `docs/RUNBOOK.md` — new **Section 6: Alerts & Workbook** containing:
   - The five alerts, their thresholds, what they mean, first-look diagnostic queries
   - Workbook URL pattern (portal deep link)
   - How to silence/snooze (action group `enabled: false` via portal — emergency only)
 - [ ] Update `infra/README.md` with a paragraph: monitoring module purpose, why workbook is portal-authored-then-exported, where the JSON lives
-- [ ] Add a one-line link in root `CLAUDE.md` pointing on-call readers at `docs/RUNBOOK.md#6-alerts--workbook`
-- [ ] Update `docs/STATUS.md` to reflect operational health monitoring is live
-- [ ] Open PR with `Closes #246` in the body (plain text, no backticks)
+- [x] Add a one-line link in root `CLAUDE.md` pointing on-call readers at the prod workbook URL (direct portal link, adjacent to ACR retention note)
+- [x] Update `docs/STATUS.md` to reflect operational health monitoring is live (workbook + 4 alerts, dev + prod, as of v1.0.1 2026-04-30)
+- [x] Open PR with `Closes #246` in the body (plain text, no backticks)
 
 **Files touched:**
 - `docs/RUNBOOK.md`
