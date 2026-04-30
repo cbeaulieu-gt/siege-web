@@ -94,6 +94,24 @@ def configure_telemetry(
             SQLAlchemyInstrumentor().instrument(engine=engine.sync_engine)
             logger.info("SQLAlchemy instrumented for OpenTelemetry DB dependency" " tracing.")
 
+        # AsyncPGInstrumentor is intentionally kept alongside
+        # SQLAlchemyInstrumentor even though SQLAlchemy executes all
+        # queries through asyncpg under the hood.  During normal request
+        # handling both instrumentors observe the same underlying
+        # connection, so some dependency spans may be nested or duplicated
+        # in Application Insights.
+        #
+        # AsyncPG coverage is preserved here to capture code paths that
+        # bypass SQLAlchemy entirely — for example, raw asyncpg.connect()
+        # calls in utility scripts or Alembic migrations if they are ever
+        # invoked directly from within the app process.
+        #
+        # Post-deploy verification: run the KQL query in RUNBOOK.md §6 to
+        # check whether duplicate spans actually appear in practice.  If
+        # both a SQLAlchemy-emitted type and a separate "postgresql"
+        # (asyncpg) entry appear with comparable counts for the same
+        # target, AsyncPGInstrumentor can be removed in a follow-up PR
+        # (see #257 review thread).
         from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
 
         AsyncPGInstrumentor().instrument()

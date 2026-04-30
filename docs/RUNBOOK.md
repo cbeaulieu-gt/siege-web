@@ -445,6 +445,17 @@ dependencies
 > potentially a separate entry from asyncpg — verify the exact strings against
 > the live data and update this note accordingly.
 
+To detect whether both instrumentors are producing duplicate spans for the same
+database calls, run:
+
+```kusto
+dependencies | where cloud_RoleName == "siege-api" | summarize count() by type, target | order by count_ desc
+```
+
+If both `postgresql` (asyncpg) and a SQLAlchemy-emitted type appear with
+comparable counts for the same `target`, the AsyncPG instrumentor can be
+removed in a follow-up PR (see #257 review thread).
+
 The Application Map should render three named nodes: `siege-api`, `siege-bot`,
 and the PostgreSQL database, connected by traffic edges.  If the map shows
 `unknown_service` instead, verify that `OTEL_SERVICE_NAME` is set on the
