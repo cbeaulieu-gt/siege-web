@@ -2,15 +2,19 @@
 
 ## Current State
 
-v1.0.0 shipped. The application is feature-complete and live at `rslsiege.com` (custom domain
-via Cloudflare Origin Cert). All core backend logic (CRUD, assignment board, validation engine,
-auto-fill, attack day, comparison, Discord bot, image generation, notifications, and Excel import)
-is implemented and covered by 3500+ backend tests. Playwright end-to-end tests cover the full
-siege lifecycle. Vitest component tests cover the assignment board and notification polling.
-Azure Bicep IaC is fully deployed for both dev and prod environments via GitHub Actions CD
-pipelines. The project is in a post-launch monitoring window. The only remaining tracked items
-are planner sign-off, the 48-hour monitoring window, Application Insights SDK integration, and
-performance validation.
+v1.0.0 shipped and v1.0.1 delivered. The application is feature-complete and live at `rslsiege.com`
+(custom domain via Cloudflare Origin Cert). All core backend logic (CRUD, assignment board, validation
+engine, auto-fill, attack day, comparison, Discord bot, image generation, notifications, and Excel import)
+is implemented and covered by 3500+ backend tests. Playwright end-to-end tests cover the full siege
+lifecycle. Vitest component tests cover the assignment board and notification polling. Azure Bicep IaC
+is fully deployed for both dev and prod environments via GitHub Actions CD pipelines.
+
+As of 2026-04-30 (v1.0.1, issue #246), the observability layer is live in both dev and prod: an
+Application Insights workbook (5 tiles — request rates, latency p50/p95, exception counts, bot restarts,
+image gen latency) plus 4 active alert rules (`alert5xxRate`, `alertLatencyP95`, `alertBotRestart`,
+`alertImageGenSlow`) wired to an email action group. The DB connection error alert and DB p95 tile are
+deferred to #257 pending SQLAlchemy/asyncpg OTel instrumentation. See RUNBOOK.md §6 for workbook URLs,
+alert inventory, and acknowledgement policy.
 
 ## Phase Completion
 
@@ -94,5 +98,9 @@ CI via GitHub Actions on every PR to `main`:
 
 1. Planner sign-off walkthrough (issue #174)
 2. 48-hour post-launch monitoring window (issue #175; see RUNBOOK.md Section 6 checklist)
-3. Enable Application Insights SDK in backend and bot (`azure-monitor-opentelemetry`)
+3. ~~Enable Application Insights SDK in backend and bot~~ — complete; telemetry live as of #245
 4. Validate performance: board load < 2s, image generation < 5s
+
+## Active Workstream — Infra Hygiene & Cost (Milestone #6)
+
+Issue #246 (workbook + alerts) is closed. The natural next pickup to complete the observability story is **#257** — SQLAlchemy/asyncpg OTel instrumentation. #257 unlocks the DB dependency p95 workbook tile and the DB connection error alert rule that were deferred in v1.0.1.
