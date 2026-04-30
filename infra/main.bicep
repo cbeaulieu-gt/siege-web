@@ -162,6 +162,11 @@ param enableCustomDomain bool = false
 @description('Versionless Key Vault secret URL for the Cloudflare Origin Cert PFX (e.g. https://<vault>.vault.azure.net/secrets/cloudflare-origin-cert). Required when enableCustomDomain is true.')
 param kvCertSecretUrl string = ''
 
+// ── Monitoring ────────────────────────────────────────────────────────────────
+
+@description('Email address that receives alert notifications from the monitoring action group (dev and prod use the same address in v1).')
+param alertEmail string
+
 // ── Modules ──────────────────────────────────────────────────────────────────
 
 module logAnalytics 'modules/log-analytics.bicep' = {
@@ -233,6 +238,25 @@ module appInsights 'modules/app-insights.bicep' = {
     environment: environment
     appPrefix: appPrefix
     logAnalyticsWorkspaceId: logAnalytics.outputs.resourceId
+  }
+}
+
+// Monitoring — action group + alert rules + Application Insights workbook.
+// Workbook template lives at infra/modules/workbook.template.json (Phase 3b, #246).
+// See docs/superpowers/plans/2026-04-29-issue-246-workbook-alerts.md.
+module monitoring 'modules/monitoring.bicep' = {
+  name: 'monitoring'
+  params: {
+    location: location
+    environment: environment
+    appPrefix: appPrefix
+    appInsightsId: appInsights.outputs.appInsightsId
+    appInsightsName: appInsights.outputs.appInsightsName
+    alertEmail: alertEmail
+    tags: {
+      project: appPrefix
+      environment: environment
+    }
   }
 }
 

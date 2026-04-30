@@ -143,6 +143,11 @@ param kvCertSecretUrl = 'https://siege-web-kv-prod-yf3fl2.vault.azure.net/secret
 param apiMinReplicas = 1
 param frontendMinReplicas = 0
 
+// ── Monitoring ────────────────────────────────────────────────────────────────
+// Alert email recipient for action group. Same address for dev and prod in v1.
+// Confirmed by user: cmb_dev@outlook.com (2026-04-29, Issue #246).
+param alertEmail = 'cmb_dev@outlook.com'
+
 // ── ACR image retention ───────────────────────────────────────────────────────
 // Prod currently has ~155 manifests (51/52/52 across api/bot/frontend).
 // Release tags (v*) are preserved forever. SHA/commit tags beyond the last 10

@@ -115,6 +115,11 @@ param botMemory = '0.5Gi'
 param apiMinReplicas = 0
 param frontendMinReplicas = 0
 
+// ── Monitoring ────────────────────────────────────────────────────────────────
+// Alert email recipient for action group. Same address for dev and prod in v1.
+// Confirmed by user: cmb_dev@outlook.com (2026-04-29, Issue #246).
+param alertEmail = 'cmb_dev@outlook.com'
+
 // ── ACR image retention ───────────────────────────────────────────────────────
 // Dev currently has ~364 manifests (127/126/111 across api/bot/frontend).
 // Release tags (v*) are preserved forever. SHA/commit tags beyond the last 10
