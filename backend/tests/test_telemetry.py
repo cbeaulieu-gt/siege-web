@@ -253,3 +253,223 @@ class TestConfigureTelemetryFastAPIInstrumentation:
 
         mock_configure.assert_called_once()
         mock_instrumentor.instrument_app.assert_not_called()
+
+
+class TestConfigureTelemetrySQLAlchemyInstrumentation:
+    """SQLAlchemyInstrumentor must be called when engine is provided.
+
+    Issue #257: DB dependencies were invisible in App Insights because
+    SQLAlchemy spans were never emitted.  The fix wires
+    SQLAlchemyInstrumentor to the async engine's underlying sync_engine
+    so that every SQL statement appears as a ``dependency`` span.
+    """
+
+    _FAKE_CS = (
+        "InstrumentationKey=00000000-0000-0000-0000-000000000000;"
+        "IngestionEndpoint=https://eastus-1.in.applicationinsights.azure.com/;"
+        "LiveEndpoint=https://eastus.livediagnostics.monitor.azure.com/"
+    )
+
+    def test_sqlalchemy_instrument_called_with_sync_engine(self, monkeypatch):
+        """SQLAlchemyInstrumentor().instrument(engine=...) is called with
+        the engine's sync_engine when an engine is provided.
+
+        The SQLAlchemy OTel instrumentor only accepts a synchronous Engine
+        object.  Async engines expose their underlying sync engine via the
+        ``.sync_engine`` attribute — that is what must be passed.
+        """
+        monkeypatch.setenv("APPLICATIONINSIGHTS_CONNECTION_STRING", self._FAKE_CS)
+
+        import importlib
+
+        import app.telemetry as telemetry_module
+
+        importlib.reload(telemetry_module)
+
+        mock_configure = MagicMock()
+        mock_sqlalchemy_instrumentor = MagicMock()
+        mock_sqlalchemy_instrumentor_cls = MagicMock(return_value=mock_sqlalchemy_instrumentor)
+
+        fake_azure_module = MagicMock()
+        fake_azure_module.configure_azure_monitor = mock_configure
+        fake_sqlalchemy_module = MagicMock()
+        fake_sqlalchemy_module.SQLAlchemyInstrumentor = mock_sqlalchemy_instrumentor_cls
+
+        # Simulate an async engine whose .sync_engine is a sentinel object.
+        fake_sync_engine = MagicMock(name="sync_engine")
+        fake_engine = MagicMock(name="async_engine")
+        fake_engine.sync_engine = fake_sync_engine
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "azure.monitor.opentelemetry": fake_azure_module,
+                "opentelemetry.instrumentation.sqlalchemy": fake_sqlalchemy_module,
+                "opentelemetry.instrumentation.asyncpg": MagicMock(AsyncPGInstrumentor=MagicMock()),
+            },
+        ):
+            telemetry_module.configure_telemetry(engine=fake_engine)
+
+        mock_sqlalchemy_instrumentor.instrument.assert_called_once_with(engine=fake_sync_engine)
+
+    def test_sqlalchemy_instrument_not_called_when_engine_is_none(self, monkeypatch):
+        """SQLAlchemyInstrumentor().instrument() is NOT called when no
+        engine argument is supplied.
+
+        When configure_telemetry() is called without an engine (e.g. from
+        the test suite or a non-DB process), the function must skip
+        SQLAlchemy instrumentation rather than raising AttributeError on
+        a None engine.
+        """
+        monkeypatch.setenv("APPLICATIONINSIGHTS_CONNECTION_STRING", self._FAKE_CS)
+
+        import importlib
+
+        import app.telemetry as telemetry_module
+
+        importlib.reload(telemetry_module)
+
+        mock_configure = MagicMock()
+        mock_sqlalchemy_instrumentor = MagicMock()
+        mock_sqlalchemy_instrumentor_cls = MagicMock(return_value=mock_sqlalchemy_instrumentor)
+
+        fake_azure_module = MagicMock()
+        fake_azure_module.configure_azure_monitor = mock_configure
+        fake_sqlalchemy_module = MagicMock()
+        fake_sqlalchemy_module.SQLAlchemyInstrumentor = mock_sqlalchemy_instrumentor_cls
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "azure.monitor.opentelemetry": fake_azure_module,
+                "opentelemetry.instrumentation.sqlalchemy": fake_sqlalchemy_module,
+                "opentelemetry.instrumentation.asyncpg": MagicMock(AsyncPGInstrumentor=MagicMock()),
+            },
+        ):
+            telemetry_module.configure_telemetry(engine=None)
+
+        mock_sqlalchemy_instrumentor.instrument.assert_not_called()
+
+    def test_sqlalchemy_instrument_not_called_when_telemetry_unconfigured(self, monkeypatch):
+        """SQLAlchemyInstrumentor().instrument() is NOT called when
+        APPLICATIONINSIGHTS_CONNECTION_STRING is absent.
+
+        If telemetry is disabled (no connection string), neither the Azure
+        Monitor nor any instrumentors should be called, even if an engine
+        is passed.
+        """
+        monkeypatch.delenv("APPLICATIONINSIGHTS_CONNECTION_STRING", raising=False)
+
+        import importlib
+
+        import app.telemetry as telemetry_module
+
+        importlib.reload(telemetry_module)
+
+        mock_sqlalchemy_instrumentor = MagicMock()
+        mock_sqlalchemy_instrumentor_cls = MagicMock(return_value=mock_sqlalchemy_instrumentor)
+        fake_sqlalchemy_module = MagicMock()
+        fake_sqlalchemy_module.SQLAlchemyInstrumentor = mock_sqlalchemy_instrumentor_cls
+
+        fake_sync_engine = MagicMock(name="sync_engine")
+        fake_engine = MagicMock(name="async_engine")
+        fake_engine.sync_engine = fake_sync_engine
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "azure.monitor.opentelemetry": MagicMock(),
+                "opentelemetry.instrumentation.sqlalchemy": fake_sqlalchemy_module,
+                "opentelemetry.instrumentation.asyncpg": MagicMock(AsyncPGInstrumentor=MagicMock()),
+            },
+        ):
+            telemetry_module.configure_telemetry(engine=fake_engine)
+
+        mock_sqlalchemy_instrumentor.instrument.assert_not_called()
+
+
+class TestConfigureTelemetryAsyncPGInstrumentation:
+    """AsyncPGInstrumentor must be called whenever telemetry is active.
+
+    Issue #257: asyncpg spans were absent because AsyncPGInstrumentor was
+    never initialised.  Unlike the SQLAlchemy instrumentor, it needs no
+    engine argument — it hooks asyncpg at the library level globally.
+    """
+
+    _FAKE_CS = (
+        "InstrumentationKey=00000000-0000-0000-0000-000000000000;"
+        "IngestionEndpoint=https://eastus-1.in.applicationinsights.azure.com/;"
+        "LiveEndpoint=https://eastus.livediagnostics.monitor.azure.com/"
+    )
+
+    def test_asyncpg_instrument_called_when_telemetry_configured(self, monkeypatch):
+        """AsyncPGInstrumentor().instrument() is called when telemetry is
+        active, regardless of whether an engine is provided.
+
+        asyncpg is hooked globally — no engine argument is required or
+        accepted.
+        """
+        monkeypatch.setenv("APPLICATIONINSIGHTS_CONNECTION_STRING", self._FAKE_CS)
+
+        import importlib
+
+        import app.telemetry as telemetry_module
+
+        importlib.reload(telemetry_module)
+
+        mock_configure = MagicMock()
+        mock_asyncpg_instrumentor = MagicMock()
+        mock_asyncpg_instrumentor_cls = MagicMock(return_value=mock_asyncpg_instrumentor)
+
+        fake_azure_module = MagicMock()
+        fake_azure_module.configure_azure_monitor = mock_configure
+        fake_asyncpg_module = MagicMock()
+        fake_asyncpg_module.AsyncPGInstrumentor = mock_asyncpg_instrumentor_cls
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "azure.monitor.opentelemetry": fake_azure_module,
+                "opentelemetry.instrumentation.sqlalchemy": MagicMock(
+                    SQLAlchemyInstrumentor=MagicMock()
+                ),
+                "opentelemetry.instrumentation.asyncpg": fake_asyncpg_module,
+            },
+        ):
+            telemetry_module.configure_telemetry()
+
+        mock_asyncpg_instrumentor.instrument.assert_called_once_with()
+
+    def test_asyncpg_instrument_not_called_when_telemetry_unconfigured(self, monkeypatch):
+        """AsyncPGInstrumentor().instrument() is NOT called when
+        APPLICATIONINSIGHTS_CONNECTION_STRING is absent.
+
+        No telemetry initialisation of any kind should occur when the
+        connection string is missing.
+        """
+        monkeypatch.delenv("APPLICATIONINSIGHTS_CONNECTION_STRING", raising=False)
+
+        import importlib
+
+        import app.telemetry as telemetry_module
+
+        importlib.reload(telemetry_module)
+
+        mock_asyncpg_instrumentor = MagicMock()
+        mock_asyncpg_instrumentor_cls = MagicMock(return_value=mock_asyncpg_instrumentor)
+        fake_asyncpg_module = MagicMock()
+        fake_asyncpg_module.AsyncPGInstrumentor = mock_asyncpg_instrumentor_cls
+
+        with patch.dict(
+            "sys.modules",
+            {
+                "azure.monitor.opentelemetry": MagicMock(),
+                "opentelemetry.instrumentation.sqlalchemy": MagicMock(
+                    SQLAlchemyInstrumentor=MagicMock()
+                ),
+                "opentelemetry.instrumentation.asyncpg": fake_asyncpg_module,
+            },
+        ):
+            telemetry_module.configure_telemetry()
+
+        mock_asyncpg_instrumentor.instrument.assert_not_called()

@@ -423,12 +423,27 @@ exceptions
 | where cloud_RoleName == "siege-api"
 | where timestamp > ago(1h)
 
--- PostgreSQL dependency calls
+-- PostgreSQL dependency calls (SQLAlchemy + asyncpg spans — see note below)
 dependencies
 | where cloud_RoleName == "siege-api"
 | where type == "postgresql"
 | where timestamp > ago(1h)
+
+-- Verify DB dependency type emitted after first dev deploy (issue #257)
+-- The exact value of `type` depends on which instrumentor produced the span:
+-- SQLAlchemyInstrumentor typically emits "postgresql", AsyncPGInstrumentor
+-- may emit a different string.  Run this after the first dev deploy to confirm:
+dependencies
+| where cloud_RoleName == "siege-api"
+| distinct type
 ```
+
+> **Post-deploy verification (issue #257):** After deploying the first revision
+> that includes DB OTel instrumentation, run the `distinct type` query above in
+> Application Insights → Logs to confirm PostgreSQL dependency spans are
+> appearing.  The expected `type` values are `"postgresql"` (SQLAlchemy) and
+> potentially a separate entry from asyncpg — verify the exact strings against
+> the live data and update this note accordingly.
 
 The Application Map should render three named nodes: `siege-api`, `siege-bot`,
 and the PostgreSQL database, connected by traffic edges.  If the map shows
@@ -458,7 +473,10 @@ Click into Edit mode to modify; layout is deployed from `infra/modules/workbook.
 
 ### 6B. Alert Inventory
 
-Four alert rules are active in both dev and prod (a fifth — DB connection errors — is deferred to #257 pending SQLAlchemy/asyncpg OTel instrumentation):
+Four alert rules are active in both dev and prod.  A fifth alert (DB connection
+errors) can be wired once DB dependency spans are confirmed in App Insights
+after the #257 deploy (see the post-deploy verification note in the KQL block
+above):
 
 | Alert | Threshold | Meaning | First action |
 |---|---|---|---|

@@ -25,6 +25,7 @@ from app.api.sieges import router as sieges_router
 from app.api.validation import router as validation_router
 from app.api.version import router as version_router
 from app.config import settings
+from app.db.session import engine
 from app.dependencies.auth import get_current_user
 from app.middleware import RequestLoggingMiddleware
 from app.telemetry import configure_telemetry
@@ -68,10 +69,11 @@ app = FastAPI(
 )
 
 # Configure telemetry AFTER the app object is created so that
-# FastAPIInstrumentor can wrap it.  OTEL_SERVICE_NAME must be set in the
-# container environment (see infra/modules/container-apps.bicep) to populate
-# cloud_RoleName in Application Insights.
-configure_telemetry(app)
+# FastAPIInstrumentor can wrap it, and after the engine is imported so that
+# SQLAlchemyInstrumentor can hook the sync_engine.  OTEL_SERVICE_NAME must be
+# set in the container environment (see infra/modules/container-apps.bicep) to
+# populate cloud_RoleName in Application Insights.
+configure_telemetry(app=app, engine=engine)
 
 app.add_middleware(RequestLoggingMiddleware)
 
