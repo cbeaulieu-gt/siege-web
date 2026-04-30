@@ -103,4 +103,4 @@ CI via GitHub Actions on every PR to `main`:
 
 ## Active Workstream — Infra Hygiene & Cost (Milestone #6)
 
-Issue #246 (workbook + alerts) is closed. **#257** (SQLAlchemy/asyncpg OTel instrumentation) shipped in PR #265 (commit `9a11733`) and is resolved: dev verification on 2026-04-30 confirmed Pattern A — `type == "postgresql"`, single row per `target`, no span duplication; both instrumentors retained. RUNBOOK.md §6 updated accordingly (PR #268). The DB connection error alert rule and DB p95 workbook tile can now be wired as follow-on work.
+Issue #246 (workbook + alerts) is closed. **#257** (SQLAlchemy/asyncpg OTel instrumentation) shipped in PR #265 (commit `9a11733`) and is resolved: dev verification on 2026-04-30 confirmed Pattern A — `type == "postgresql"`, single row per `target`, no span duplication; both instrumentors retained. RUNBOOK.md §6 updated accordingly (PR #269). The DB connection error alert rule and DB p95 workbook tile can now be wired as follow-on work.
