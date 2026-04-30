@@ -429,32 +429,35 @@ dependencies
 | where type == "postgresql"
 | where timestamp > ago(1h)
 
--- Verify DB dependency type emitted after first dev deploy (issue #257)
--- The exact value of `type` depends on which instrumentor produced the span:
--- SQLAlchemyInstrumentor typically emits "postgresql", AsyncPGInstrumentor
--- may emit a different string.  Run this after the first dev deploy to confirm:
+-- Regression watch: confirm DB dependency type string has not changed after a deploy
 dependencies
 | where cloud_RoleName == "siege-api"
 | distinct type
 ```
 
-> **Post-deploy verification (issue #257):** After deploying the first revision
-> that includes DB OTel instrumentation, run the `distinct type` query above in
-> Application Insights → Logs to confirm PostgreSQL dependency spans are
-> appearing.  The expected `type` values are `"postgresql"` (SQLAlchemy) and
-> potentially a separate entry from asyncpg — verify the exact strings against
-> the live data and update this note accordingly.
+> **DB OTel type string — confirmed 2026-04-30 (post PR #265, commit `9a11733`):**
+> Running `distinct type` on the dev environment returned exactly two values:
+> `"postgresql"` and `"InProc"`. Both `SQLAlchemyInstrumentor` and
+> `AsyncPGInstrumentor` emit under the same `"postgresql"` type string —
+> Application Insights deduplicates server-side, so a single row per `target`
+> appears (Pattern A — no span duplication). The AsyncPG instrumentor is
+> retained for defensive coverage of asyncpg-bypass paths (Alembic in-process,
+> raw utility scripts). No follow-up PR is needed.
+>
+> Use the `distinct type` query above as a **regression watch** after future
+> deploys that touch `backend/app/telemetry.py` — if a new type string appears,
+> it indicates a new instrumentor is emitting spans that should be reviewed for
+> duplication.
 
-To detect whether both instrumentors are producing duplicate spans for the same
-database calls, run:
+To check for span duplication (regression watch — Pattern A is the expected baseline):
 
 ```kusto
 dependencies | where cloud_RoleName == "siege-api" | summarize count() by type, target | order by count_ desc
 ```
 
-If both `postgresql` (asyncpg) and a SQLAlchemy-emitted type appear with
-comparable counts for the same `target`, the AsyncPG instrumentor can be
-removed in a follow-up PR (see #257 review thread).
+Pattern A (expected): a single `postgresql` row per `target`. If two rows with
+comparable counts appear for the same `target`, a new instrumentor may be
+producing duplicate spans — investigate before retaining it.
 
 The Application Map should render three named nodes: `siege-api`, `siege-bot`,
 and the PostgreSQL database, connected by traffic edges.  If the map shows
@@ -485,14 +488,14 @@ Click into Edit mode to modify; layout is deployed from `infra/modules/workbook.
 ### 6B. Alert Inventory
 
 Four alert rules are active in both dev and prod.  A fifth alert (DB connection
-errors) can be wired once DB dependency spans are confirmed in App Insights
-after the #257 deploy (see the post-deploy verification note in the KQL block
+errors) can now be wired — DB dependency spans are confirmed in App Insights
+as of 2026-04-30 (PR #265; type `"postgresql"`, Pattern A — see the KQL block
 above):
 
 | Alert | Threshold | Meaning | First action |
 |---|---|---|---|
 | `alert5xxRate` | 5xx rate >1% over 5m | Backend is throwing 500s at >1% of requests | Open dev workbook Tile 2 (4xx/5xx rates), then Tile 3 (top 10 exceptions) to identify the failing endpoint |
-| `alertLatencyP95` | Request p95 >3s over 5m | At least 5% of requests taking >3s | Tile 1 (volume + p50/p95) to confirm it's not just one outlier; Tile 5 (DB p95 — pending #257) for DB causation |
+| `alertLatencyP95` | Request p95 >3s over 5m | At least 5% of requests taking >3s | Tile 1 (volume + p50/p95) to confirm it's not just one outlier; Tile 5 (DB p95) for DB causation |
 | `alertBotRestart` | Any restart | `siege-bot` process restarted (Container App revision recycled, OOM, crash, or deploy) | Check Container App revisions blade in Azure portal for restart cause; query `traces` for the bot in the 5 min before the alert fired |
 | `alertImageGenSlow` | Image gen p95 >10s | Playwright image generation latency degraded | Check `requests \| where name has "generate-images"`; usually correlates with high concurrent image gen or Playwright pool exhaustion |
 
