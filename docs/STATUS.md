@@ -12,9 +12,9 @@ is fully deployed for both dev and prod environments via GitHub Actions CD pipel
 As of 2026-04-30 (v1.0.1, issue #246), the observability layer is live in both dev and prod: an
 Application Insights workbook (5 tiles — request rates, latency p50/p95, exception counts, bot restarts,
 image gen latency) plus 4 active alert rules (`alert5xxRate`, `alertLatencyP95`, `alertBotRestart`,
-`alertImageGenSlow`) wired to an email action group. The DB connection error alert and DB p95 tile are
-deferred to #257 pending SQLAlchemy/asyncpg OTel instrumentation. See RUNBOOK.md §6 for workbook URLs,
-alert inventory, and acknowledgement policy.
+`alertImageGenSlow`) wired to an email action group. SQLAlchemy/asyncpg OTel instrumentation shipped in PR #265; dev verification on 2026-04-30 confirmed
+Pattern A (type `"postgresql"`, no span duplication). The DB connection error alert and DB p95 tile
+can now be wired as follow-on work. See RUNBOOK.md §6 for workbook URLs, alert inventory, and acknowledgement policy.
 
 ## Phase Completion
 
@@ -103,4 +103,4 @@ CI via GitHub Actions on every PR to `main`:
 
 ## Active Workstream — Infra Hygiene & Cost (Milestone #6)
 
-Issue #246 (workbook + alerts) is closed. The natural next pickup to complete the observability story is **#257** — SQLAlchemy/asyncpg OTel instrumentation. #257 unlocks the DB dependency p95 workbook tile and the DB connection error alert rule that were deferred in v1.0.1.
+Issue #246 (workbook + alerts) is closed. **#257** (SQLAlchemy/asyncpg OTel instrumentation) shipped in PR #265 (commit `9a11733`) and is resolved: dev verification on 2026-04-30 confirmed Pattern A — `type == "postgresql"`, single row per `target`, no span duplication; both instrumentors retained. RUNBOOK.md §6 updated accordingly (PR #268). The DB connection error alert rule and DB p95 workbook tile can now be wired as follow-on work.
