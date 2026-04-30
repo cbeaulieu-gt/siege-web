@@ -71,7 +71,7 @@ resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
 // Common settings:
 //   - evaluationFrequency PT1M — check every minute
 //   - severity 2 (warning) or 3 (informational)
-//   - autoMitigate true — alert resolves automatically when condition clears
+//   - autoMitigate false — required when muteActionsDuration is set (Azure rejects the combination)
 //   - muteActionsDuration PT15M — suppresses repeat emails during an incident
 //
 // All KQL queries are written to return zero rows in the steady state and ≥1
@@ -97,7 +97,7 @@ resource alert5xxRate 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
     evaluationFrequency: 'PT1M'
     windowSize: 'PT5M'
     scopes: [appInsightsId]
-    autoMitigate: true
+    autoMitigate: false
     muteActionsDuration: 'PT15M'
     criteria: {
       allOf: [
@@ -144,7 +144,7 @@ resource alertLatencyP95 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
     evaluationFrequency: 'PT1M'
     windowSize: 'PT5M'
     scopes: [appInsightsId]
-    autoMitigate: true
+    autoMitigate: false
     muteActionsDuration: 'PT15M'
     criteria: {
       allOf: [
@@ -196,7 +196,7 @@ resource alertBotRestart 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
     evaluationFrequency: 'PT1M'
     windowSize: 'PT1M'
     scopes: [appInsightsId]
-    autoMitigate: true
+    autoMitigate: false
     muteActionsDuration: 'PT15M'
     criteria: {
       allOf: [
@@ -255,7 +255,7 @@ resource alertImageGenSlow 'Microsoft.Insights/scheduledQueryRules@2023-12-01' =
     evaluationFrequency: 'PT1M'
     windowSize: 'PT5M'
     scopes: [appInsightsId]
-    autoMitigate: true
+    autoMitigate: false
     muteActionsDuration: 'PT15M'
     criteria: {
       allOf: [
