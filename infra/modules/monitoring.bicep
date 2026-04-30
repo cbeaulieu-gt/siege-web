@@ -239,7 +239,7 @@ resource alertDbConnectionError 'Microsoft.Insights/scheduledQueryRules@2023-12-
   location: location
   tags: tags
   properties: {
-    displayName: 'Siege Web — DB connection error'
+    displayName: '[${environment}] siege-api — DB connection error'
     description: 'Fires when any PostgreSQL dependency call from siege-api fails in a 5-minute window. DB spans confirmed in App Insights 2026-04-30 (PR #265, Pattern A).'
     enabled: true
     severity: 2
@@ -253,11 +253,10 @@ resource alertDbConnectionError 'Microsoft.Insights/scheduledQueryRules@2023-12-
         {
           query: '''
 dependencies
-| where timestamp > ago(5m)
 | where cloud_RoleName == "siege-api"
 | where type == "postgresql"
 | where success == false
-| summarize FailureCount = count() by bin(timestamp, 5m)
+| summarize FailureCount = count()
 | where FailureCount > 0
 '''
           timeAggregation: 'Count'
