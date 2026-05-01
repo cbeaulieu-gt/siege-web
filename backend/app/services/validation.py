@@ -58,8 +58,7 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
             for position in group.positions:
                 all_positions.append((position, group, building))
 
-    # Broken-building exclusion — intentional asymmetry between scroll limit and assignment
-    # accounting:
+    # Scroll accounting notes:
     #
     #   - SCROLL LIMIT (compute_scroll_count in sieges.py) includes ALL buildings regardless
     #     of is_broken.  It sums theoretical capacity by building type + level from game data,
@@ -68,11 +67,10 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
     #     can happen once a siege is active (update_building in buildings.py rejects all
     #     building changes, including breaking, when the siege is active or complete).
     #
-    #   - SCROLL BUDGET usage (assignments_by_member, Rule 2) excludes broken buildings —
-    #     assignments on broken buildings do not burn the per-member scroll allowance because
-    #     those buildings are not active defenders.  The asymmetry is intentional: the scroll
-    #     limit counts every slot that *could* be defended; the budget only charges for slots
-    #     that *are* actively defended.
+    #   - SCROLL BUDGET usage (assignments_by_member, Rule 2) includes ALL buildings
+    #     regardless of is_broken.  Both the limit and the per-member assignment count
+    #     treat broken buildings identically — a member assigned to a broken building
+    #     still consumes a scroll slot from their allowance.
     #
     #   - COUNTING rules that are NOT scroll-related (Rule 15 reserve-set check) use
     #     all_assigned_member_ids, which INCLUDES broken buildings — every assigned member
@@ -82,18 +80,13 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
     #   - STRUCTURAL rules (Rules 1, 3, 4, 5, 7, 8, 9, 11) still check broken buildings —
     #     a broken building can still have invalid configuration or invalid assignments.
 
-    # Scroll-budget usage counter: excludes broken buildings because assignments on
-    # broken buildings do not count against the per-member scroll limit (Rule 2).
-    # Note: other rules (e.g. Rule 15) use all_assigned_member_ids which includes
+    # Scroll-budget usage counter: includes ALL buildings (broken or healthy) so that
+    # the per-member assignment count matches what the scroll limit already charges for.
+    # Note: other rules (e.g. Rule 15) use all_assigned_member_ids which also includes
     # broken buildings, because those rules are not scroll-related.
     assignments_by_member: dict[int, int] = defaultdict(int)
     for pos, group, building in all_positions:
-        if (
-            pos.member_id is not None
-            and not pos.is_reserve
-            and not pos.is_disabled
-            and not building.is_broken
-        ):
+        if pos.member_id is not None and not pos.is_reserve and not pos.is_disabled:
             assignments_by_member[pos.member_id] += 1
 
     # Build siege_member lookup by member_id

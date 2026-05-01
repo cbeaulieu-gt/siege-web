@@ -8,6 +8,9 @@
  *  - Context-menu actions: Mark RESERVE, Mark No Assignment, Clear, Assign member
  *  - MemberBucket search and role-filter interactions
  *  - Locked (siege complete) board — context menu button hidden, auto-fill disabled
+ *  - Validation dialog: error-severity rows render with red badge and message
+ *  - Validation dialog: warning-severity rows render with yellow badge and message
+ *  - Validation dialog: "No issues found" shown when both arrays empty
  */
 
 import { screen, waitFor, within } from "@testing-library/react";
@@ -603,6 +606,97 @@ describe("BoardPage — action buttons", () => {
 
     // BuildingTypeSection renders the type label via BUILDING_LABELS; CSS uppercase doesn't change DOM text
     expect(screen.getByText("Stronghold")).toBeInTheDocument();
+  });
+});
+
+// ─── Validation dialog ────────────────────────────────────────────────────
+
+describe("BoardPage — validation dialog", () => {
+  it("renders error-severity rows with destructive badge when validate returns errors", async () => {
+    const user = userEvent.setup();
+    setupDefaultHandlers();
+    server.use(
+      http.post("/api/sieges/42/validate", () =>
+        HttpResponse.json({
+          errors: [
+            {
+              rule: 1,
+              message: "Assigned member 'Alice' is not active",
+              context: null,
+            },
+          ],
+          warnings: [],
+        })
+      )
+    );
+    renderBoard();
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
+
+    await user.click(screen.getByRole("button", { name: /^validate$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+    );
+    expect(screen.getByText(/error 1/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/assigned member 'alice' is not active/i)
+    ).toBeInTheDocument();
+  });
+
+  it("renders warning-severity rows with yellow badge when validate returns warnings", async () => {
+    const user = userEvent.setup();
+    setupDefaultHandlers();
+    server.use(
+      http.post("/api/sieges/42/validate", () =>
+        HttpResponse.json({
+          errors: [],
+          warnings: [
+            {
+              rule: 10,
+              message: "Building has fewer members than recommended",
+              context: null,
+            },
+          ],
+        })
+      )
+    );
+    renderBoard();
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
+
+    await user.click(screen.getByRole("button", { name: /^validate$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+    );
+    expect(screen.getByText(/warning 10/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/building has fewer members than recommended/i)
+    ).toBeInTheDocument();
+  });
+
+  it("shows 'No issues found' when validate returns empty errors and warnings", async () => {
+    const user = userEvent.setup();
+    setupDefaultHandlers();
+    server.use(
+      http.post("/api/sieges/42/validate", () =>
+        HttpResponse.json({ errors: [], warnings: [] })
+      )
+    );
+    renderBoard();
+    await waitFor(() =>
+      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
+    );
+
+    await user.click(screen.getByRole("button", { name: /^validate$/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("dialog")).toBeInTheDocument()
+    );
+    expect(screen.getByText(/no issues found/i)).toBeInTheDocument();
   });
 });
 
