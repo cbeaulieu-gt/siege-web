@@ -14,6 +14,9 @@
  *  - Polling stops once all result items have success !== null
  *  - "Post to Discord" confirm dialog → success message / error message
  *  - "Post to Discord" button disabled when siege is complete
+ *  - Validation panel: error-severity rows render with red badge and message
+ *  - Validation panel: warning-severity rows render with yellow badge and message
+ *  - Notification-blocked banner appears when validate returns errors
  */
 
 import { screen, waitFor, within, act } from "@testing-library/react";
@@ -35,6 +38,7 @@ import { server } from "../server";
 import SiegeSettingsPage from "../../pages/SiegeSettingsPage";
 import type {
   Siege,
+  ValidationResult,
   NotifyResponse,
   NotificationBatchResponse,
   NotificationResultItem,
@@ -98,16 +102,32 @@ function makeBatchResponse(
 
 // ─── Render helper ────────────────────────────────────────────────────────────
 //
-// SiegeSettingsPage reads three routes on mount:
-//   GET /api/sieges/42          — siege details
-//   GET /api/sieges/42/buildings — building list
-//   GET /api/sieges/42/members   — siege member list
+// SiegeSettingsPage reads four routes on mount:
+//   GET /api/sieges/42              — siege details
+//   GET /api/sieges/42/buildings    — building list
+//   GET /api/sieges/42/members      — siege member list
+//   POST /api/sieges/42/validate    — eager validation (gates Notify button)
+//
+// validateResult defaults to an empty-pass response so the Notify button is
+// enabled in tests that don't care about validation state. Pass a custom value
+// to test error / warning rendering.
 
-function renderPage(siege: Siege = makeSiege()) {
+const emptyValidation: ValidationResult = { errors: [], warnings: [] };
+
+function renderPage(
+  siege: Siege = makeSiege(),
+  validateResult: ValidationResult = emptyValidation
+) {
   server.use(
     http.get("/api/sieges/42", () => HttpResponse.json(siege)),
     http.get("/api/sieges/42/buildings", () => HttpResponse.json([])),
-    http.get("/api/sieges/42/members", () => HttpResponse.json([]))
+    http.get("/api/sieges/42/members", () => HttpResponse.json([])),
+    // SiegeSettingsPage eagerly calls validateSiege on mount to gate the Notify
+    // button. Without this handler the mutation fails silently and validation
+    // state stays null, hiding error rows and the notification-blocked banner.
+    http.post("/api/sieges/42/validate", () =>
+      HttpResponse.json(validateResult)
+    )
   );
 
   const queryClient = new QueryClient({
@@ -722,5 +742,68 @@ describe("SiegeSettingsPage — Post to Discord", () => {
     expect(
       screen.getByRole("button", { name: /post to discord/i })
     ).toBeDisabled();
+  });
+});
+
+// ─── Validation panel ─────────────────────────────────────────────────────
+
+describe("SiegeSettingsPage — validation panel", () => {
+  it("renders error-severity rows with destructive badge when validate returns errors", async () => {
+    // Pass the error response directly to renderPage so it is registered
+    // before the component mounts and fires the eager validateMutation.
+    renderPage(makeSiege(), {
+      errors: [
+        {
+          rule: 1,
+          message: "Assigned member 'Alice' is not active",
+          context: null,
+        },
+      ],
+      warnings: [],
+    });
+    await waitForPageLoad();
+
+    // Eager validation fires on mount; wait for error row to appear
+    await waitFor(() =>
+      expect(screen.getByText(/error 1/i)).toBeInTheDocument()
+    );
+    expect(
+      screen.getByText(/assigned member 'alice' is not active/i)
+    ).toBeInTheDocument();
+  });
+
+  it("renders warning-severity rows with yellow badge when validate returns warnings", async () => {
+    renderPage(makeSiege(), {
+      errors: [],
+      warnings: [
+        {
+          rule: 10,
+          message: "Building has fewer members than recommended",
+          context: null,
+        },
+      ],
+    });
+    await waitForPageLoad();
+
+    await waitFor(() =>
+      expect(screen.getByText(/warning 10/i)).toBeInTheDocument()
+    );
+    expect(
+      screen.getByText(/building has fewer members than recommended/i)
+    ).toBeInTheDocument();
+  });
+
+  it("shows the notification-blocked banner when validate returns errors", async () => {
+    renderPage(makeSiege(), {
+      errors: [
+        { rule: 2, message: "Duplicate member assignment", context: null },
+      ],
+      warnings: [],
+    });
+    await waitForPageLoad();
+
+    await waitFor(() =>
+      expect(screen.getByText(/notifications blocked/i)).toBeInTheDocument()
+    );
   });
 });
