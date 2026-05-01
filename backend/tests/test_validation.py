@@ -252,18 +252,16 @@ async def test_rule1_active_member_no_error():
 
 
 @pytest.mark.asyncio
-async def test_rule2_broken_building_assignment_not_counted():
-    """Rule 2: assignment on a broken building does not count toward the scroll limit (issue #94).
+async def test_rule2_broken_building_assignment_counts_toward_scroll_limit():
+    """Rule 2 regression (#253): assignments on broken buildings count toward scroll budget.
 
-    A member is assigned to 3 positions on a broken building.  compute_scroll_count (mocked to
-    return 5) gives a limit of 3.  If broken positions were counted, the member would appear to
-    have 3 assignments and — at the boundary — the test would still pass, so we add a 4th
-    position on the broken building (which would clearly exceed the limit if counted) to make
-    the exclusion unambiguous.  No Rule 2 error should fire because all assignments are on a
-    broken building and are excluded from scroll accounting.
+    A member is assigned to 4 positions on a broken building.
+    compute_scroll_count (mocked to return 5) gives a limit of 3.
+    All 4 assignments must count regardless of is_broken, so Rule 2
+    must fire with count=4 and limit=3.
     """
     member = _make_member(id=1, is_active=True)
-    # 4 positions on a broken building — would exceed the limit of 3 if counted
+    # 4 positions on a broken building — exceeds the limit of 3 when counted
     positions = [
         _make_position(id=i, position_number=i, member_id=1, member=member) for i in range(1, 5)
     ]
@@ -279,27 +277,25 @@ async def test_rule2_broken_building_assignment_not_counted():
     siege.siege_members = [sm]
 
     # compute_scroll_count returns 5 → limit = 3.  Member has 4 assignments on a
-    # broken building; they must all be excluded so no Rule 2 error fires.
+    # broken building; they must all count, so Rule 2 must fire.
     session = _session_with_siege_and_configs(siege)
     result = await svc_validate(session, 1)
     rule2_errors = [e for e in result.errors if e.rule == 2]
-    assert len(rule2_errors) == 0, (
-        "Assignments on broken buildings must not count toward the scroll limit; "
-        f"unexpected Rule 2 errors: {rule2_errors}"
+    assert len(rule2_errors) >= 1, (
+        "Assignments on broken buildings must count toward the scroll limit; "
+        "Rule 2 should have fired but did not"
     )
+    assert rule2_errors[0].context["count"] == 4
+    assert rule2_errors[0].context["limit"] == 3
 
 
 @pytest.mark.asyncio
-async def test_rule2_mixed_broken_and_healthy_assignments_not_counted():
-    """Rule 2: assignments on a broken building are excluded even when healthy ones also exist.
+async def test_rule2_broken_and_healthy_both_count_toward_scroll_limit():
+    """Rule 2: assignments on broken buildings add to healthy-building count.
 
     Member has 2 assignments on a healthy building + 2 assignments on a broken building.
     compute_scroll_count (mocked to return 5) → limit = 3.
-    Only the 2 healthy assignments count; 2 < 3, so Rule 2 must NOT fire.
-
-    If the broken-building exclusion were absent, the total would be 4 which exceeds the
-    limit of 3, and Rule 2 would incorrectly fire.  This test distinguishes that case from
-    test_rule2_broken_building_assignment_not_counted (which uses 0 healthy assignments).
+    Total count = 4 (both healthy and broken), which exceeds 3, so Rule 2 must fire.
     """
     member = _make_member(id=1, is_active=True)
 
@@ -329,14 +325,15 @@ async def test_rule2_mixed_broken_and_healthy_assignments_not_counted():
     siege.siege_members = [sm]
 
     # compute_scroll_count returns 5 → limit = 3.
-    # Healthy-building count = 2, which is within the limit → no Rule 2 error.
+    # Total count = 4 (2 healthy + 2 broken) → exceeds limit → Rule 2 must fire.
     session = _session_with_siege_and_configs(siege)
     result = await svc_validate(session, 1)
     rule2_errors = [e for e in result.errors if e.rule == 2]
-    assert len(rule2_errors) == 0, (
-        "Only healthy-building assignments should count toward the scroll limit; "
-        f"unexpected Rule 2 errors: {rule2_errors}"
+    assert len(rule2_errors) >= 1, (
+        "Broken-building assignments must add to the scroll budget total; "
+        "Rule 2 should have fired but did not"
     )
+    assert rule2_errors[0].context["count"] == 4
 
 
 @pytest.mark.asyncio
