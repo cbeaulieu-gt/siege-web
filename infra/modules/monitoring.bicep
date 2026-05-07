@@ -85,7 +85,7 @@ resource actionGroup 'Microsoft.Insights/actionGroups@2023-01-01' = {
 // Severity 2 — page-worthy; the API is returning errors to real users.
 // Min-traffic floor (total >= 20) prevents false alarms during idle windows.
 
-resource alert5xxRate 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+resource alert5xxRate 'Microsoft.Insights/scheduledQueryRules@2026-03-01' = {
   name: '${appPrefix}-alert-5xx-rate-${environment}'
   location: location
   tags: tags
@@ -132,7 +132,7 @@ requests
 // Severity 3 — warning; latency is degraded but requests are still succeeding.
 // Min-traffic floor (sampleCount >= 20) avoids false alarms from a single slow call.
 
-resource alertLatencyP95 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+resource alertLatencyP95 'Microsoft.Insights/scheduledQueryRules@2026-03-01' = {
   name: '${appPrefix}-alert-latency-p95-${environment}'
   location: location
   tags: tags
@@ -184,7 +184,7 @@ requests
 //   "FastAPI HTTP sidecar instrumented for OpenTelemetry tracing."
 // Count > 0 in the 1-minute window is sufficient to confirm a restart occurred.
 
-resource alertBotRestart 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+resource alertBotRestart 'Microsoft.Insights/scheduledQueryRules@2026-03-01' = {
   name: '${appPrefix}-alert-bot-restart-${environment}'
   location: location
   tags: tags
@@ -234,7 +234,7 @@ traces
 // App Insights as of 2026-04-30 (PR #265, commit 9a11733): type == "postgresql",
 // Pattern A (no span duplication). Blocker removed — alert wired here.
 
-resource alertDbConnectionError 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+resource alertDbConnectionError 'Microsoft.Insights/scheduledQueryRules@2026-03-01' = {
   name: '${appPrefix}-alert-db-connection-error-${environment}'
   location: location
   tags: tags
@@ -286,7 +286,7 @@ dependencies
 // This alert queries the `requests` table filtered by operation_Name matching
 // the image generation route, rather than relying on a `customEvents` row.
 
-resource alertImageGenSlow 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+resource alertImageGenSlow 'Microsoft.Insights/scheduledQueryRules@2026-03-01' = {
   name: '${appPrefix}-alert-image-gen-slow-${environment}'
   location: location
   tags: tags

@@ -48,7 +48,7 @@ param highAvailabilityMode string = 'Disabled'
 
 var serverName = '${appPrefix}-pg-${environment}-${uniqueString(resourceGroup().id)}'
 
-resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-06-01-preview' = {
+resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2024-08-01' = {
   name: serverName
   location: location
   tags: {
@@ -76,7 +76,7 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-06-01-pr
   }
 }
 
-resource siegeDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023-06-01-preview' = {
+resource siegeDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2024-08-01' = {
   parent: postgresServer
   name: 'siege'
   properties: {
@@ -88,7 +88,7 @@ resource siegeDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2023
 // Allow Azure services to connect (Container Apps use Azure-internal egress IPs).
 // For a hardened production deployment you could remove this rule and instead
 // configure a VNet integration so only Container Apps can reach the server.
-resource firewallRuleAzure 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2023-06-01-preview' = {
+resource firewallRuleAzure 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2024-08-01' = {
   parent: postgresServer
   name: 'AllowAzureServices'
   properties: {

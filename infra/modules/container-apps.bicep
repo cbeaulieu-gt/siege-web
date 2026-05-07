@@ -114,7 +114,7 @@ var certResourceName = bindCert ? take('${replace(customDomainHostname, '.', '-'
 
 // ── siege-api ────────────────────────────────────────────────────────────────
 
-resource apiApp 'Microsoft.App/containerApps@2024-03-01' = {
+resource apiApp 'Microsoft.App/containerApps@2025-07-01' = {
   name: apiAppName
   location: location
   tags: { project: appPrefix, environment: environment }
@@ -323,7 +323,7 @@ resource originCert 'Microsoft.App/managedEnvironments/certificates@2024-08-02-p
 // This is the .id property of the originCert resource — Bicep resolves it
 // symbolically, which also creates an implicit dependsOn.
 
-resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
+resource frontendApp 'Microsoft.App/containerApps@2025-07-01' = {
   name: frontendAppName
   location: location
   tags: { project: appPrefix, environment: environment }
@@ -398,7 +398,7 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
 
 // ── siege-bot ─────────────────────────────────────────────────────────────────
 
-resource botApp 'Microsoft.App/containerApps@2024-03-01' = {
+resource botApp 'Microsoft.App/containerApps@2025-07-01' = {
   name: botAppName
   location: location
   tags: { project: appPrefix, environment: environment }
