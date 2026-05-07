@@ -13,6 +13,7 @@ on:
 permissions:
   contents: write
   issues: write
+  packages: read
   pull-requests: write
 
 jobs:
@@ -22,5 +23,3 @@ jobs:
       claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       app_id: ${{ secrets.APP_ID }}
       app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
-    with:
-      require_association: true
