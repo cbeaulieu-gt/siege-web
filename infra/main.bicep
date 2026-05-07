@@ -163,14 +163,15 @@ param enableCustomDomain bool = false
 param kvCertSecretUrl string = ''
 
 // ── Custom-domain preconditions (Bicep `assert` — experimental feature, ──────
-//    gated via bicepconfig.json). Surfaces clear errors at compile time when
+//    gated via bicepconfig.json). Surfaces "Assertion failed: <name>" errors at compile time when
 //    enableCustomDomain=true but required params are missing or malformed.
+//    Assert names are descriptive so the failed-name itself is the error message.
 
-assert kvCertSecretUrlProvided = !enableCustomDomain || !empty(kvCertSecretUrl) : 'kvCertSecretUrl is required when enableCustomDomain is true'
+assert kvCertSecretUrlProvided = !enableCustomDomain || !empty(kvCertSecretUrl)
 
-assert kvCertSecretUrlFormat = !enableCustomDomain || contains(kvCertSecretUrl, '.vault.azure.net/secrets/') : 'kvCertSecretUrl must be a Key Vault secret URL containing ".vault.azure.net/secrets/"'
+assert kvCertSecretUrlFormat = !enableCustomDomain || contains(kvCertSecretUrl, '.vault.azure.net/secrets/')
 
-assert customDomainHostnameProvided = !enableCustomDomain || !empty(customDomainHostname) : 'customDomainHostname is required when enableCustomDomain is true'
+assert customDomainHostnameProvided = !enableCustomDomain || !empty(customDomainHostname)
 
 // ── Monitoring ────────────────────────────────────────────────────────────────
 
