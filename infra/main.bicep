@@ -162,6 +162,17 @@ param enableCustomDomain bool = false
 @description('Versionless Key Vault secret URL for the Cloudflare Origin Cert PFX (e.g. https://<vault>.vault.azure.net/secrets/cloudflare-origin-cert). Required when enableCustomDomain is true.')
 param kvCertSecretUrl string = ''
 
+// ── Custom-domain preconditions (Bicep `assert` — experimental feature, ──────
+//    gated via bicepconfig.json). Surfaces "Assertion failed: <name>" errors at compile time when
+//    enableCustomDomain=true but required params are missing or malformed.
+//    Assert names are descriptive so the failed-name itself is the error message.
+
+assert kvCertSecretUrlProvided = !enableCustomDomain || !empty(kvCertSecretUrl)
+
+assert kvCertSecretUrlFormat = !enableCustomDomain || contains(kvCertSecretUrl, '.vault.azure.net/secrets/')
+
+assert customDomainHostnameProvided = !enableCustomDomain || !empty(customDomainHostname)
+
 // ── Monitoring ────────────────────────────────────────────────────────────────
 
 @description('Email address that receives alert notifications from the monitoring action group (dev and prod use the same address in v1).')
