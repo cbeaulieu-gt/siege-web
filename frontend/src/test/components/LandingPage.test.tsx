@@ -111,11 +111,11 @@ describe("LandingPage (anonymous user)", () => {
     await waitFor(() => {
       expect(screen.getByTestId("self-host-anywhere-link")).toHaveAttribute(
         "href",
-        "https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Any-VPS",
+        "https://github.com/glitchwerks/siege-web/wiki/Self-Host-on-Any-VPS",
       );
       expect(screen.getByTestId("self-host-azure-link")).toHaveAttribute(
         "href",
-        "https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Azure",
+        "https://github.com/glitchwerks/siege-web/wiki/Self-Host-on-Azure",
       );
     });
   });
@@ -125,7 +125,7 @@ describe("LandingPage (anonymous user)", () => {
     await waitFor(() => {
       expect(screen.getByText("higgsbp")).toBeInTheDocument();
       const ghLink = screen.getByRole("link", {
-        name: /github.com\/cbeaulieu-gt\/siege-web/i,
+        name: /github.com\/glitchwerks\/siege-web/i,
       });
       expect(ghLink).toBeInTheDocument();
     });

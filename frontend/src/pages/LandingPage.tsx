@@ -191,7 +191,7 @@ export default function LandingPage() {
           {/* GitHub icon + Sign in */}
           <div className="flex items-center gap-3">
             <a
-              href="https://github.com/cbeaulieu-gt/siege-web"
+              href="https://github.com/glitchwerks/siege-web"
               target="_blank"
               rel="noopener noreferrer"
               className="rounded-md p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900"
@@ -345,7 +345,7 @@ export default function LandingPage() {
 
             <div className="text-center">
               <a
-                href="https://github.com/cbeaulieu-gt/siege-web"
+                href="https://github.com/glitchwerks/siege-web"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-4 py-2 text-sm text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900"
@@ -385,7 +385,7 @@ export default function LandingPage() {
                   UI with zero Discord setup.
                 </p>
                 <a
-                  href="https://github.com/cbeaulieu-gt/siege-web#quick-start"
+                  href="https://github.com/glitchwerks/siege-web#quick-start"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block rounded-md border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
@@ -414,7 +414,7 @@ export default function LandingPage() {
                   containers. No cloud bill.
                 </p>
                 <a
-                  href="https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Any-VPS"
+                  href="https://github.com/glitchwerks/siege-web/wiki/Self-Host-on-Any-VPS"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block rounded-md border border-violet-400 px-4 py-2 text-center text-sm font-medium text-violet-700 transition-colors hover:bg-violet-50"
@@ -438,7 +438,7 @@ export default function LandingPage() {
                   hands-off infrastructure.
                 </p>
                 <a
-                  href="https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Azure"
+                  href="https://github.com/glitchwerks/siege-web/wiki/Self-Host-on-Azure"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block rounded-md border border-slate-300 px-4 py-2 text-center text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
@@ -487,12 +487,12 @@ export default function LandingPage() {
                   GitHub
                 </span>
                 <a
-                  href="https://github.com/cbeaulieu-gt/siege-web"
+                  href="https://github.com/glitchwerks/siege-web"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-violet-600 hover:underline"
                 >
-                  github.com/cbeaulieu-gt/siege-web
+                  github.com/glitchwerks/siege-web
                 </a>
               </p>
             </div>
