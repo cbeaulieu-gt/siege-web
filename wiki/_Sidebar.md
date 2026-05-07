@@ -14,4 +14,4 @@
 
 ---
 
-[GitHub repo](https://github.com/cbeaulieu-gt/siege-web) · [Issues](https://github.com/cbeaulieu-gt/siege-web/issues)
+[GitHub repo](https://github.com/glitchwerks/siege-web) · [Issues](https://github.com/glitchwerks/siege-web/issues)

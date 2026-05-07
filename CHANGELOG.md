@@ -72,5 +72,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vitest component tests for the assignment board (`BoardPage`) and notification polling (`SiegeSettingsPage`)
 - CI on every PR to `main`: black + ruff + pytest (backend); ESLint + build (frontend)
 
-[Unreleased]: https://github.com/cbeaulieu-gt/siege-web/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/cbeaulieu-gt/siege-web/releases/tag/v1.0.0
+[Unreleased]: https://github.com/glitchwerks/siege-web/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/glitchwerks/siege-web/releases/tag/v1.0.0

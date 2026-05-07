@@ -14,7 +14,7 @@ Not currently. The app is built around Discord OAuth2 for sign-in and a Discord 
 
 ### How do I report a bug or ask for a feature?
 
-Open a [GitHub Issue](https://github.com/cbeaulieu-gt/siege-web/issues) on the main repo.
+Open a [GitHub Issue](https://github.com/glitchwerks/siege-web/issues) on the main repo.
 
 ## Self-hosting
 

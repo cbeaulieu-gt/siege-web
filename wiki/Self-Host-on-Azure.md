@@ -56,7 +56,7 @@ This is the managed, hands-off path. Azure handles TLS, scaling, secret rotation
 
 ## 2. Fork the repo and configure GitHub
 
-1. Fork `cbeaulieu-gt/siege-web` on GitHub (or clone it into your own org).
+1. Fork `glitchwerks/siege-web` on GitHub (or clone it into your own org).
 2. The deploy pipeline reads from two GitHub Environments (`dev` and `prod`). You'll populate them with secrets and variables in Step 7 — for now, just note that they need to exist.
 
 ---
@@ -455,7 +455,7 @@ Run through this checklist after the first deploy (and after any infra change):
 
 ## 10. Day-two operations
 
-For ongoing operations (log queries, secret rotation, rollbacks, database restores, scaling), see [RUNBOOK.md in the main repo](https://github.com/cbeaulieu-gt/siege-web/blob/main/docs/RUNBOOK.md). That document assumes your environment is already deployed and uses `siege-rg-prod` and the actual resource names from your deployment.
+For ongoing operations (log queries, secret rotation, rollbacks, database restores, scaling), see [RUNBOOK.md in the main repo](https://github.com/glitchwerks/siege-web/blob/main/docs/RUNBOOK.md). That document assumes your environment is already deployed and uses `siege-rg-prod` and the actual resource names from your deployment.
 
 ### Quick reference: update a secret
 

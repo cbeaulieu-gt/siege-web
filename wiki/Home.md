@@ -16,4 +16,4 @@ Clan leaders and planners who coordinate siege building assignments for their gu
 
 ## About this wiki
 
-This wiki is mirrored from the `wiki/` folder in the [main repo](https://github.com/cbeaulieu-gt/siege-web). To edit a page, open a PR against `wiki/<Page-Name>.md` — direct edits through the wiki web UI will be overwritten on the next publish. Pull requests are reviewed, merged to `main`, and auto-published by a GitHub Action within a minute or two.
+This wiki is mirrored from the `wiki/` folder in the [main repo](https://github.com/glitchwerks/siege-web). To edit a page, open a PR against `wiki/<Page-Name>.md` — direct edits through the wiki web UI will be overwritten on the next publish. Pull requests are reviewed, merged to `main`, and auto-published by a GitHub Action within a minute or two.
