@@ -3,6 +3,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.models.building import Building
 from app.models.enums import SiegeStatus
 from app.models.post import Post
 from app.models.post_active_condition import post_active_condition
@@ -42,7 +43,9 @@ async def list_posts(session: AsyncSession, siege_id: int) -> list[Post]:
 
     result = await session.execute(
         select(Post)
+        .join(Post.building)
         .where(Post.siege_id == siege_id)
+        .order_by(Building.building_number)
         .options(selectinload(Post.active_conditions), selectinload(Post.building))
     )
     return list(result.scalars().all())

@@ -26,6 +26,7 @@ def _make_post(
     id: int = 1,
     siege_id: int = 1,
     building_id: int = 10,
+    building_number: int = 1,
     priority: int = 1,
     description: str | None = None,
 ) -> SimpleNamespace:
@@ -36,7 +37,7 @@ def _make_post(
         priority=priority,
         description=description,
         active_conditions=[],
-        building=_make_building(id=building_id),
+        building=_make_building(id=building_id, building_number=building_number),
     )
 
 
@@ -102,3 +103,37 @@ async def test_set_post_conditions_too_many_returns_400(client):
 
     assert response.status_code == 400
     assert "3" in response.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# 4. list_posts response is sorted by building_number ascending
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_posts_sorted_by_building_number(client):
+    """Posts endpoint returns rows sorted by Post # (building_number) ascending.
+
+    The service returns posts in DB-insertion order: building_number 3 first
+    (highest priority=3), then 1, then 2.  The endpoint must re-order them
+    to [1, 2, 3] regardless of priority so that priority edits never change
+    the visual order.
+    """
+    posts = [
+        _make_post(id=3, building_id=30, building_number=3, priority=3),
+        _make_post(id=1, building_id=10, building_number=1, priority=1),
+        _make_post(id=2, building_id=20, building_number=2, priority=2),
+    ]
+    with patch("app.api.posts.posts_service.list_posts", new_callable=AsyncMock) as mock:
+        mock.return_value = posts
+        async with client as c:
+            response = await c.get("/api/sieges/1/posts")
+
+    assert response.status_code == 200
+    data = response.json()
+    building_numbers = [item["building_number"] for item in data]
+    assert building_numbers == [
+        1,
+        2,
+        3,
+    ], f"Expected posts sorted by building_number [1,2,3], got {building_numbers}"
