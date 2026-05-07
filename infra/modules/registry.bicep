@@ -45,7 +45,7 @@ var sanitizedName = empty(acrNameOverride) ? '${appPrefix}acr${environment}' : a
 // Note: acr purge is currently in public preview (mcr.microsoft.com/acr/acr-cli:0.17).
 var purgeCmd = 'acr purge --filter \'siege-api:^[a-f0-9]{40}$\' --filter \'siege-bot:^[a-f0-9]{40}$\' --filter \'siege-frontend:^[a-f0-9]{40}$\' --untagged --ago 7d --keep ${purgeKeepCount}'
 
-resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+resource registry 'Microsoft.ContainerRegistry/registries@2025-04-01' = {
   name: sanitizedName
   location: location
   tags: {
@@ -74,6 +74,12 @@ resource registry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
 // After the first infra deploy, run once on-demand to clear the existing
 // backlog:
 //   az acr task run --name weekly-purge --registry <acrName>
+//
+// Microsoft.ContainerRegistry/registries/tasks has never shipped a GA apiVersion;
+// the latest available is 2025-03-01-preview. We intentionally stay on
+// 2019-06-01-preview because preview-to-preview churn buys nothing on a stable
+// surface (admin/anon-pull settings only). Re-evaluate if Microsoft promotes
+// the tasks resource to GA. Audit reference: issue #249 (2026-05-07).
 resource purgeTask 'Microsoft.ContainerRegistry/registries/tasks@2019-06-01-preview' = {
   name: 'weekly-purge'
   parent: registry

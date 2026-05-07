@@ -16,7 +16,7 @@ var kvSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
 // Resolving `existing` from a plain string parameter is valid at compile time —
 // this is why role assignments must live in their own module rather than in
 // main.bicep, where the vault name would be a runtime module output (BCP120).
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01' existing = {
   name: vaultName
 }
 

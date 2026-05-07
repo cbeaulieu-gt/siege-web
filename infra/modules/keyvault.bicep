@@ -49,7 +49,7 @@ param softDeleteRetentionDays int = 7
 
 var vaultName = '${appPrefix}-kv-${environment}-${take(uniqueString(resourceGroup().id), 6)}'
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01' = {
   name: vaultName
   location: location
   tags: {
@@ -71,49 +71,49 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   }
 }
 
-resource secretDatabaseUrl 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource secretDatabaseUrl 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'database-url'
   properties: { value: databaseUrl }
 }
 
-resource secretDiscordToken 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource secretDiscordToken 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'discord-token'
   properties: { value: discordToken }
 }
 
-resource secretDiscordGuildId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource secretDiscordGuildId 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'discord-guild-id'
   properties: { value: discordGuildId }
 }
 
-resource secretDiscordBotApiKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource secretDiscordBotApiKey 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'discord-bot-api-key'
   properties: { value: discordBotApiKey }
 }
 
-resource secretBotApiKey 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource secretBotApiKey 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'bot-api-key'
   properties: { value: botApiKey }
 }
 
-resource secretSessionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource secretSessionSecret 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'session-secret'
   properties: { value: sessionSecret }
 }
 
-resource secretDiscordClientId 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource secretDiscordClientId 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'discord-client-id'
   properties: { value: discordClientId }
 }
 
-resource secretDiscordClientSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+resource secretDiscordClientSecret 'Microsoft.KeyVault/vaults/secrets@2024-11-01' = {
   parent: keyVault
   name: 'discord-client-secret'
   properties: { value: discordClientSecret }

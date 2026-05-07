@@ -34,7 +34,7 @@ param vaultName string
 
 // ── User-assigned managed identity ───────────────────────────────────────────
 
-resource certIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+resource certIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
   name: '${appPrefix}-cert-uami-${environment}'
   location: location
   tags: {
@@ -53,7 +53,7 @@ resource certIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-
 
 var kvSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
 
-resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+resource keyVault 'Microsoft.KeyVault/vaults@2024-11-01' existing = {
   name: vaultName
 }
 
