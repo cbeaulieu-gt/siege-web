@@ -162,6 +162,16 @@ param enableCustomDomain bool = false
 @description('Versionless Key Vault secret URL for the Cloudflare Origin Cert PFX (e.g. https://<vault>.vault.azure.net/secrets/cloudflare-origin-cert). Required when enableCustomDomain is true.')
 param kvCertSecretUrl string = ''
 
+// ── Custom-domain preconditions (Bicep `assert` — experimental feature, ──────
+//    gated via bicepconfig.json). Surfaces clear errors at compile time when
+//    enableCustomDomain=true but required params are missing or malformed.
+
+assert kvCertSecretUrlProvided = !enableCustomDomain || !empty(kvCertSecretUrl) : 'kvCertSecretUrl is required when enableCustomDomain is true'
+
+assert kvCertSecretUrlFormat = !enableCustomDomain || contains(kvCertSecretUrl, '.vault.azure.net/secrets/') : 'kvCertSecretUrl must be a Key Vault secret URL containing ".vault.azure.net/secrets/"'
+
+assert customDomainHostnameProvided = !enableCustomDomain || !empty(customDomainHostname) : 'customDomainHostname is required when enableCustomDomain is true'
+
 // ── Monitoring ────────────────────────────────────────────────────────────────
 
 @description('Email address that receives alert notifications from the monitoring action group (dev and prod use the same address in v1).')
