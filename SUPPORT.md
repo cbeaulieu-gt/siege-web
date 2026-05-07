@@ -2,7 +2,7 @@
 
 ## Where to ask
 
-**Bugs and unexpected behavior** — open a [GitHub Issue](https://github.com/cbeaulieu-gt/siege-web/issues/new/choose) using the bug report template. Include reproduction steps, your environment, and any relevant logs.
+**Bugs and unexpected behavior** — open a [GitHub Issue](https://github.com/glitchwerks/siege-web/issues/new/choose) using the bug report template. Include reproduction steps, your environment, and any relevant logs.
 
 **Questions and how-to** — open a GitHub Issue with the `question` label. GitHub Discussions is not currently enabled on this repository; Issues are the right place for Q&A until it is.
 

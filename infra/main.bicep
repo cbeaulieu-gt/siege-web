@@ -243,7 +243,7 @@ module appInsights 'modules/app-insights.bicep' = {
 
 // Monitoring — action group + alert rules + Application Insights workbook.
 // Workbook template lives at infra/modules/workbook.template.json (Phase 3b, #246).
-// See docs/superpowers/plans/2026-04-29-issue-246-workbook-alerts.md.
+// See issue #246 for design rationale.
 module monitoring 'modules/monitoring.bicep' = {
   name: 'monitoring'
   params: {

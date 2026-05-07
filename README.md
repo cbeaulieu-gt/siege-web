@@ -23,7 +23,7 @@ Get a populated local UI running in under 5 minutes — no Discord setup require
 
 ```bash
 # 1. Clone and enter the repo
-git clone https://github.com/cbeaulieu-gt/siege-web.git
+git clone https://github.com/glitchwerks/siege-web.git
 cd siege-web
 
 # 2. Copy the example env (auth is disabled by default for local dev)
@@ -123,12 +123,12 @@ cd frontend && npm run lint
 
 ## Run it yourself
 
-Full self-host guides live in the [project wiki](https://github.com/cbeaulieu-gt/siege-web/wiki):
+Full self-host guides live in the [project wiki](https://github.com/glitchwerks/siege-web/wiki):
 
-- **[Self-Host on Any VPS](https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Any-VPS)** — any Linux host that runs Docker, with Caddy for free TLS and an optional Cloudflare Tunnel path if you can't open ports. The portable path — no cloud account required.
-- **[Self-Host on Azure](https://github.com/cbeaulieu-gt/siege-web/wiki/Self-Host-on-Azure)** — Container Apps + Key Vault + PostgreSQL Flexible Server, with a GitHub Actions deploy pipeline. The managed, hands-off path.
+- **[Self-Host on Any VPS](https://github.com/glitchwerks/siege-web/wiki/Self-Host-on-Any-VPS)** — any Linux host that runs Docker, with Caddy for free TLS and an optional Cloudflare Tunnel path if you can't open ports. The portable path — no cloud account required.
+- **[Self-Host on Azure](https://github.com/glitchwerks/siege-web/wiki/Self-Host-on-Azure)** — Container Apps + Key Vault + PostgreSQL Flexible Server, with a GitHub Actions deploy pipeline. The managed, hands-off path.
 
-New to the project? Start at **[Getting Started](https://github.com/cbeaulieu-gt/siege-web/wiki/Getting-Started)** in the wiki.
+New to the project? Start at **[Getting Started](https://github.com/glitchwerks/siege-web/wiki/Getting-Started)** in the wiki.
 
 ## Deploy Environments
 
