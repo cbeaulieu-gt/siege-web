@@ -808,6 +808,60 @@ is still running the old revision or the new revision shows a failed status.
 
 ---
 
+## 8. Deploys & Drift
+
+### Workflow overview
+
+Two deployment workflows exist:
+
+| Workflow | Trigger | Deploys |
+|---|---|---|
+| `deploy.yml` | Automatic — `push` to `main`; `v*` tag for prod | Application code (Docker images → Container Apps) |
+| `infra-deploy.yml` | Manual — `workflow_dispatch` only (current) | Bicep templates → Azure resource group |
+
+**Bicep changes never deploy themselves.** A PR that modifies both application code and `infra/**` is not fully shipped until you manually run `infra-deploy.yml` against both `dev` and `prod` after the PR merges.
+
+### What the What-if check does (and does not) do
+
+Every PR that touches `infra/**` runs a `What-if Change Impact (dev)` CI check. This check runs `az deployment group what-if` and surfaces what *would* change the next time `infra-deploy.yml` runs — it does not deploy anything. Drift from stacked, unrun Bicep changes is visible here, but the check is a backstop, not a substitute for actually running the workflow.
+
+If the What-if output shows unexpected changes, it is a signal that prior Bicep PRs were merged without a follow-up `infra-deploy.yml` run.
+
+### Hybrid trigger decision (2026-05-07, #272)
+
+**Decision:** `infra-deploy.yml` will adopt **Option C — hybrid trigger**:
+
+- **Dev:** auto-trigger on `push` to `main` with a `paths: ['infra/**']` filter.
+- **Prod:** remains `workflow_dispatch`-only.
+
+The `on:` block shape:
+
+```yaml
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options: [dev, prod]
+```
+
+The `push`-triggered run is gated to `dev` via `if: github.event_name == 'push'`; prod remains reachable only via `workflow_dispatch`.
+
+**Rationale:**
+
+- The failure mode that prompted this decision (#252): multiple Bicep changes stacked between manual runs, were forgotten, and dev drifted silently from `main`. Auto-deploying dev on any `infra/**` push makes that class of drift structurally impossible.
+- Prod retains the explicit human gate because (a) it carries the full production blast radius and (b) prod app deploys are already tag-gated — keeping the same shape for infra is consistent with the rest of the deployment story.
+
+**Implementation status:** The workflow change (adding the `paths` filter and the dev/prod job split) is tracked as a follow-up issue filed after #272 merged. Until that follow-up lands, `infra-deploy.yml` is still `workflow_dispatch`-only for both environments — run it manually after every Bicep PR.
+
+---
+
 ## Custom Domain — Cloudflare Origin Cert Rotation
 
 The production custom domain (`rslsiege.com`) uses a **Cloudflare Origin Certificate**
