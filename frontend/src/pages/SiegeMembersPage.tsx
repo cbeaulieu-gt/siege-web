@@ -423,22 +423,18 @@ export default function SiegeMembersPage() {
               const day2 = preview.assignments
                 .filter((a) => a.attack_day === 2)
                 .sort(byName);
-              const rows = Math.max(day1.length, day2.length);
               return (
                 <div className="grid grid-cols-2 divide-x divide-slate-200 rounded-md border border-slate-200">
                   <div>
                     <div className="border-b border-slate-200 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Day 1 ({day1.length})
                     </div>
-                    {Array.from({ length: rows }).map((_, i) => (
+                    {day1.map((a, i) => (
                       <div
                         key={i}
                         className="px-3 py-1.5 text-sm odd:bg-slate-50"
                       >
-                        {day1[i]
-                          ? (nameLookup[day1[i].member_id] ??
-                            `Member ${day1[i].member_id}`)
-                          : ""}
+                        {nameLookup[a.member_id] ?? `Member ${a.member_id}`}
                       </div>
                     ))}
                   </div>
@@ -446,15 +442,12 @@ export default function SiegeMembersPage() {
                     <div className="border-b border-slate-200 px-3 py-2 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">
                       Day 2 ({day2.length})
                     </div>
-                    {Array.from({ length: rows }).map((_, i) => (
+                    {day2.map((a, i) => (
                       <div
                         key={i}
                         className="px-3 py-1.5 text-sm odd:bg-slate-50"
                       >
-                        {day2[i]
-                          ? (nameLookup[day2[i].member_id] ??
-                            `Member ${day2[i].member_id}`)
-                          : ""}
+                        {nameLookup[a.member_id] ?? `Member ${a.member_id}`}
                       </div>
                     ))}
                   </div>
