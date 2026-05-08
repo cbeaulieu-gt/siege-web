@@ -31,7 +31,8 @@ async def list_posts(
     db: AsyncSession = Depends(get_db),
 ):
     posts = await posts_service.list_posts(db, siege_id)
-    return [_serialize_post(p) for p in posts]
+    posts_sorted = sorted(posts, key=lambda p: p.building.building_number)
+    return [_serialize_post(p) for p in posts_sorted]
 
 
 @router.put("/sieges/{siege_id}/posts/{post_id}", response_model=PostResponse)

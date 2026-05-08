@@ -259,7 +259,7 @@ export default function PostsPage() {
     queryFn: () => getBoard(siegeId),
   });
 
-  const sorted = posts?.slice().sort((a, b) => a.priority - b.priority);
+  const sorted = posts?.slice().sort((a, b) => a.building_number - b.building_number);
 
   return (
     <div>
