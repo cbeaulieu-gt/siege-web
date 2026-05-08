@@ -31,6 +31,33 @@ import { resolve } from "path";
 import type { Plugin, ResolvedConfig } from "vite";
 import { parseChangelog } from "./changelog-parser";
 
+/**
+ * Locate CHANGELOG.md by searching candidate paths in priority order.
+ *
+ * Dev: `__dirname` = `<repo>/frontend/src/build/` → `../../../` hits the repo root.
+ * Docker: build context is `./frontend/` (copied to `/app/`), so the repo root path
+ * won't exist; instead CHANGELOG.md is staged into `frontend/` → `../../` from here.
+ * The first path that exists wins; if none exist the caller throws a descriptive error.
+ *
+ * @param dirname - Directory to resolve candidates from (typically `__dirname`).
+ * @param checker - Optional override for `existsSync`; used in tests to avoid I/O.
+ */
+export function findChangelogPath(
+  dirname: string,
+  checker: (p: string) => boolean = existsSync
+): string | undefined {
+  const candidatePaths = changelogCandidatePaths(dirname);
+  return candidatePaths.find((p) => checker(p));
+}
+
+/** All candidate paths tried by findChangelogPath, for error messages. */
+export function changelogCandidatePaths(dirname: string): string[] {
+  return [
+    resolve(dirname, "../../../CHANGELOG.md"),
+    resolve(dirname, "../../CHANGELOG.md"),
+  ];
+}
+
 const VIRTUAL_MODULE_ID = "virtual:changelog";
 const RESOLVED_VIRTUAL_MODULE_ID = "\0" + VIRTUAL_MODULE_ID;
 
@@ -62,17 +89,16 @@ export function changelogPlugin(): Plugin {
         return undefined;
       }
 
-      // Locate CHANGELOG.md at the repo root.
-      // __dirname resolves to frontend/src/build/ at runtime in Node (CJS).
-      // In ESM Vite plugin context we use import.meta.url — but Vite compiles
-      // plugins under Node CJS, so we use path.resolve relative to this file.
-      // The path chain: frontend/src/build/ → ../../.. → repo root.
-      const changelogPath = resolve(__dirname, "../../../CHANGELOG.md");
+      // Locate CHANGELOG.md — search candidate paths so both dev (repo root via
+      // traversal) and Docker (file staged into the frontend build context) work.
+      const changelogPath = findChangelogPath(__dirname);
 
-      if (!existsSync(changelogPath)) {
+      if (!changelogPath) {
+        const tried = changelogCandidatePaths(__dirname);
         throw new Error(
-          `[changelog-plugin] CHANGELOG.md not found at "${changelogPath}". ` +
-            "Ensure the file exists at the repository root."
+          `[changelog-plugin] CHANGELOG.md not found at any of: ${tried.join(", ")}. ` +
+            "Ensure the file exists at the repository root, or — for Docker builds — " +
+            "that it has been staged into the frontend build context."
         );
       }
 

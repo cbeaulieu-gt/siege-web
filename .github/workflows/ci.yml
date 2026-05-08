@@ -133,6 +133,29 @@ jobs:
         run: pytest tests/ -v
 
 
+  # Regression check for #302: verifies the frontend Docker build succeeds when
+  # CHANGELOG.md is staged into the build context (mirrors what deploy.yml does).
+  # Runs on every PR so this exact failure mode is caught before merge.
+  frontend-docker-build:
+    name: Frontend Docker build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Stage CHANGELOG.md into frontend build context
+        run: cp CHANGELOG.md frontend/CHANGELOG.md
+
+      - name: Build frontend image
+        run: docker build -f frontend/Dockerfile -t siege-frontend:ci ./frontend
+
+      - name: Clean up staged CHANGELOG.md
+        if: always()
+        run: rm -f frontend/CHANGELOG.md
+
+
   claude-lint-fix:
     name: Claude Lint Fix
     needs: [backend-ci, frontend-ci, bot-ci]

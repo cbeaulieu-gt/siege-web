@@ -3,3 +3,7 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+
+# Staged copy used by Docker build context (see deploy.yml + changelog-plugin.ts).
+# The canonical CHANGELOG.md lives at the repo root.
+CHANGELOG.md

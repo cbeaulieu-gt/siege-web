@@ -13,6 +13,9 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 
+# CHANGELOG.md must be staged from the repo root into this build context before
+# `docker build` runs. In CI this is done by the "Stage CHANGELOG.md into frontend
+# build context" step in .github/workflows/deploy.yml (see frontend/src/build/changelog-plugin.ts).
 COPY . .
 RUN npm run build
 
