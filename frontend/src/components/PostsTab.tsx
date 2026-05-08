@@ -218,28 +218,41 @@ function MemberAssignRow({
           {/* Condition radio buttons (only for matched members with conditions) */}
           {hasConditions && matchedConditions.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-2">
-              {matchedConditions.map((c) => (
-                <label
-                  key={c.id}
-                  className="flex cursor-pointer items-center gap-1.5"
-                >
-                  <input
-                    type="radio"
-                    name={`condition-${member.member_id}-${postNumber}`}
-                    value={c.id}
-                    checked={selectedConditionId === c.id}
-                    onChange={() => {
-                      setSelectedConditionId(c.id);
-                      setConfirmPending(false);
-                    }}
-                    className="h-3.5 w-3.5 accent-violet-600"
-                  />
-                  <span className="flex items-center gap-1 text-xs text-slate-700">
-                    <Check className="h-3 w-3 text-green-600" />
-                    {c.description}
-                  </span>
-                </label>
-              ))}
+              {matchedConditions.map((c) => {
+                const dupKey = `${member.member_id}_${c.id}`;
+                const dupBuildingNumber = duplicateMap.get(dupKey);
+                const isInlineDuplicate =
+                  dupBuildingNumber !== undefined &&
+                  dupBuildingNumber !== postNumber;
+                return (
+                  <label
+                    key={c.id}
+                    className="flex cursor-pointer items-center gap-1.5"
+                  >
+                    <input
+                      type="radio"
+                      name={`condition-${member.member_id}-${postNumber}`}
+                      value={c.id}
+                      checked={selectedConditionId === c.id}
+                      onChange={() => {
+                        setSelectedConditionId(c.id);
+                        setConfirmPending(false);
+                      }}
+                      className="h-3.5 w-3.5 accent-violet-600"
+                    />
+                    <span className="flex items-center gap-1 text-xs text-slate-700">
+                      <Check className="h-3 w-3 text-green-600" />
+                      {c.description}
+                    </span>
+                    {isInlineDuplicate && (
+                      <span className="flex items-center gap-0.5 text-xs text-amber-600">
+                        <AlertTriangle className="h-3 w-3 text-amber-500" />
+                        Post {dupBuildingNumber}
+                      </span>
+                    )}
+                  </label>
+                );
+              })}
             </div>
           )}
 
