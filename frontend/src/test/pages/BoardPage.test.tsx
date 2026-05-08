@@ -3,7 +3,7 @@
  *
  * Covers:
  *  - Loading state while board data is fetched
- *  - Summary bar slot counts (assigned / reserve / empty / disabled)
+ *  - Summary bar slot counts (assigned / reserve / empty)
  *  - Position cell visual states rendered from board API data
  *  - Context-menu actions: Mark RESERVE, Clear, Assign member
  *  - MemberBucket search and role-filter interactions
@@ -170,9 +170,9 @@ describe("BoardPage — summary bar", () => {
     // Summary bar contains "4 total"
     const summaryBar = screen.getByText("total").closest("div")!;
     expect(within(summaryBar).getByText("4")).toBeInTheDocument();
-    // assigned, reserve, empty, disabled each show '1'
+    // assigned, reserve, empty each show '1'
     const ones = within(summaryBar).getAllByText("1");
-    expect(ones.length).toBeGreaterThanOrEqual(4);
+    expect(ones.length).toBeGreaterThanOrEqual(3);
   });
 });
 

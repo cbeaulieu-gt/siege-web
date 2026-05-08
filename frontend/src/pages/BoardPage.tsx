@@ -793,8 +793,6 @@ export default function BoardPage() {
       !p.is_reserve &&
       p.member_id == null
   ).length;
-  const disabledCount = allPositions.filter((p) => p.is_disabled).length;
-
   // Per-member assignment counts (all buildings including posts)
   const memberAssignments = useMemo(() => {
     const counts: Record<number, number> = {};
@@ -977,10 +975,6 @@ export default function BoardPage() {
         <span className="text-sm text-slate-600">
           <span className="font-semibold text-orange-600">{emptyCount}</span>{" "}
           empty
-        </span>
-        <span className="text-sm text-slate-600">
-          <span className="font-semibold text-slate-400">{disabledCount}</span>{" "}
-          disabled
         </span>
         {totalScrolls > 0 && (
           <span className="text-sm text-slate-600">
