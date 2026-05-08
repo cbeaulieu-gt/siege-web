@@ -5,17 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-05-08
 
 ### Added
 
 - In-app changelog dropdown in the top bar with a per-user red-dot indicator that surfaces `CHANGELOG.md` content; bell icon, latest entry first, mark-seen persists across sessions (#298)
+- Inline duplicate-condition indicator on post-assignment radio buttons — operators see at a glance which member-condition pairs are already in use elsewhere, with the conflicting post number rendered next to the affected radio (#196)
 
 ### Fixed
 
 - Posts tab now sorts by Post # rather than priority — list order stays stable when priorities are edited (#291)
 - Removed the dead "N/A" summary tile and unreachable `has_no_assignment` code paths from the assignment board (#294)
+- Removed the dead `disabled` summary counter from the board summary bar — the underlying `is_disabled` flag is preserved (drag-drop gating, image generation) but the passive count no longer earns its slot (#256)
 - `bootstrap-db.ps1` now calls the canonical `scripts/seed.py` (the legacy `backend/seed.py` was incomplete); regression tests added (#293)
+- Login page now has a "Back to Home" link, closing the navigation loop between the landing page and login flow (#208)
+- Auto Attack Day preview popup no longer renders empty padding cells — each column iterates its own length, with assignment counts surfaced in column headers (#243)
+- Validation Rules 7 and 16 now render `Post N` rather than the internal database `building.id` in user-facing warning messages (#301)
 
 ### Infrastructure
 
@@ -123,7 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vitest component tests for the assignment board (`BoardPage`) and notification polling (`SiegeSettingsPage`)
 - CI on every PR to `main`: black + ruff + pytest (backend); ESLint + build (frontend)
 
-[Unreleased]: https://github.com/glitchwerks/siege-web/compare/v1.0.3...HEAD
+[1.1.0]: https://github.com/glitchwerks/siege-web/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/glitchwerks/siege-web/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/glitchwerks/siege-web/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/glitchwerks/siege-web/compare/v1.0.0...v1.0.1
