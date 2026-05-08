@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import apiClient from "../api/client";
-import { Shield } from "lucide-react";
+import { Shield, ChevronLeft } from "lucide-react";
 
 // Errors that map to a specific transient/technical message (not membership denial).
 const ERROR_MESSAGES: Record<string, string> = {
@@ -83,6 +83,18 @@ export default function LoginPage() {
 
         {/* Sign-in button — happy path, byte-identical behaviour */}
         <div className="space-y-4">
+          {/* Back to Home — always visible; lets users exit without a URL edit */}
+          <div className="text-center">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1 text-sm text-slate-600 transition-colors hover:text-slate-900"
+              data-testid="back-to-home-link"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back to Home
+            </Link>
+          </div>
+
           <button
             onClick={handleLogin}
             disabled={isLoading}

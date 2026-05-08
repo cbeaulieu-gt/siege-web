@@ -135,3 +135,47 @@ describe("LoginPage — rejection reframe", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Back to Home link (#208)
+// ---------------------------------------------------------------------------
+
+describe("LoginPage — back to home link", () => {
+  it("renders a Back to Home link in the normal (happy-path) state", async () => {
+    renderWithProviders(<LoginPage />, { initialEntries: ["/login"] });
+    await waitFor(() => {
+      const link = screen.getByRole("link", { name: /back to home/i });
+      expect(link).toBeInTheDocument();
+    });
+  });
+
+  it("Back to Home link navigates to /", async () => {
+    renderWithProviders(<LoginPage />, { initialEntries: ["/login"] });
+    await waitFor(() => {
+      const link = screen.getByRole("link", { name: /back to home/i });
+      expect(link).toHaveAttribute("href", "/");
+    });
+  });
+
+  it("renders Back to Home link when membership is denied (?error=unauthorized)", async () => {
+    renderWithProviders(<LoginPage />, {
+      initialEntries: ["/login?error=unauthorized"],
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("link", { name: /back to home/i })
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("renders Back to Home link when a technical error is present (?error=service_unavailable)", async () => {
+    renderWithProviders(<LoginPage />, {
+      initialEntries: ["/login?error=service_unavailable"],
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("link", { name: /back to home/i })
+      ).toBeInTheDocument();
+    });
+  });
+});

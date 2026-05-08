@@ -193,7 +193,7 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
                     ValidationIssue(
                         rule=7,
                         message=(
-                            f"Post building id={building.id} (number {building.building_number}) "
+                            f"Post {building.building_number} "
                             f"has {len(building.groups)} groups (expected 1)"
                         ),
                         context={"building_id": building.id},
@@ -373,8 +373,9 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
                 ValidationIssue(
                     rule=16,
                     message=(
-                        f"Post building id={building.id} (number {building.building_number}) "
-                        f"has only {condition_count} active conditions (minimum recommended: 3)"
+                        f"Post {building.building_number} "
+                        f"has only {condition_count} active conditions "
+                        f"(minimum recommended: 3)"
                     ),
                     context={"building_id": building.id, "condition_count": condition_count},
                 )

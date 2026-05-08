@@ -504,7 +504,7 @@ async def test_rule6_valid_attack_day():
 
 @pytest.mark.asyncio
 async def test_rule7_post_has_multiple_groups():
-    """Rule 7: post building with 2 groups → error."""
+    """Rule 7: post building with 2 groups → error with correct message."""
     building = _make_building(id=1, building_type=BuildingType.post, building_number=1)
     g1 = _make_group(id=1, group_number=1)
     g1.positions = []
@@ -518,6 +518,10 @@ async def test_rule7_post_has_multiple_groups():
     result = await svc_validate(session, 1)
     rule7_errors = [e for e in result.errors if e.rule == 7]
     assert len(rule7_errors) >= 1
+    # Message uses "Post N" — not the internal building.id primary key.
+    assert rule7_errors[0].message == "Post 1 has 2 groups (expected 1)"
+    # context dict is unchanged — building_id is still the machine-readable handle.
+    assert rule7_errors[0].context["building_id"] == 1
 
 
 @pytest.mark.asyncio
@@ -907,7 +911,7 @@ async def test_rule15_non_hh_no_reserve_no_warning():
 
 @pytest.mark.asyncio
 async def test_rule16_post_fewer_than_3_conditions():
-    """Rule 16: post with 1 active condition → warning."""
+    """Rule 16: post with 1 active condition → warning with correct message."""
     cond = _make_condition(id=1)
     post = _make_post(building_id=1, active_conditions=[cond])
 
@@ -924,6 +928,12 @@ async def test_rule16_post_fewer_than_3_conditions():
     result = await svc_validate(session, 1)
     rule16_warnings = [w for w in result.warnings if w.rule == 16]
     assert len(rule16_warnings) >= 1
+    # Message uses "Post N" — not the internal building.id primary key.
+    assert rule16_warnings[0].message == (
+        "Post 1 has only 1 active conditions (minimum recommended: 3)"
+    )
+    # context dict is unchanged — building_id is still the machine-readable handle.
+    assert rule16_warnings[0].context["building_id"] == 1
 
 
 @pytest.mark.asyncio
