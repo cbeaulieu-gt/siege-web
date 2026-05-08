@@ -135,14 +135,14 @@ try {
 
     # ── Seed the database ─────────────────────────────────────────────────────
 
-    Write-Host '==> Seeding database (python seed.py)...'
-    Write-Host '    seed.py is idempotent and safe to re-run, but may print warnings if reference data already exists  -  that is expected.'
+    Write-Host '==> Seeding database (python scripts/seed.py)...'
+    Write-Host '    scripts/seed.py is idempotent and safe to re-run, but may print warnings if reference data already exists  -  that is expected.'
     Write-Host ""
 
     az containerapp exec `
         --name $ApiApp `
         --resource-group $ResourceGroup `
-        --command "python seed.py"
+        --command "python scripts/seed.py"
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error 'Database seed failed. Check the output above for details.'
