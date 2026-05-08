@@ -9,6 +9,7 @@ from app.api.auth import router as auth_router
 from app.api.autofill import router as autofill_router
 from app.api.board import router as board_router
 from app.api.buildings import router as buildings_router
+from app.api.changelog import router as changelog_router
 from app.api.comparison import router as comparison_router
 from app.api.config import router as config_router
 from app.api.discord_sync import router as discord_sync_router
@@ -109,6 +110,7 @@ app.include_router(validation_router, prefix="/api", dependencies=_auth_deps)
 app.include_router(autofill_router, prefix="/api", dependencies=_auth_deps)
 app.include_router(comparison_router, prefix="/api", dependencies=_auth_deps)
 app.include_router(attack_day_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(changelog_router, prefix="/api", dependencies=_auth_deps)
 app.include_router(images_router, prefix="/api", dependencies=_auth_deps)
 app.include_router(notifications_router, prefix="/api", dependencies=_auth_deps)
 app.include_router(post_priority_config_router, prefix="/api", dependencies=_auth_deps)
