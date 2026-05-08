@@ -26,6 +26,7 @@ class Member(Base):
     created_at: Mapped[datetime] = mapped_column(
         nullable=False, server_default=text("CURRENT_TIMESTAMP")
     )
+    last_seen_changelog_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     positions: Mapped[list["Position"]] = relationship(back_populates="member")
     siege_members: Mapped[list["SiegeMember"]] = relationship(back_populates="member")
