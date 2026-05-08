@@ -2,7 +2,7 @@
 
 > Refs: https://github.com/glitchwerks/siege-web/issues/311
 > Drafted: 2026-05-08
-> Status: draft — pending 2× inquisitor critique
+> Status: greenlit — 2× inquisitor passes resolved; ready for Phase 1 implementation
 
 ## Goal
 
@@ -18,6 +18,7 @@ Lifted from issue #311 "Out of Scope", plus explicit additions:
 - **Database schema versioning** beyond Alembic. Alembic revision IDs remain the truth for DB shape; surfacing them at runtime is not part of this plan.
 - **Rewriting `deploy.yml`.** Minimal touch only (env-var injection for runtime version surfacing if needed). The build/promote model stays.
 - **Backporting changelog history.** Existing `## [1.0.x]` entries stay as-is; per-component sub-sections start with the next entry.
+- **Inter-component compatibility contracts** (named in the "Inter-Component Compatibility" subsection below). The three prerequisites for split — declared compatibility, deploy refusing incompatible combinations, deprecation policy — are tracked in follow-on issue **#315**, deferred to v2.x discipline. This plan does NOT deliver them.
 
 ## Current State (verified 2026-05-08)
 
@@ -100,6 +101,8 @@ The frontend's external surface is **operator-facing, not machine-facing**: book
 
 **Edge case: a migration PR that also changes a `response_model` follows the schema rule, not the migration carveout.** Migrations alone do not bump; schema changes do, regardless of whether a migration accompanies them. The "alembic migrations don't bump" line is about the *common* case where a migration adds an internal column or index that doesn't surface to the api response — not a blanket exemption for migration-touching PRs.
 
+**Version numbers are forward-only.** A revert PR that undoes an external-surface change bumps forward — typically PATCH for the revert itself, never reusing the previously-published version number. The CI gate (Q4) sees the `VERSION` line *change* vs `main` (the revert restores prior content), but the bump direction is forward, not backward. **Revert PRs that mechanically reverse a previous bump line fail the gate** because the version they end up at matches `main`'s previous value. Revert PRs use the `version-bump-bypass` label with the revert reason in the auto-filed issue's "why bypass" field. If reverts become common, the queue review (Charge 4 mechanism) will surface the pattern and the rule can be revisited.
+
 **Rationale:**
 
 - Per-PR-only is too noisy: a typo fix in a Pydantic `Field(description=...)` doesn't need a bump, and forcing one creates merge conflicts on `VERSION` files.
@@ -109,6 +112,12 @@ The frontend's external surface is **operator-facing, not machine-facing**: book
 **Alternatives considered:**
 - Strict per-PR (every PR bumps something): rejected, churn ratio too high.
 - Strict at-release (one bump per cycle in release PR): rejected, loses signal.
+
+**Edge cases (pre-releases and hotfixes):**
+
+- **Pre-release versions** (`1.2.0-alpha.1`, `1.2.0-rc.1`, etc.) are **NOT allowed** in `backend/VERSION`, `bot/VERSION`, or `frontend/package.json#version` for v1 of this discipline. Releases ship at clean semver. If pre-release support becomes necessary (e.g. for staged rollouts to dev-only environments), file a follow-on issue rather than improvising in a PR.
+
+- **Hotfix branches** that ship from a release branch (e.g. `release/v1.2.x` for a security fix) bump the relevant component's version forward from the *release-tag baseline*, not the `main` baseline. The CI gate's comparison must be configured to compare against the release tag (`v1.2.0`), not `main` — otherwise the gate sees `main`'s in-flight bumps as the reference and produces nonsense diffs. Until the hotfix workflow is built, hotfix PRs use the `version-bump-bypass` label with the hotfix reason documented; the auto-filed issue surfaces the gap so the workflow can be designed when the first hotfix occurs.
 
 ### Q4: CI enforcement — warn or block
 
@@ -120,7 +129,7 @@ The frontend's external surface is **operator-facing, not machine-facing**: book
    - **bot external surface:** changes under `bot/app/http_api.py`, `bot/app/discord_client.py` (slash commands), `bot/app/__init__.py`.
    - **frontend external surface:** changes under `frontend/src/App.tsx` (routes), `frontend/src/pages/**` (page components), changes that add/remove a `VITE_*` env var.
 3. If any external-surface path changed AND the component's `VERSION` (or `package.json#version` for frontend) did not change vs `main`, fail the check.
-4. Add a `skip-version-bump` label as the documented escape hatch (e.g. for pure-rename refactors that touch the surface but preserve behavior). **Label use auto-files a tracking issue** tagged `version-bump-bypass`, with: PR number, surface paths the gate flagged, and a required "why bypass?" field copied from the PR body. The auto-filing is implemented as a step in the version-bump-check workflow when the label is detected. The `version-bump-bypass` issue queue is reviewed quarterly by the project owner; if two consecutive bypasses on the same component lack distinct justifications, the queue review files a charge against the rule itself (i.e. the rule may be wrong if the bypass is becoming routine).
+4. Add a `skip-version-bump` label as the documented escape hatch (e.g. for pure-rename refactors that touch the surface but preserve behavior). **Label use auto-files a tracking issue** tagged `version-bump-bypass`, with: PR number, surface paths the gate flagged, and a required "why bypass?" field copied from the PR body. The auto-filing is implemented as a step in the version-bump-check workflow when the label is detected. The `version-bump-bypass` issue queue is owned by **@cbeaulieu-gt** (named owner; updated via PR if ownership transfers). Review cadence: every 5th issue filed in the queue auto-comments on the most recent issue tagging the named owner — converting "we'll remember quarterly" into a queue-self-enforced ping cycle. The named owner can also process the queue ad-hoc at any time. The auto-comment trigger is implemented as a step in the version-bump-check workflow when the label is detected: it counts open `version-bump-bypass` issues, and on every Nth filing (N=5 to start, tunable), posts a `@cbeaulieu-gt review needed` comment on the newly-filed issue.
 
 **Rationale:**
 
@@ -170,9 +179,11 @@ Components changed: siege-api, siege-frontend.
 **Rationale:**
 
 - Sub-sections per component are the closest thing to "what would the per-component changelog look like" without actually maintaining three files. When the split happens, each section becomes its own `CHANGELOG.md`.
-- **Empty per-component sections are omitted entirely** — the "Components changed:" line at the top of each release entry tells the reader which components actually moved. This is necessary because the in-app changelog dropdown shipped in v1.1 (#298) reads `CHANGELOG.md` and renders all `### Heading` blocks; rendering `### siege-bot 1.0.1 — (no changes)` on every release where the bot didn't move would be UX noise on the most common release shape.
+- **Empty per-component sections are omitted entirely** — the "Components changed:" line at the top of each release entry tells the reader which components actually moved. **Verified consumer behavior.** The in-app changelog dropdown shipped in v1.1 (#298) reads `CHANGELOG.md` via the Vite plugin at `frontend/src/build/changelog-plugin.ts`, which calls into the parser at `frontend/src/build/changelog-parser.ts`. The parser extracts `## [version]` lines as release entries and `### Heading` lines as section keys, with bullet content collected into the value array of a `Record<string, string[]>`. The `### siege-api 1.1.0` format renders cleanly: each `### Heading` becomes a section header in the dropdown UI; omitting empty per-component sections produces no orphan headings (the parser sees nothing to extract for the omitted component). The format decision is verified against actual consumer code, not assumption.
 - Keeping `Infrastructure / repo` as a non-component bucket prevents bicep/CI/docs changes from being awkwardly assigned to a component.
 - Existing `## [1.0.x]` entries are NOT backfilled (per Non-Goals).
+
+**Authoring rule.** The `Components changed:` line is **hand-authored at release time** by the release-cutter. The rule, lifted into CONTRIBUTING.md as part of Phase 1: *"The 'Components changed:' summary line must list exactly the components with `###` sub-sections in this entry — no more, no less. Drift between the summary line and the sub-sections is a release-time error and must be fixed before the tag is cut."* Auto-generation is deferred to Phase 3 as an optional follow-up if drift becomes a real problem; for now, manual sanity-check by the release-cutter is sufficient given the small release cadence.
 
 **Alternatives considered:**
 - Component versions in a footer/preface only: rejected — losing the per-section grouping makes it harder to extract a per-component history later.
@@ -207,15 +218,27 @@ Before any actual repo split can occur, this gap **must** be closed. At minimum:
 
 This is named here so that "prepare for split" cannot be confused with "ready to split." The plan delivers the labels; it does not deliver the contract.
 
+**Tracked as follow-on:** issue #315 (`design: inter-component compatibility contracts (deferred follow-on to #311)`) carries the deferred work. Closing the gap is a hard prerequisite for any actual repo split — that's the issue's done state, not this plan's.
+
 ## Phasing
 
 ### Phase 1: Foundation (soft-guideline window — Phase 2 must close it by v1.3 cut)
 
 Phase 1 establishes the discipline as a **soft guideline**: the rule is documented, the runtime surface is verified, but no CI gate exists. Reviewers can cite the rule but it is not enforced. **This window is bounded.** Phase 2 must land by the v1.3 release cut. If Phase 2 stalls past v1.3, the discipline rolls back: Phase 1's docs are explicitly downgraded to "informal practice" rather than allowed to remain as un-enforced citation surface. (See Risk Register for the rollback condition.)
 
+**Enforcement surface for the deadline:**
+
+1. **Release runbook checklist** — `RUNBOOK.md`'s release section (or equivalent pre-tag-cut checklist) gains a new line: *"Before tagging `v1.3.0`, verify `.github/workflows/version-bump-check.yml` exists. If absent, follow the rollback procedure (downgrade Phase 1 docs to 'informal practice' banner) before cutting the tag."*
+
+2. **Tracking issue with milestone** — at v1.2 cut, file a tracking issue titled "Phase 2 deadline: v1.3 cut" with milestone `v1.3` and label `version-discipline`. The issue closes either by Phase 2 landing (auto-close via the Phase 2 PR's `Closes` keyword) or by rollback execution (manual close with rollback-summary comment). The `v1.3` milestone surfaces the issue in the v1.3 release planning view.
+
+Both surfaces fail loudly: the runbook checklist blocks the tag cut on missing workflow file; the tracking issue surfaces in the milestone planning view. "We'll remember" is replaced by two independent enforcement paths.
+
 - [ ] Verify `FRONTEND_VERSION` env var is injected at deploy time; if not, wire it from `package.json#version` in the frontend Dockerfile build arg.
 - [ ] Add CI smoke-test assertion that `/api/version` returns all three component versions matching expected values (per Q5 — extends an existing smoke test, does not add a new workflow).
 - [ ] Write the Q2 breaking-change rules into `CONTRIBUTING.md` under a new "Versioning" section.
+- [ ] CONTRIBUTING.md adds the `Components changed:` summary-line rule alongside the Versioning section.
+- [ ] CONTRIBUTING.md's "Versioning" section presents the bump-or-not decision as a **decision table or flowchart**, not a wall of paragraphs. Six logical clauses in Q3 prose form is too many for a contributor to hold in mind during a PR; the table is the contributor's actual reference. (Plan does not specify the table's content — Phase 1 implementation work delivers it.)
 - [ ] Update `.github/pull_request_template.md` with the three-component bump checklist.
 - [ ] Update `CLAUDE.md` with a short "Component versioning" section.
 - [ ] Update `CHANGELOG.md` `## [Unreleased]` entry to use the new per-component structure (Q6) — this is a documentation change only; no code.
@@ -248,7 +271,7 @@ Phase 1 establishes the discipline as a **soft guideline**: the rule is document
 | `FRONTEND_VERSION` env-var injection silently breaks in prod | Medium | Medium | Smoke-test assertion in Phase 1 catches it before merge to main, not just in production. |
 | Per-component changelog format adds friction at release time | Medium | Low | Format is *additive* — releasers can leave a component section as `(no changes this release)`; it's documentation, not a gate. |
 | Breaking-change rule for frontend is too loose (real consumers emerge) | Low | Medium | Revisit Q2 if the frontend ever becomes embeddable; written narrowly on purpose for *today's* reality. |
-| The `skip-version-bump` label becomes a rubber stamp | Medium | Medium | Auto-filed `version-bump-bypass` issue queue is the audit artifact. Quarterly review owned by project owner is the cadence. "Trust + paper trail" replaces "trust." If quarterly review finds the queue growing without distinct justifications, the bypass mechanism itself is reviewed. |
+| The `skip-version-bump` label becomes a rubber stamp | Medium | Medium | Auto-filed `version-bump-bypass` issue queue is the audit artifact. Owner is `@cbeaulieu-gt` (named, updated via PR). Cadence is event-driven: every 5th queue filing auto-pings the owner, so the cadence is enforced by the queue itself rather than by a calendar reminder. If quarterly review finds the queue growing without distinct justifications, the bypass mechanism itself is reviewed. |
 | **Phase 2 stalls indefinitely; Phase 1's docs become un-enforced citation surface that reviewers selectively cite** | Medium | Medium | Phase 2 has a v1.3 deadline. If Phase 2 has not landed by v1.3 cut, Phase 1's CONTRIBUTING.md and CLAUDE.md sections are downgraded to "informal practice" with a clear banner; the rule is not allowed to live in citation-surface limbo. |
 | Inquisitor surfaces "this is all just process for one team" | Medium | Low | Plan explicitly framed as future-proofing for split — accept that present-day ROI is modest. |
 
@@ -269,7 +292,7 @@ The alternative — block v1.1 cut on Phase 1 — buys little, since Phase 1 is 
 
 - **Day 0:** This plan merges. Phase 1 PRs land independently against `main` post-v1.1 cut.
 - **At v1.2 cut:** components with external-surface changes per Q3 since v1.1 bump per Q2's MAJOR/MINOR/PATCH rules. Components without surface changes stay at their current version. Drift between components is the expected steady state — not a problem to be reconciled.
-- **Verification:** after first v1.2-track PR merges with a version bump, hit dev `/api/version` and confirm new value reflects. After v1.2 release, hit prod.
+- **Verification:** runtime version verification is automated via the Q5 smoke-test assertion in CI; no manual `/api/version` check is needed at release time. Operator readout (the SystemPage UI) remains the way operators see the live values.
 - **Operator readout:** the SystemPage already renders this — no operator-facing UI changes needed beyond what's in v1.0.x.
 
 ## Acceptance Criteria
