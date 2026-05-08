@@ -161,6 +161,13 @@ jobs:
       - name: Log in to ACR
         run: az acr login --name ${{ vars.ACR_NAME }}
 
+      # CHANGELOG.md lives at the repo root, outside the ./frontend build context.
+      # Stage it in so the changelog-plugin can resolve it inside Docker.
+      # (Only needed for the frontend image; the other matrix legs are unaffected.)
+      - name: Stage CHANGELOG.md into frontend build context
+        if: matrix.service == 'siege-frontend'
+        run: cp CHANGELOG.md frontend/CHANGELOG.md
+
       - name: Build and push ${{ matrix.service }}
         run: |
           IMAGE=${{ vars.ACR_LOGIN_SERVER }}/${{ matrix.service }}
