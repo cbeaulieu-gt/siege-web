@@ -74,7 +74,7 @@ Adding new routes, adding optional response fields, adding new request fields wi
 - Removing a feature flag / environment variable that was previously consumed (e.g. `VITE_API_URL` rename).
 - Breaking change to any public-facing URL the operator might bookmark or link to from Discord (siege detail pages, SystemPage, etc.).
 
-The frontend has *no external embedding consumers* — there is no public component library — so the breaking-change surface is narrow on purpose. UX redesigns that preserve routes and shortcuts are MINOR or PATCH.
+The frontend's external surface is **operator-facing, not machine-facing**: bookmarked URLs, Discord-embedded links, browser histories. The breaking-change rule treats any change to URL shape, route names, or feature-flag environment variables as MAJOR — exactly because operators *are* consumers, they just consume URLs rather than APIs. UX redesigns that preserve URL shape and route names are MINOR or PATCH. The "no external embedding consumers" framing in earlier drafts was misleading: it implied a narrower consumer surface than actually exists, and would have left an edge case like `/sieges/:id → /sieges/:slug` ambiguous (the rule says MAJOR, the old rationale implied MINOR).
 
 **`siege-bot` (MAJOR):**
 - Removing or renaming any HTTP sidecar endpoint (`POST /api/notify`, `/api/post-image`, `/api/members`, etc.).
@@ -93,6 +93,12 @@ The frontend has *no external embedding consumers* — there is no public compon
 - Every PR that materially changes a component's *external* surface (per Q2) MUST bump that component's version in the same commit. This includes any MAJOR change.
 - PRs touching only internal implementation, tests, or non-shipping files (docs/, scripts/, README, CONTRIBUTING, alembic migrations that don't change response shapes) MUST NOT bump.
 - At release time (when cutting a `v*` tag), the release-cutter verifies all three component versions are >= the version recorded at the previous release. If any did not change, that's fine — it just means that component had no external-surface changes this cycle.
+
+**Drift between component versions is expected and desired** under per-component semver. Ceremonial alignment ("they look drifted, let's match them up") is **forbidden** — it re-introduces the lockstep mental model this plan is leaving behind.
+
+**Multi-PR features:** for features spanning multiple PRs, the PR that merges the user-visible change bumps. In-between PRs ship behind a feature flag or do not merge to main. Bumping each PR in a multi-PR feature is wrong — it manufactures three releases for one logical change. Bumping only the last PR (and merging PRs 1–2 unbumped) evades the gate on those PRs; ship them flagged or hold them.
+
+**Edge case: a migration PR that also changes a `response_model` follows the schema rule, not the migration carveout.** Migrations alone do not bump; schema changes do, regardless of whether a migration accompanies them. The "alembic migrations don't bump" line is about the *common* case where a migration adds an internal column or index that doesn't surface to the api response — not a blanket exemption for migration-touching PRs.
 
 **Rationale:**
 
@@ -114,15 +120,16 @@ The frontend has *no external embedding consumers* — there is no public compon
    - **bot external surface:** changes under `bot/app/http_api.py`, `bot/app/discord_client.py` (slash commands), `bot/app/__init__.py`.
    - **frontend external surface:** changes under `frontend/src/App.tsx` (routes), `frontend/src/pages/**` (page components), changes that add/remove a `VITE_*` env var.
 3. If any external-surface path changed AND the component's `VERSION` (or `package.json#version` for frontend) did not change vs `main`, fail the check.
-4. Add a `skip-version-bump` label as the documented escape hatch (e.g. for pure-rename refactors that touch the surface but preserve behavior). The label requires reviewer to acknowledge in the PR body.
+4. Add a `skip-version-bump` label as the documented escape hatch (e.g. for pure-rename refactors that touch the surface but preserve behavior). **Label use auto-files a tracking issue** tagged `version-bump-bypass`, with: PR number, surface paths the gate flagged, and a required "why bypass?" field copied from the PR body. The auto-filing is implemented as a step in the version-bump-check workflow when the label is detected. The `version-bump-bypass` issue queue is reviewed quarterly by the project owner; if two consecutive bypasses on the same component lack distinct justifications, the queue review files a charge against the rule itself (i.e. the rule may be wrong if the bypass is becoming routine).
 
 **Rationale:**
 
 - "Warn" is ignored. CI checks that don't gate merge get tuned out within a sprint.
 - Blocking with a labeled escape hatch keeps the rule strict but not adversarial.
 - Path-based heuristic is imperfect (will false-positive on internal-only changes that happen to live in those folders) but *cheap*; a proper AST-diff check is over-engineering for v1 of this discipline. The label is the release valve.
+- The heuristic fails open in one important case: a breaking change to a service-layer return shape that flows through an unchanged `app/api/*.py` thin shim does not trigger the gate. **The gate produces a green check on a real break.** This is the FN failure mode, and it's worse than the FP one. The mitigation is honest framing in CONTRIBUTING.md, not wider path matching — see Risk Register.
 
-**Implementation surface:** new `.github/workflows/version-bump-check.yml`, runs on `pull_request`. ~50 lines of bash + `gh pr diff`. **Does not** touch `deploy.yml`.
+**Implementation surface:** new `.github/workflows/version-bump-check.yml`, runs on `pull_request`. ~50 lines of bash + `gh pr diff`. **Does not** touch `deploy.yml`. Plus a CONTRIBUTING.md section explicitly stating what the gate catches and does not catch — reviewer judgment is the second line of defense.
 
 **Alternatives considered:**
 - AST-diff of OpenAPI spec (proper API-break detection): out of scope for v1; track as a follow-up.
@@ -136,7 +143,7 @@ Specifically:
 - `/api/version` — keep as-is (already returns all four fields).
 - Bot `GET /version` — keep as-is.
 - SystemPage — keep as-is.
-- **Add:** an end-to-end test that hits `/api/version` in CI smoke-test stage and asserts all three component versions are non-null and parse as semver.
+- **Add:** an end-to-end test that hits `/api/version` in CI smoke-test stage and asserts all three component versions match expected values. Expected `frontend_version` is read from `package.json#version` at deploy time and passed to the smoke check as `EXPECTED_FRONTEND_VERSION`; expected `backend_version` and `bot_version` are read from `backend/VERSION` and `bot/VERSION` similarly. "Parses as semver" is insufficient — that assertion would pass on a frontend bundle stuck at `1.0.0` while the deployed image is `v1.2.0`, which is exactly the drift mode the test is named against.
 
 **Rationale:** the runtime side is the cheap win the issue advertises. Don't redesign what works; just close the `frontend_version: null` gap and add a regression test.
 
@@ -147,15 +154,14 @@ Specifically:
 ```markdown
 ## [1.1.0] - 2026-05-XX
 
+Components changed: siege-api, siege-frontend.
+
 ### siege-api 1.1.0
 - Added: ...
 - Fixed: ...
 
 ### siege-frontend 1.0.5
 - Added: ...
-
-### siege-bot 1.0.1
-(no changes this release — version unchanged)
 
 ### Infrastructure / repo
 - ...
@@ -164,6 +170,7 @@ Specifically:
 **Rationale:**
 
 - Sub-sections per component are the closest thing to "what would the per-component changelog look like" without actually maintaining three files. When the split happens, each section becomes its own `CHANGELOG.md`.
+- **Empty per-component sections are omitted entirely** — the "Components changed:" line at the top of each release entry tells the reader which components actually moved. This is necessary because the in-app changelog dropdown shipped in v1.1 (#298) reads `CHANGELOG.md` and renders all `### Heading` blocks; rendering `### siege-bot 1.0.1 — (no changes)` on every release where the bot didn't move would be UX noise on the most common release shape.
 - Keeping `Infrastructure / repo` as a non-component bucket prevents bicep/CI/docs changes from being awkwardly assigned to a component.
 - Existing `## [1.0.x]` entries are NOT backfilled (per Non-Goals).
 
@@ -176,24 +183,44 @@ Specifically:
 **Decision:** Three documentation surfaces, all updated together in Phase 1:
 
 1. **`CONTRIBUTING.md`** — new section "Versioning" with: the per-component MAJOR rules from Q2, the hybrid cadence rule from Q3, and a pointer to the CI check.
-2. **PR template** (`.github/pull_request_template.md`) — add a "Version bumps" line with three checkboxes (siege-api / siege-frontend / siege-bot) and a "N/A — no external surface change" option.
+2. **PR template** (`.github/pull_request_template.md`) — add a "Version bumps" line with three checkboxes (siege-api / siege-frontend / siege-bot) and a "N/A — no external surface change" option. **The checkbox stays even after the Phase 2 CI gate lands** — its value is surfacing the bump decision *during PR authoring*, before the contributor opens the PR and gets blocked. Without it, the contributor opens the PR, gets blocked by CI, goes back to bump, re-pushes — a friction loop the checkbox prevents. Phase 2's CI gate is correctness; the checkbox is UX. They're complementary.
 3. **`CLAUDE.md`** — short addition under a new "Component versioning" section pointing AI agents at the rule. This is load-bearing because Claude Code is a frequent contributor here and the path-based CI heuristic from Q4 will block its PRs without guidance.
 
 **Rationale:** documenting in only one place creates the "but I read CONTRIBUTING and didn't see it" gap. PR template is the just-in-time reminder; CONTRIBUTING is the reference; CLAUDE.md is the agent-facing pointer.
 
+## Inter-Component Compatibility (named non-goal for v1; hard prerequisite for split)
+
+This plan establishes per-component semver but **does not** define how `siege-api 2.x` interoperates with `siege-frontend 1.x`, or any other cross-component compatibility contract. That is *the* point of independent component versions — without a compatibility contract, the versions are decorative.
+
+Why this is deferred:
+
+- Today, all three components ship together at the same `v*` tag, so compatibility is **implicit at the tag level**: whatever combination of component versions ride together in a tagged release is the only combination that's been validated.
+- Defining a real compatibility contract requires consumer pinning (e.g. `frontend` declares `requires siege-api >=1.0,<2.0`), pre-release matrix testing, and a deprecation policy. None of that machinery exists today and building it would dwarf the rest of this plan.
+
+What this means for the eventual split:
+
+Before any actual repo split can occur, this gap **must** be closed. At minimum:
+
+1. Each component declares the api/bot/frontend versions it has been tested against.
+2. The deploy pipeline refuses combinations that violate declared compatibility.
+3. A deprecation policy says how long an api MAJOR remains supported.
+
+This is named here so that "prepare for split" cannot be confused with "ready to split." The plan delivers the labels; it does not deliver the contract.
+
 ## Phasing
 
-### Phase 1: Foundation (low-risk, leaves the project better off even if Phases 2–3 stall)
+### Phase 1: Foundation (soft-guideline window — Phase 2 must close it by v1.3 cut)
 
-- [ ] Reconcile current versions: bump `frontend/package.json#version` from `1.0.0` to `1.0.1` to match backend/bot (one-time alignment so the v1.1 release starts from a consistent floor).
+Phase 1 establishes the discipline as a **soft guideline**: the rule is documented, the runtime surface is verified, but no CI gate exists. Reviewers can cite the rule but it is not enforced. **This window is bounded.** Phase 2 must land by the v1.3 release cut. If Phase 2 stalls past v1.3, the discipline rolls back: Phase 1's docs are explicitly downgraded to "informal practice" rather than allowed to remain as un-enforced citation surface. (See Risk Register for the rollback condition.)
+
 - [ ] Verify `FRONTEND_VERSION` env var is injected at deploy time; if not, wire it from `package.json#version` in the frontend Dockerfile build arg.
-- [ ] Add CI smoke-test assertion that `/api/version` returns three non-null semver-parseable strings post-deploy (extends an existing smoke test, does not add a new workflow).
+- [ ] Add CI smoke-test assertion that `/api/version` returns all three component versions matching expected values (per Q5 — extends an existing smoke test, does not add a new workflow).
 - [ ] Write the Q2 breaking-change rules into `CONTRIBUTING.md` under a new "Versioning" section.
 - [ ] Update `.github/pull_request_template.md` with the three-component bump checklist.
 - [ ] Update `CLAUDE.md` with a short "Component versioning" section.
 - [ ] Update `CHANGELOG.md` `## [Unreleased]` entry to use the new per-component structure (Q6) — this is a documentation change only; no code.
 
-**Exit criteria:** all three component versions match, `/api/version` returns non-null for all four fields in dev and prod, CONTRIBUTING + PR template + CLAUDE.md all reference the rule.
+**Exit criteria:** `/api/version` returns non-null for all four fields in dev and prod, CONTRIBUTING + PR template + CLAUDE.md all reference the rule.
 
 ### Phase 2: Enforcement
 
@@ -216,11 +243,13 @@ Specifically:
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
 | Path-based CI heuristic false-positives on internal-only changes | High | Medium (annoying, not blocking) | `skip-version-bump` label as documented escape hatch; revisit with AST-diff in Phase 3 if pain is real. |
+| **Path-based gate produces false negatives — breaking change in `services/` flows through unchanged `app/api/*.py` shim, gate green-checks the merge** | High | High | Document the gap honestly in CONTRIBUTING.md ("the gate is one line of defense, not the only one"). Reviewer judgment is the second line for service-layer changes that back a public API. Do NOT widen the path list to `services/**` — that collapses the FP rate into intolerable territory and forces the bypass label to become the default (see related risks below). |
 | Frontend version drift recurs (devs forget to bump `package.json`) | Medium | Low | CI check from Phase 2 catches it; PR template prompts it. |
 | `FRONTEND_VERSION` env-var injection silently breaks in prod | Medium | Medium | Smoke-test assertion in Phase 1 catches it before merge to main, not just in production. |
 | Per-component changelog format adds friction at release time | Medium | Low | Format is *additive* — releasers can leave a component section as `(no changes this release)`; it's documentation, not a gate. |
 | Breaking-change rule for frontend is too loose (real consumers emerge) | Low | Medium | Revisit Q2 if the frontend ever becomes embeddable; written narrowly on purpose for *today's* reality. |
-| The `skip-version-bump` label becomes a rubber stamp | Medium | Medium | Require reviewer acknowledgment in PR body when label is applied; periodic audit of label uses. |
+| The `skip-version-bump` label becomes a rubber stamp | Medium | Medium | Auto-filed `version-bump-bypass` issue queue is the audit artifact. Quarterly review owned by project owner is the cadence. "Trust + paper trail" replaces "trust." If quarterly review finds the queue growing without distinct justifications, the bypass mechanism itself is reviewed. |
+| **Phase 2 stalls indefinitely; Phase 1's docs become un-enforced citation surface that reviewers selectively cite** | Medium | Medium | Phase 2 has a v1.3 deadline. If Phase 2 has not landed by v1.3 cut, Phase 1's CONTRIBUTING.md and CLAUDE.md sections are downgraded to "informal practice" with a clear banner; the rule is not allowed to live in citation-surface limbo. |
 | Inquisitor surfaces "this is all just process for one team" | Medium | Low | Plan explicitly framed as future-proofing for split — accept that present-day ROI is modest. |
 
 ## Sequencing relative to v1.1 release
@@ -239,10 +268,7 @@ The alternative — block v1.1 cut on Phase 1 — buys little, since Phase 1 is 
 ## Rollout
 
 - **Day 0:** This plan merges. Phase 1 PRs land independently against `main` post-v1.1 cut.
-- **Initial version assignments at v1.2 cut:**
-  - `siege-api`: `1.2.0` (or `1.1.0` if no api changes since 1.0.x, etc. — driven by what Q2 says about the changes since last bump).
-  - `siege-frontend`: `1.1.0` (new minor; first cycle under new rule).
-  - `siege-bot`: `1.0.x` likely PATCH unless an HTTP route changed.
+- **At v1.2 cut:** components with external-surface changes per Q3 since v1.1 bump per Q2's MAJOR/MINOR/PATCH rules. Components without surface changes stay at their current version. Drift between components is the expected steady state — not a problem to be reconciled.
 - **Verification:** after first v1.2-track PR merges with a version bump, hit dev `/api/version` and confirm new value reflects. After v1.2 release, hit prod.
 - **Operator readout:** the SystemPage already renders this — no operator-facing UI changes needed beyond what's in v1.0.x.
 
@@ -269,6 +295,5 @@ Where I'm uncertain and want the adversarial pass to push:
 3. **Q6 changelog format:** does breaking the existing Keep-a-Changelog `Added/Fixed/Infrastructure` flat structure cost us search/release-note tooling that I'm not aware of? I think no, but I haven't audited the changelog-consumer surface.
 4. **Phase 1 scope:** I argue the issue's "missing component versions" framing is stale because the plumbing landed already. If that read is wrong — if there's a meaningful surface that's *still* missing — Phase 1 needs to grow. The inquisitor should sanity-check the current-state table.
 5. **Sequencing recommendation:** I argue v1.1 should ship without this. A reasonable alternative argues the *first* release after the discipline is announced should be the *first* release that demonstrates it, and that's v1.1 not v1.2. Either is defensible; would value the second opinion.
-6. **PR-template checkboxes** are the kind of thing contributors check without thinking. Is there value in a more substantive prompt, or does the CI block from Phase 2 make the checkbox redundant once Phase 2 lands? (If yes, drop the checkbox in Phase 2.)
 
 🤖 *Generated by Claude Code on behalf of @cbeaulieu-gt*
