@@ -135,7 +135,6 @@ function PositionCell({
     mutationFn: (data: {
       member_id?: number | null;
       is_reserve?: boolean;
-      has_no_assignment?: boolean;
     }) => updatePosition(siegeId, position.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
@@ -162,9 +161,6 @@ function PositionCell({
           RESERVE
         </Badge>
       );
-    }
-    if (position.has_no_assignment) {
-      return <span className="text-xs text-slate-400">N/A</span>;
     }
     if (position.member_id != null) {
       return (
@@ -225,7 +221,6 @@ function PositionCell({
               onClick={() =>
                 mutation.mutate({
                   is_reserve: true,
-                  has_no_assignment: false,
                   member_id: null,
                 })
               }
@@ -238,23 +233,8 @@ function PositionCell({
               size="sm"
               onClick={() =>
                 mutation.mutate({
-                  has_no_assignment: true,
-                  is_reserve: false,
-                  member_id: null,
-                })
-              }
-              disabled={mutation.isPending}
-            >
-              Mark No Assignment
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                mutation.mutate({
                   member_id: null,
                   is_reserve: false,
-                  has_no_assignment: false,
                 })
               }
               disabled={mutation.isPending}
@@ -499,7 +479,6 @@ function BuildingTableRow({
     (p) =>
       !p.is_disabled &&
       !p.is_reserve &&
-      !p.has_no_assignment &&
       p.member_id != null
   ).length;
   const activeCount = allPositions.filter((p) => !p.is_disabled).length;
@@ -805,16 +784,13 @@ export default function BoardPage() {
     (p) =>
       !p.is_disabled &&
       !p.is_reserve &&
-      !p.has_no_assignment &&
       p.member_id != null
   ).length;
   const reserveCount = allPositions.filter((p) => p.is_reserve).length;
-  const noAssignCount = allPositions.filter((p) => p.has_no_assignment).length;
   const emptyCount = allPositions.filter(
     (p) =>
       !p.is_disabled &&
       !p.is_reserve &&
-      !p.has_no_assignment &&
       p.member_id == null
   ).length;
   const disabledCount = allPositions.filter((p) => p.is_disabled).length;
@@ -930,7 +906,6 @@ export default function BoardPage() {
     updatePosition(siegeId, positionId, {
       member_id: memberId,
       is_reserve: false,
-      has_no_assignment: false,
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
     });
@@ -998,10 +973,6 @@ export default function BoardPage() {
         <span className="text-sm text-slate-600">
           <span className="font-semibold text-amber-600">{reserveCount}</span>{" "}
           reserve
-        </span>
-        <span className="text-sm text-slate-600">
-          <span className="font-semibold text-slate-500">{noAssignCount}</span>{" "}
-          N/A
         </span>
         <span className="text-sm text-slate-600">
           <span className="font-semibold text-orange-600">{emptyCount}</span>{" "}

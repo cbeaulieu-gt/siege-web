@@ -145,7 +145,6 @@ function MemberAssignRow({
       updatePosition(siegeId, positionId, {
         member_id: data.member_id,
         is_reserve: false,
-        has_no_assignment: false,
         matched_condition_id: data.matched_condition_id,
       }),
     onSuccess: () => {
@@ -350,7 +349,6 @@ function PostRow({
       updatePosition(siegeId, posId, {
         member_id: null,
         is_reserve: true,
-        has_no_assignment: false,
         matched_condition_id: null,
       }),
     onSuccess: () => {
