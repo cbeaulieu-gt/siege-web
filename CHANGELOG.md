@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Validation Rule 1 (member scroll budget) now correctly counts broken-building assignments toward the limit, restoring the error message in mixed-assignment scenarios (#273)
+- Validation Rule 2 (member scroll budget) now correctly counts broken-building assignments toward the limit, restoring the error message in mixed-assignment scenarios (#273)
 
 ### Infrastructure
 
