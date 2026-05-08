@@ -4,6 +4,7 @@ import { cn } from "../lib/utils";
 import { Info, LogOut, Shield } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { fetchConfig } from "../api/config";
+import ChangelogDropdown from "./ChangelogDropdown";
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   cn(
@@ -70,6 +71,7 @@ export default function Layout() {
                   <Info className="h-3.5 w-3.5" />
                   System
                 </NavLink>
+                <ChangelogDropdown />
                 {user && (
                   <>
                     <span className="text-sm text-slate-500">{user.name}</span>
