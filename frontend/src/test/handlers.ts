@@ -48,8 +48,12 @@ export const handlers = [
       discord_id: "111222333",
     })
   ),
-  http.get("/api/config", () =>
-    HttpResponse.json({ auth_disabled: false })
+  http.get("/api/config", () => HttpResponse.json({ auth_disabled: false })),
+  http.get("/api/changelog/status", () =>
+    HttpResponse.json({ last_seen_changelog_at: null })
+  ),
+  http.post("/api/changelog/mark-seen", () =>
+    HttpResponse.json({ last_seen_changelog_at: new Date().toISOString() })
   ),
   http.get("/api/sieges", () => HttpResponse.json([])),
   http.get("/api/members", () => HttpResponse.json([])),

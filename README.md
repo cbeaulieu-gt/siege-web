@@ -121,6 +121,10 @@ cd backend && black . && ruff check .
 cd frontend && npm run lint
 ```
 
+## Changelog
+
+The in-app changelog dropdown reads from `CHANGELOG.md` at the repo root. Parsing happens at build time via a Vite plugin (`frontend/src/build/changelog-plugin.ts`), so any edits to `CHANGELOG.md` require a frontend rebuild (`npm run build` or `npm run dev` restart) before they appear in the UI. The `[Unreleased]` section is included during `npm run dev` so you can preview work-in-progress entries locally, but it is stripped from production builds. If `CHANGELOG.md` is malformed — missing version headings or unparseable dates — the build fails with an error rather than silently producing an empty dropdown.
+
 ## Run it yourself
 
 Full self-host guides live in the [project wiki](https://github.com/glitchwerks/siege-web/wiki):

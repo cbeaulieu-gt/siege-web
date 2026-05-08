@@ -15,7 +15,8 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "types": ["node", "vitest/globals"]
   },
-  "include": ["vite.config.ts"]
+  "include": ["vite.config.ts", "src/build/**/*.ts", "src/test/build/**/*.ts"]
 }

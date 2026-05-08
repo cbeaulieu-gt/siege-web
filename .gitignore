@@ -25,6 +25,11 @@ out/
 # Vite
 .vite/
 
+# Vite plugin source (frontend/src/build/) is production TypeScript source — not a build artifact.
+# The top-level `build/` rule above would otherwise ignore it.
+!frontend/src/build/
+!frontend/src/test/build/
+
 # Coverage
 .coverage
 htmlcov/
