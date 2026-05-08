@@ -83,7 +83,6 @@ export interface PositionResponse {
   member_name: string | null;
   is_reserve: boolean;
   is_disabled: boolean;
-  has_no_assignment: boolean;
   matched_condition_id: number | null;
 }
 

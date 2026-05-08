@@ -46,7 +46,6 @@ function makePosition(
     member_name: null,
     is_reserve: false,
     is_disabled: false,
-    has_no_assignment: false,
     matched_condition_id: null,
     ...overrides,
   };

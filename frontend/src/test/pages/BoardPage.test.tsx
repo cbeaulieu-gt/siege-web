@@ -3,9 +3,9 @@
  *
  * Covers:
  *  - Loading state while board data is fetched
- *  - Summary bar slot counts (assigned / reserve / N/A / empty / disabled)
+ *  - Summary bar slot counts (assigned / reserve / empty / disabled)
  *  - Position cell visual states rendered from board API data
- *  - Context-menu actions: Mark RESERVE, Mark No Assignment, Clear, Assign member
+ *  - Context-menu actions: Mark RESERVE, Clear, Assign member
  *  - MemberBucket search and role-filter interactions
  *  - Locked (siege complete) board — context menu button hidden, auto-fill disabled
  *  - Validation dialog: error-severity rows render with red badge and message
@@ -46,7 +46,6 @@ function makePosition(
     member_name: null,
     is_reserve: false,
     is_disabled: false,
-    has_no_assignment: false,
     matched_condition_id: null,
     ...overrides,
   };
@@ -156,9 +155,8 @@ describe("BoardPage — summary bar", () => {
         member_name: "Aethon",
       }), // assigned
       makePosition({ id: 2, position_number: 2, is_reserve: true }), // reserve
-      makePosition({ id: 3, position_number: 3, has_no_assignment: true }), // N/A
-      makePosition({ id: 4, position_number: 4 }), // empty
-      makePosition({ id: 5, position_number: 5, is_disabled: true }), // disabled
+      makePosition({ id: 3, position_number: 3 }), // empty
+      makePosition({ id: 4, position_number: 4, is_disabled: true }), // disabled
     ];
     setupDefaultHandlers(makeBoard(positions), makeSiege(), [
       makeSiegeMember({ member_id: 7, member_name: "Aethon" }),
@@ -169,10 +167,10 @@ describe("BoardPage — summary bar", () => {
       expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
     );
 
-    // Summary bar contains "5 total"
+    // Summary bar contains "4 total"
     const summaryBar = screen.getByText("total").closest("div")!;
-    expect(within(summaryBar).getByText("5")).toBeInTheDocument();
-    // assigned, reserve, N/A, empty each show '1'; disabled also '1'
+    expect(within(summaryBar).getByText("4")).toBeInTheDocument();
+    // assigned, reserve, empty, disabled each show '1'
     const ones = within(summaryBar).getAllByText("1");
     expect(ones.length).toBeGreaterThanOrEqual(4);
   });
@@ -206,18 +204,6 @@ describe("BoardPage — position cell states", () => {
       expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
     );
     expect(screen.getByText("RESERVE")).toBeInTheDocument();
-  });
-
-  it("renders N/A text for a no-assignment position", async () => {
-    const positions = [makePosition({ id: 1, has_no_assignment: true })];
-    setupDefaultHandlers(makeBoard(positions));
-    renderBoard();
-
-    await waitFor(() =>
-      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
-    );
-    // N/A appears in both the position cell and the summary bar label
-    expect(screen.getAllByText("N/A").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders DISABLED text with strikethrough style for a disabled position", async () => {
@@ -298,42 +284,6 @@ describe("BoardPage — position context menu", () => {
     await waitFor(() => expect(capturedBody).not.toBeNull());
     expect(capturedBody).toMatchObject({
       is_reserve: true,
-      has_no_assignment: false,
-      member_id: null,
-    });
-  });
-
-  it("calls the update endpoint with has_no_assignment=true when Mark No Assignment is clicked", async () => {
-    const user = userEvent.setup();
-    const positions = [makePosition({ id: 56, position_number: 1 })];
-    setupDefaultHandlers(makeBoard(positions));
-
-    let capturedBody: Record<string, unknown> | null = null;
-    server.use(
-      http.put("/api/sieges/42/positions/56", async ({ request }) => {
-        capturedBody = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json(
-          makePosition({ id: 56, position_number: 1, has_no_assignment: true })
-        );
-      })
-    );
-
-    renderBoard();
-    await waitFor(() =>
-      expect(screen.queryByText(/loading board/i)).not.toBeInTheDocument()
-    );
-
-    const cell = screen.getByText("1.").closest("div")!;
-    await user.hover(cell);
-    await user.click(cell.querySelector("button")!);
-    await user.click(
-      screen.getByRole("button", { name: /mark no assignment/i })
-    );
-
-    await waitFor(() => expect(capturedBody).not.toBeNull());
-    expect(capturedBody).toMatchObject({
-      has_no_assignment: true,
-      is_reserve: false,
       member_id: null,
     });
   });
@@ -374,7 +324,6 @@ describe("BoardPage — position context menu", () => {
     expect(capturedBody).toMatchObject({
       member_id: null,
       is_reserve: false,
-      has_no_assignment: false,
     });
   });
 
