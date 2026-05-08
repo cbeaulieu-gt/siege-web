@@ -193,6 +193,10 @@ jobs:
             ${{ matrix.context }}
           docker push "${IMAGE}:${{ github.sha }}"
 
+      - name: Clean up staged CHANGELOG.md
+        if: matrix.service == 'siege-frontend' && always()
+        run: rm -f frontend/CHANGELOG.md
+
       - name: Push to prod ACR
         if: vars.PROD_ACR_NAME != ''
         run: |

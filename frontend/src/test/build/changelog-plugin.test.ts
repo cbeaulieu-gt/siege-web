@@ -35,6 +35,15 @@ describe("findChangelogPath — dev path", () => {
     const result = findChangelogPath(DEV_DIRNAME, (p) => p === devCandidate);
     expect(result).toBe(devCandidate);
   });
+
+  it("returns the dev candidate when both candidate files exist (dev wins)", () => {
+    // Both paths exist — Array.find returns the first match, which is the dev
+    // (three-level) path. This test documents the priority and guards against
+    // a future refactor that replaces Array.find with something unordered.
+    const devCandidate = resolve(DEV_DIRNAME, "../../../CHANGELOG.md");
+    const result = findChangelogPath(DEV_DIRNAME, () => true);
+    expect(result).toBe(devCandidate);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -151,6 +151,10 @@ jobs:
       - name: Build frontend image
         run: docker build -f frontend/Dockerfile -t siege-frontend:ci ./frontend
 
+      - name: Clean up staged CHANGELOG.md
+        if: always()
+        run: rm -f frontend/CHANGELOG.md
+
 
   claude-lint-fix:
     name: Claude Lint Fix
