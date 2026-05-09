@@ -33,3 +33,15 @@ class PowerLevel(enum.StrEnum):
 class NotificationBatchStatus(enum.StrEnum):
     pending = "pending"
     completed = "completed"
+
+
+# Human-readable display labels for each BuildingType value.
+# Used in user-facing validation messages so "magic_tower" renders as
+# "Magic Tower" rather than leaking the raw enum string.
+BUILDING_TYPE_LABELS: dict["BuildingType", str] = {
+    BuildingType.stronghold: "Stronghold",
+    BuildingType.mana_shrine: "Mana Shrine",
+    BuildingType.magic_tower: "Magic Tower",
+    BuildingType.defense_tower: "Defense Tower",
+    BuildingType.post: "Post",
+}

@@ -382,7 +382,7 @@ async def test_rule2_within_scroll_count():
 
 @pytest.mark.asyncio
 async def test_rule3_invalid_building_number():
-    """Rule 3: building_number=0 for stronghold (valid: 1) → error."""
+    """Rule 3: building_number=0 for stronghold → friendly label, no id= leak."""
     building = _make_building(id=1, building_type=BuildingType.stronghold, building_number=0)
     building.groups = []
     siege = _make_siege()
@@ -392,6 +392,14 @@ async def test_rule3_invalid_building_number():
     result = await svc_validate(session, 1)
     rule3_errors = [e for e in result.errors if e.rule == 3]
     assert len(rule3_errors) >= 1
+    msg = rule3_errors[0].message
+    assert "id=" not in msg, f"Message must not expose raw id, got: {msg!r}"
+    assert "stronghold" not in msg, f"Message must not expose raw enum, got: {msg!r}"
+    assert "Stronghold" in msg, f"Message must show friendly label, got: {msg!r}"
+    assert "0" in msg, f"Message must include the invalid number, got: {msg!r}"
+    # context dict must still carry machine-readable handles
+    assert rule3_errors[0].context["building_id"] == 1
+    assert rule3_errors[0].context["building_type"] == "stronghold"
 
 
 @pytest.mark.asyncio
@@ -650,7 +658,7 @@ async def test_rule10_empty_unresolved_slot():
 
 @pytest.mark.asyncio
 async def test_rule10_message_uses_position_name():
-    """Rule 10 message uses human-readable name, not raw position id."""
+    """Rule 10 message uses friendly building label, not raw enum value."""
     pos = _make_position(
         id=3090, position_number=2, member_id=None, is_disabled=False, is_reserve=False
     )
@@ -667,8 +675,12 @@ async def test_rule10_message_uses_position_name():
     assert len(rule10_warnings) >= 1
     msg = rule10_warnings[0].message
     assert "id=" not in msg, f"Message must not expose raw id, got: {msg!r}"
+    assert "stronghold" not in msg, f"Message must not expose raw enum, got: {msg!r}"
+    assert "Stronghold" in msg, f"Message must show friendly label, got: {msg!r}"
     assert "Group 3" in msg, f"Message must contain group number, got: {msg!r}"
     assert "Position 2" in msg, f"Message must contain position number, got: {msg!r}"
+    # context dict must still carry machine-readable handles
+    assert rule10_warnings[0].context["building_type"] == "stronghold"
 
 
 @pytest.mark.asyncio
