@@ -12,9 +12,6 @@ permissions:
 jobs:
   fix:
     uses: glitchwerks/github-actions/.github/workflows/ci-failure.yaml@v2.6.1
-    secrets:
-      claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-      app_id: ${{ secrets.APP_ID }}
-      app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+    secrets: inherit
     with:
       auto_apply: true
