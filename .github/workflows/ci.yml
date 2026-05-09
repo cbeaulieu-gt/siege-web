@@ -160,7 +160,7 @@ jobs:
     name: Claude Lint Fix
     needs: [backend-ci, frontend-ci, bot-ci]
     if: failure() && github.event_name == 'pull_request'
-    uses: glitchwerks/github-actions/.github/workflows/claude-lint-fix.yml@v2.3.0
+    uses: glitchwerks/github-actions/.github/workflows/claude-lint-fix.yml@v2.6.1
     secrets:
       claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
       app_id: ${{ secrets.APP_ID }}
