@@ -391,10 +391,19 @@ async def test_missing_xff_in_production_logs_warning(monkeypatch, caplog):
     monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
     monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
 
-    with caplog.at_level(logging.WARNING, logger="app.rate_limit"):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            # No X-Forwarded-For header — simulates direct backend access.
-            await _get(client, LOGIN_URL)
+    # caplog.set_level is used instead of the caplog.at_level context manager
+    # because it persists for the entire test and is managed by pytest's fixture
+    # teardown, which works correctly across Python versions and operating systems.
+    # caplog.at_level() as a context manager can miss records emitted from
+    # thread-pool threads (via asyncio run_in_executor) on Python 3.12 / Linux
+    # due to handler-level initialisation differences in catching_logs when
+    # log_level is not set in pyproject.toml.  The log_level = "WARNING" entry
+    # in pyproject.toml (added alongside this fix) addresses the root cause;
+    # caplog.set_level here is belt-and-suspenders so the intent is explicit.
+    caplog.set_level(logging.WARNING, logger="app.rate_limit")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # No X-Forwarded-For header — simulates direct backend access.
+        await _get(client, LOGIN_URL)
 
     warning_records = [
         r for r in caplog.records if r.levelno == logging.WARNING and "X-Forwarded-For" in r.message
@@ -468,11 +477,14 @@ async def test_concurrent_absent_xff_in_production_warns_exactly_once(monkeypatc
         req = StarletteRequest(scope)
         _get_client_ip(req)
 
-    with caplog.at_level(logging.WARNING, logger="app.rate_limit"):
-        with ThreadPoolExecutor(max_workers=N) as pool:
-            futures = [pool.submit(_call_get_client_ip) for _ in range(N)]
-            for f in futures:
-                f.result()  # surface any exceptions
+    # caplog.set_level persists for the full test so the handler is guaranteed
+    # at WARNING before the thread pool is submitted.  See comment in
+    # test_missing_xff_in_production_logs_warning for the full rationale.
+    caplog.set_level(logging.WARNING, logger="app.rate_limit")
+    with ThreadPoolExecutor(max_workers=N) as pool:
+        futures = [pool.submit(_call_get_client_ip) for _ in range(N)]
+        for f in futures:
+            f.result()  # surface any exceptions
 
     absent_warnings = [
         r
@@ -504,13 +516,15 @@ async def test_invalid_xff_in_production_logs_warning(monkeypatch, caplog):
     monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
     monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
 
-    with caplog.at_level(logging.WARNING, logger="app.rate_limit"):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            await _get(
-                client,
-                LOGIN_URL,
-                headers={"X-Forwarded-For": "not-a-valid-ip"},
-            )
+    # caplog.set_level persists for the full test.  See comment in
+    # test_missing_xff_in_production_logs_warning for the full rationale.
+    caplog.set_level(logging.WARNING, logger="app.rate_limit")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        await _get(
+            client,
+            LOGIN_URL,
+            headers={"X-Forwarded-For": "not-a-valid-ip"},
+        )
 
     invalid_warnings = [
         r
@@ -568,14 +582,16 @@ async def test_invalid_xff_warning_is_throttled_to_once_per_window(monkeypatch, 
     monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
     monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
 
-    with caplog.at_level(logging.WARNING, logger="app.rate_limit"):
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            for _ in range(5):
-                await _get(
-                    client,
-                    LOGIN_URL,
-                    headers={"X-Forwarded-For": "bad-ip-value"},
-                )
+    # caplog.set_level persists for the full test.  See comment in
+    # test_missing_xff_in_production_logs_warning for the full rationale.
+    caplog.set_level(logging.WARNING, logger="app.rate_limit")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        for _ in range(5):
+            await _get(
+                client,
+                LOGIN_URL,
+                headers={"X-Forwarded-For": "bad-ip-value"},
+            )
 
     invalid_warnings = [
         r
