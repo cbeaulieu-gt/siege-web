@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 from app.models.building import Building
 from app.models.building_group import BuildingGroup
 from app.models.building_type_config import BuildingTypeConfig
-from app.models.enums import BuildingType, MemberRole
+from app.models.enums import BUILDING_TYPE_LABELS, BuildingType, MemberRole
 from app.models.member import Member
 from app.models.position import Position
 from app.models.post import Post
@@ -135,7 +135,7 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
                     ValidationIssue(
                         rule=3,
                         message=(
-                            f"Building id={building.id} ({building.building_type}) has number "
+                            f"{BUILDING_TYPE_LABELS[building.building_type]} has number "
                             f"{building.building_number} outside valid range [1, {config.count}]"
                         ),
                         context={
@@ -260,7 +260,8 @@ async def validate_siege(session: AsyncSession, siege_id: int) -> ValidationResu
                 ValidationIssue(
                     rule=10,
                     message=(
-                        f"{building.building_type} {building.building_number} "
+                        f"{BUILDING_TYPE_LABELS[building.building_type]} "
+                        f"{building.building_number} "
                         f"Group {group.group_number} Position {pos.position_number} "
                         f"is unassigned, not disabled, and not marked reserve"
                     ),
