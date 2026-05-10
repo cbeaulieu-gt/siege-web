@@ -53,6 +53,7 @@ function makePreview(
         current_member_id: null,
         current_member_name: null,
         current_condition_id: null,
+        current_condition_description: null,
         matches_current: false,
         skip_reason: null,
       },
@@ -68,6 +69,7 @@ function makePreview(
         current_member_id: null,
         current_member_name: null,
         current_condition_id: null,
+        current_condition_description: null,
         matches_current: false,
         skip_reason: "no_match",
       },
@@ -103,9 +105,7 @@ describe("PostSuggestionsModal", () => {
     renderModal();
 
     // Wait for the table to appear (preview request resolves)
-    await waitFor(() =>
-      expect(screen.getByText("Alice")).toBeInTheDocument()
-    );
+    await waitFor(() => expect(screen.getByText("Alice")).toBeInTheDocument());
 
     // Row for skipped post
     expect(screen.getByText("No match found")).toBeInTheDocument();
@@ -152,6 +152,7 @@ describe("PostSuggestionsModal", () => {
           current_member_id: null,
           current_member_name: null,
           current_condition_id: null,
+          current_condition_description: null,
           matches_current: false,
           skip_reason: null,
         },
@@ -167,6 +168,7 @@ describe("PostSuggestionsModal", () => {
           current_member_id: null,
           current_member_name: null,
           current_condition_id: null,
+          current_condition_description: null,
           matches_current: false,
           skip_reason: null,
         },
@@ -177,10 +179,13 @@ describe("PostSuggestionsModal", () => {
       http.post("/api/sieges/42/post-suggestions", () =>
         HttpResponse.json(twoSuggestions)
       ),
-      http.post("/api/sieges/42/post-suggestions/apply", async ({ request }) => {
-        capturedBody = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ applied_count: 1 });
-      })
+      http.post(
+        "/api/sieges/42/post-suggestions/apply",
+        async ({ request }) => {
+          capturedBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ applied_count: 1 });
+        }
+      )
     );
 
     const user = userEvent.setup();
@@ -195,15 +200,17 @@ describe("PostSuggestionsModal", () => {
     await user.click(checkboxes[0]);
 
     // Apply — only Bob (103) should be in payload
-    const applyBtn = screen.getByRole("button", { name: /apply selected \(1\)/i });
+    const applyBtn = screen.getByRole("button", {
+      name: /apply selected \(1\)/i,
+    });
     await user.click(applyBtn);
 
     await waitFor(() => {
       expect(capturedBody).not.toBeNull();
     });
 
-    expect((capturedBody!.apply_position_ids as number[])).not.toContain(101);
-    expect((capturedBody!.apply_position_ids as number[])).toContain(103);
+    expect(capturedBody!.apply_position_ids as number[]).not.toContain(101);
+    expect(capturedBody!.apply_position_ids as number[]).toContain(103);
   });
 
   it("apply success invalidates board query and closes modal", async () => {
@@ -241,9 +248,7 @@ describe("PostSuggestionsModal", () => {
         HttpResponse.json(
           {
             detail: {
-              stale_entries: [
-                { position_id: 101, reason: "member_changed" },
-              ],
+              stale_entries: [{ position_id: 101, reason: "member_changed" }],
             },
           },
           { status: 409 }
@@ -298,6 +303,7 @@ describe("PostSuggestionsModal", () => {
                   current_member_id: null,
                   current_member_name: null,
                   current_condition_id: null,
+                  current_condition_description: null,
                   matches_current: false,
                   skip_reason: null,
                 },
