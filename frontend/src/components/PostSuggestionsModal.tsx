@@ -25,6 +25,7 @@ import {
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Checkbox } from "./ui/checkbox";
+import { priorityLabel, priorityBadgeColor } from "../lib/post-priority";
 
 interface Props {
   open: boolean;
@@ -41,10 +42,7 @@ const SKIP_REASON_LABEL: Record<
   disabled: "Position is disabled",
 };
 
-const STALE_REASON_LABEL: Record<
-  PostSuggestionStaleEntry["reason"],
-  string
-> = {
+const STALE_REASON_LABEL: Record<PostSuggestionStaleEntry["reason"], string> = {
   position_missing: "position was removed",
   position_disabled: "position was disabled",
   position_reserve: "position was set to reserve",
@@ -99,7 +97,10 @@ export default function PostSuggestionsModal({
     onError: (err: unknown) => {
       // Check for structured 409 stale_entries response
       const axiosErr = err as {
-        response?: { status?: number; data?: { detail?: { stale_entries?: PostSuggestionStaleEntry[] } } };
+        response?: {
+          status?: number;
+          data?: { detail?: { stale_entries?: PostSuggestionStaleEntry[] } };
+        };
       };
       if (
         axiosErr.response?.status === 409 &&
@@ -142,9 +143,7 @@ export default function PostSuggestionsModal({
   function handleApply() {
     if (!preview) return;
     const selectedIds = preview.assignments
-      .filter(
-        (e) => e.suggested_member_id !== null && checked[e.position_id]
-      )
+      .filter((e) => e.suggested_member_id !== null && checked[e.position_id])
       .map((e) => e.position_id);
     applyMutation.mutate(selectedIds);
   }
@@ -223,7 +222,7 @@ export default function PostSuggestionsModal({
             <p className="text-sm text-slate-500">Generating suggestions…</p>
           )}
 
-          {/* Assignment table */}
+          {/* Assignment table — sorted by post number for stable scan order */}
           {preview && preview.assignments.length > 0 && (
             <div className="max-h-[28rem] overflow-y-auto rounded-lg border border-slate-200">
               <Table>
@@ -238,81 +237,100 @@ export default function PostSuggestionsModal({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {preview.assignments.map((entry) => {
-                    const isSkipped = entry.suggested_member_id === null;
-                    const isStale = !!staleByPositionId[entry.position_id];
-                    return (
-                      <TableRow
-                        key={entry.position_id}
-                        className={isStale ? "bg-amber-50" : undefined}
-                      >
-                        <TableCell>
-                          <Checkbox
-                            checked={
-                              !isSkipped && !!checked[entry.position_id]
-                            }
-                            disabled={isSkipped}
-                            onCheckedChange={() =>
-                              !isSkipped && toggleCheck(entry.position_id)
-                            }
-                          />
-                        </TableCell>
+                  {[...preview.assignments]
+                    .sort((a, b) => a.building_number - b.building_number)
+                    .map((entry) => {
+                      const isSkipped = entry.suggested_member_id === null;
+                      const isStale = !!staleByPositionId[entry.position_id];
+                      // Row tint:
+                      //   stale (post-409)        → amber
+                      //   suggestion = current    → muted slate (no change)
+                      //   suggestion ≠ current    → emerald (new assignment)
+                      //   skipped                 → default
+                      let rowClass: string | undefined;
+                      if (isStale) {
+                        rowClass = "bg-amber-50";
+                      } else if (isSkipped) {
+                        rowClass = undefined;
+                      } else if (entry.matches_current) {
+                        rowClass = "bg-slate-50 text-slate-500";
+                      } else {
+                        rowClass = "bg-emerald-50";
+                      }
+                      return (
+                        <TableRow key={entry.position_id} className={rowClass}>
+                          <TableCell>
+                            <Checkbox
+                              checked={
+                                !isSkipped && !!checked[entry.position_id]
+                              }
+                              disabled={isSkipped}
+                              onCheckedChange={() =>
+                                !isSkipped && toggleCheck(entry.position_id)
+                              }
+                            />
+                          </TableCell>
 
-                        <TableCell className="font-medium">
-                          {entry.building_number}
-                        </TableCell>
+                          <TableCell className="font-medium">
+                            {entry.building_number}
+                          </TableCell>
 
-                        <TableCell>
-                          <Badge variant="outline">{entry.priority}</Badge>
-                        </TableCell>
-
-                        <TableCell className="text-sm text-slate-600">
-                          {entry.current_member_name ? (
-                            <span>
-                              {entry.current_member_name}
-                              {entry.current_condition_id && (
-                                <span className="ml-1 text-xs text-slate-400">
-                                  (cond #{entry.current_condition_id})
-                                </span>
-                              )}
+                          <TableCell>
+                            <span
+                              className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${priorityBadgeColor(entry.priority)}`}
+                            >
+                              {priorityLabel(entry.priority)}
                             </span>
-                          ) : (
-                            <span className="italic text-slate-400">—</span>
-                          )}
-                        </TableCell>
+                          </TableCell>
 
-                        <TableCell className="text-sm">
-                          {isSkipped ? (
-                            <span className="italic text-slate-400">
-                              {SKIP_REASON_LABEL[entry.skip_reason!]}
-                            </span>
-                          ) : (
-                            <span>
-                              {entry.suggested_member_name}
-                              {entry.suggested_condition_description && (
-                                <span className="ml-1 text-xs text-slate-500">
-                                  ({entry.suggested_condition_description})
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </TableCell>
+                          {/* Current cell: member name on top, condition smaller below */}
+                          <TableCell className="text-sm">
+                            {entry.current_member_name ? (
+                              <div className="leading-tight">
+                                <div className="text-slate-700">
+                                  {entry.current_member_name}
+                                </div>
+                                {entry.current_condition_description && (
+                                  <div className="text-xs text-slate-400">
+                                    {entry.current_condition_description}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="italic text-slate-400">—</span>
+                            )}
+                          </TableCell>
 
-                        <TableCell>
-                          {entry.matches_current && (
-                            <Badge variant="outline" className="text-xs text-slate-500">
-                              = current
-                            </Badge>
-                          )}
-                          {isStale && (
-                            <Badge variant="yellow" className="text-xs">
-                              stale
-                            </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
+                          {/* Suggested cell: same vertical stack, or skip reason */}
+                          <TableCell className="text-sm">
+                            {isSkipped ? (
+                              <span className="italic text-slate-400">
+                                {SKIP_REASON_LABEL[entry.skip_reason!]}
+                              </span>
+                            ) : (
+                              <div className="leading-tight">
+                                <div className="font-medium text-slate-800">
+                                  {entry.suggested_member_name}
+                                </div>
+                                {entry.suggested_condition_description && (
+                                  <div className="text-xs text-slate-500">
+                                    {entry.suggested_condition_description}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </TableCell>
+
+                          <TableCell>
+                            {isStale && (
+                              <Badge variant="yellow" className="text-xs">
+                                stale
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                 </TableBody>
               </Table>
             </div>

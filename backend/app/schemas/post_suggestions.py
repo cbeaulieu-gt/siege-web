@@ -31,6 +31,8 @@ class PostSuggestionEntry(BaseModel):
         current_member_name: Display name of the current member, or None.
         current_condition_id: The matched_condition_id currently on the
             position, or None.
+        current_condition_description: Human-readable text of the current
+            matched condition, or None.
         matches_current: True when the suggestion exactly matches the
             existing assignment.  Always False when suggested_member_id is
             None.
@@ -53,6 +55,7 @@ class PostSuggestionEntry(BaseModel):
     current_member_id: int | None
     current_member_name: str | None
     current_condition_id: int | None
+    current_condition_description: str | None
     matches_current: bool
     skip_reason: Literal["no_match", "reserve", "disabled"] | None
 

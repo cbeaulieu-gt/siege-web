@@ -98,7 +98,8 @@ async def preview_post_suggestions(
             selectinload(Siege.posts)
             .selectinload(Post.building)
             .selectinload(Building.groups)
-            .selectinload(BuildingGroup.positions),
+            .selectinload(BuildingGroup.positions)
+            .selectinload(Position.matched_condition),
             selectinload(Siege.posts).selectinload(Post.active_conditions),
             selectinload(Siege.siege_members)
             .selectinload(SiegeMember.member)
@@ -170,6 +171,13 @@ async def preview_post_suggestions(
         current_member_id = position.member_id
         current_member_name = position.member.name if position.member is not None else None
         current_condition_id = position.matched_condition_id
+        # `getattr` shim so SimpleNamespace test fixtures (which don't
+        # include the relationship) still work alongside real ORM objects
+        # where `matched_condition` is loaded via selectinload above.
+        matched_condition = getattr(position, "matched_condition", None)
+        current_condition_description = (
+            matched_condition.description if matched_condition is not None else None
+        )
 
         if position.is_reserve:
             assignments.append(
@@ -180,6 +188,7 @@ async def preview_post_suggestions(
                     current_member_id=current_member_id,
                     current_member_name=current_member_name,
                     current_condition_id=current_condition_id,
+                    current_condition_description=current_condition_description,
                 )
             )
             continue
@@ -193,6 +202,7 @@ async def preview_post_suggestions(
                     current_member_id=current_member_id,
                     current_member_name=current_member_name,
                     current_condition_id=current_condition_id,
+                    current_condition_description=current_condition_description,
                 )
             )
             continue
@@ -211,6 +221,7 @@ async def preview_post_suggestions(
                     current_member_id=current_member_id,
                     current_member_name=current_member_name,
                     current_condition_id=current_condition_id,
+                    current_condition_description=current_condition_description,
                 )
             )
             continue
@@ -259,6 +270,7 @@ async def preview_post_suggestions(
                 current_member_id=current_member_id,
                 current_member_name=current_member_name,
                 current_condition_id=current_condition_id,
+                current_condition_description=current_condition_description,
                 matches_current=matches_current,
                 skip_reason=None,
             )
@@ -487,6 +499,7 @@ def _null_entry(
     current_member_id: int | None = None,
     current_member_name: str | None = None,
     current_condition_id: int | None = None,
+    current_condition_description: str | None = None,
 ) -> PostSuggestionEntry:
     """Build a PostSuggestionEntry with no suggestion (skipped post).
 
@@ -514,6 +527,7 @@ def _null_entry(
         current_member_id=current_member_id,
         current_member_name=current_member_name,
         current_condition_id=current_condition_id,
+        current_condition_description=current_condition_description,
         matches_current=False,
         skip_reason=skip_reason,
     )

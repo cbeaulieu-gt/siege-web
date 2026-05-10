@@ -267,6 +267,7 @@ export interface PostSuggestionEntry {
   current_member_id: number | null;
   current_member_name: string | null;
   current_condition_id: number | null;
+  current_condition_description: string | null;
   matches_current: boolean;
   skip_reason: PostSuggestionSkipReason | null;
 }

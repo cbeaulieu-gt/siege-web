@@ -19,6 +19,7 @@ import type {
 } from "../api/types";
 import { Button } from "./ui/button";
 import PostSuggestionsModal from "./PostSuggestionsModal";
+import { PRIORITY_LABELS, PRIORITY_BADGE_COLORS } from "../lib/post-priority";
 
 // ─── Constants (duplicated from BoardPage to keep this file self-contained) ───
 
@@ -49,20 +50,6 @@ const POWER_LABELS: Record<string, string> = {
   "16_20m": "16-20M",
   "21_25m": "21-25M",
   gt_25m: ">25M",
-};
-
-const PRIORITY_LABELS: Record<number, string> = {
-  0: "Unset",
-  1: "Low",
-  2: "Medium",
-  3: "High",
-};
-
-const PRIORITY_BADGE_COLORS: Record<number, string> = {
-  0: "bg-slate-100 text-slate-400",
-  1: "bg-slate-100 text-slate-600",
-  2: "bg-amber-100 text-amber-700",
-  3: "bg-red-100 text-red-700",
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -738,24 +725,24 @@ export function PostsTab({
       </div>
 
       <div className="space-y-2">
-      {sortedPostBuildings.map((building) => {
-        const post = postByNumber.get(building.building_number);
-        return (
-          <PostRow
-            key={building.id}
-            postBuilding={building}
-            siegeId={siegeId}
-            siegeMembers={siegeMembers}
-            preferenceMap={preferenceMap}
-            duplicateMap={duplicateMap}
-            isLocked={isLocked}
-            postNumber={building.building_number}
-            priority={post?.priority ?? 1}
-            priorityDescription={post?.description ?? null}
-            activeConditions={post?.active_conditions ?? []}
-          />
-        );
-      })}
+        {sortedPostBuildings.map((building) => {
+          const post = postByNumber.get(building.building_number);
+          return (
+            <PostRow
+              key={building.id}
+              postBuilding={building}
+              siegeId={siegeId}
+              siegeMembers={siegeMembers}
+              preferenceMap={preferenceMap}
+              duplicateMap={duplicateMap}
+              isLocked={isLocked}
+              postNumber={building.building_number}
+              priority={post?.priority ?? 1}
+              priorityDescription={post?.description ?? null}
+              activeConditions={post?.active_conditions ?? []}
+            />
+          );
+        })}
       </div>
 
       <PostSuggestionsModal
