@@ -10,6 +10,11 @@
  * 5. Apply 409 with stale_entries → modal stays open, stale conflict shown, board NOT invalidated.
  * 6. "Regenerate" button re-fires the preview request.
  * 7. Filter tiles hide/show rows by outcome classification.
+ * 8. Already-optimal row (matches_current: true) has a disabled checkbox.
+ * 9. Empty preview renders the empty state copy.
+ * 10. Loading state shows the spinner copy.
+ * 11. Non-409 error shows the generic error banner.
+ * 12. "Apply remaining N" re-issues apply with only non-stale IDs.
  */
 
 import { screen, waitFor, within } from "@testing-library/react";
@@ -394,5 +399,210 @@ describe("PostSuggestionsModal", () => {
     expect(
       screen.getByText("No member matches any of the post conditions")
     ).toBeInTheDocument();
+  });
+
+  it("already-optimal row (matches_current: true) has a disabled checkbox", async () => {
+    // Build a preview where one entry matches_current: true (same outcome)
+    const optimalPreview = makePreview({
+      assignments: [
+        {
+          post_id: 1,
+          building_number: 3,
+          priority: 3,
+          position_id: 101,
+          suggested_member_id: 42,
+          suggested_member_name: "Alice",
+          suggested_condition_id: 10,
+          suggested_condition_description: "Attack Lv1",
+          current_member_id: 42,
+          current_member_name: "Alice",
+          current_condition_id: 10,
+          current_condition_description: "Attack Lv1",
+          matches_current: true,
+          skip_reason: null,
+        },
+      ],
+    });
+
+    server.use(
+      http.post("/api/sieges/42/post-suggestions", () =>
+        HttpResponse.json(optimalPreview)
+      )
+    );
+
+    renderModal();
+
+    await waitFor(() => expect(screen.getByText("Alice")).toBeInTheDocument());
+
+    const rows = screen.getAllByRole("row");
+    // Header row + 1 data row
+    const dataRow = rows[1];
+    const checkbox = within(dataRow).getByRole("checkbox");
+    expect(checkbox).toBeDisabled();
+  });
+
+  it("empty preview renders the empty state copy", async () => {
+    server.use(
+      http.post("/api/sieges/42/post-suggestions", () =>
+        HttpResponse.json(makePreview({ assignments: [] }))
+      )
+    );
+
+    renderModal();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("No posts on this siege")
+      ).toBeInTheDocument()
+    );
+
+    // No table rows should be rendered
+    expect(screen.queryAllByRole("row")).toHaveLength(0);
+  });
+
+  it("loading state shows the spinner copy", async () => {
+    // Mock preview to never resolve so we stay in loading state
+    server.use(
+      http.post("/api/sieges/42/post-suggestions", () =>
+        new Promise<never>(() => {})
+      )
+    );
+
+    renderModal();
+
+    // The loading copy should be visible immediately
+    expect(screen.getByText("Generating suggestions…")).toBeInTheDocument();
+  });
+
+  it("non-409 error shows the generic error banner", async () => {
+    server.use(
+      http.post("/api/sieges/42/post-suggestions", () =>
+        HttpResponse.json(makePreview())
+      ),
+      http.post("/api/sieges/42/post-suggestions/apply", () =>
+        HttpResponse.json({ detail: "Internal server error" }, { status: 500 })
+      )
+    );
+
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    renderModal({ onClose });
+
+    await waitFor(() => expect(screen.getByText("Alice")).toBeInTheDocument());
+
+    const applyBtn = screen.getByRole("button", { name: /apply/i });
+    await user.click(applyBtn);
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Failed to apply suggestions. Please try again.")
+      ).toBeInTheDocument()
+    );
+
+    // Modal should still be open
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("Apply remaining re-issues apply with only non-stale IDs", async () => {
+    let applyCallCount = 0;
+    let secondApplyBody: Record<string, unknown> | null = null;
+
+    // Two actionable rows: positions 101 and 103
+    const twoRows = makePreview({
+      assignments: [
+        {
+          post_id: 1,
+          building_number: 3,
+          priority: 3,
+          position_id: 101,
+          suggested_member_id: 42,
+          suggested_member_name: "Alice",
+          suggested_condition_id: 10,
+          suggested_condition_description: "Attack Lv1",
+          current_member_id: null,
+          current_member_name: null,
+          current_condition_id: null,
+          current_condition_description: null,
+          matches_current: false,
+          skip_reason: null,
+        },
+        {
+          post_id: 3,
+          building_number: 5,
+          priority: 2,
+          position_id: 103,
+          suggested_member_id: 55,
+          suggested_member_name: "Bob",
+          suggested_condition_id: 11,
+          suggested_condition_description: "Defense Lv2",
+          current_member_id: null,
+          current_member_name: null,
+          current_condition_id: null,
+          current_condition_description: null,
+          matches_current: false,
+          skip_reason: null,
+        },
+      ],
+    });
+
+    server.use(
+      http.post("/api/sieges/42/post-suggestions", () =>
+        HttpResponse.json(twoRows)
+      ),
+      http.post(
+        "/api/sieges/42/post-suggestions/apply",
+        async ({ request }) => {
+          applyCallCount++;
+          if (applyCallCount === 1) {
+            // First call: return 409 with position 101 as stale
+            return HttpResponse.json(
+              {
+                detail: {
+                  stale_entries: [
+                    { position_id: 101, reason: "member_changed" },
+                  ],
+                },
+              },
+              { status: 409 }
+            );
+          }
+          // Second call: capture the body and return success
+          secondApplyBody = (await request.json()) as Record<string, unknown>;
+          return HttpResponse.json({ applied_count: 1 });
+        }
+      )
+    );
+
+    const user = userEvent.setup();
+    renderModal();
+
+    await waitFor(() => expect(screen.getByText("Alice")).toBeInTheDocument());
+
+    // Trigger the first apply → 409
+    const applyBtn = screen.getByRole("button", { name: /apply/i });
+    await user.click(applyBtn);
+
+    // Wait for the stale-conflict state to appear
+    await waitFor(() =>
+      expect(
+        screen.getByText(/another planner assigned a different member/i)
+      ).toBeInTheDocument()
+    );
+
+    // Click "Apply remaining N" button
+    const applyRemainingBtn = screen.getByRole("button", {
+      name: /apply remaining/i,
+    });
+    await user.click(applyRemainingBtn);
+
+    await waitFor(() => expect(secondApplyBody).not.toBeNull());
+
+    // Second request must contain 103 and must NOT contain 101
+    expect(
+      secondApplyBody!.apply_position_ids as number[]
+    ).toContain(103);
+    expect(
+      secondApplyBody!.apply_position_ids as number[]
+    ).not.toContain(101);
   });
 });

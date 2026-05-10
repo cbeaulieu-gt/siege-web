@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   RefreshCw,
@@ -392,7 +392,7 @@ function StateStaleConflict({
   // Position IDs that are stale
   const staleSet = new Set(staleEntries.map((e) => e.position_id));
 
-  // Remaining = selected rows that are NOT in stale set
+  // Remaining = actionable positions that are still selected and not stale.
   const remainingIds = preview.assignments
     .filter(
       (e) =>
@@ -578,44 +578,71 @@ export default function PostSuggestionsModal({
 
   // ── Derived values ──────────────────────────────────────────────────────────
 
-  const buckets = preview
-    ? {
-        new: preview.assignments.filter((e) => classify(e) === "new"),
-        replace: preview.assignments.filter((e) => classify(e) === "replace"),
-        same: preview.assignments.filter((e) => classify(e) === "same"),
-        skipped: preview.assignments.filter((e) => classify(e) === "skipped"),
-      }
-    : { new: [], replace: [], same: [], skipped: [] };
+  const buckets = useMemo(
+    () =>
+      preview
+        ? {
+            new: preview.assignments.filter((e) => classify(e) === "new"),
+            replace: preview.assignments.filter(
+              (e) => classify(e) === "replace"
+            ),
+            same: preview.assignments.filter((e) => classify(e) === "same"),
+            skipped: preview.assignments.filter(
+              (e) => classify(e) === "skipped"
+            ),
+          }
+        : { new: [], replace: [], same: [], skipped: [] },
+    [preview]
+  );
 
-  const selectedNew = buckets.new.filter((e) => checked[e.position_id]).length;
-  const selectedReplace = buckets.replace.filter(
-    (e) => checked[e.position_id]
-  ).length;
+  const selectedNew = useMemo(
+    () => buckets.new.filter((e) => checked[e.position_id]).length,
+    [buckets, checked]
+  );
+
+  const selectedReplace = useMemo(
+    () => buckets.replace.filter((e) => checked[e.position_id]).length,
+    [buckets, checked]
+  );
+
   const totalSelected = selectedNew + selectedReplace;
 
-  const filteredSorted = preview
-    ? [...preview.assignments]
-        .filter((e) => filter === "all" || classify(e) === filter)
-        .sort(
-          (a, b) => b.priority - a.priority || a.building_number - b.building_number
-        )
-    : [];
+  const filteredSorted = useMemo(
+    () =>
+      preview
+        ? [...preview.assignments]
+            .filter((e) => filter === "all" || classify(e) === filter)
+            .sort(
+              (a, b) =>
+                b.priority - a.priority || a.building_number - b.building_number
+            )
+        : [],
+    [preview, filter]
+  );
 
   const totalCount = preview ? preview.assignments.length : 0;
-  const tileCountMap: Record<OutcomeFilter, number> = {
-    all: totalCount,
-    new: buckets.new.length,
-    replace: buckets.replace.length,
-    same: buckets.same.length,
-    skipped: buckets.skipped.length,
-  };
-  const tileSelectedMap: Record<OutcomeFilter, number> = {
-    all: 0,
-    new: selectedNew,
-    replace: selectedReplace,
-    same: 0,
-    skipped: 0,
-  };
+
+  const tileCountMap = useMemo<Record<OutcomeFilter, number>>(
+    () => ({
+      all: totalCount,
+      new: buckets.new.length,
+      replace: buckets.replace.length,
+      same: buckets.same.length,
+      skipped: buckets.skipped.length,
+    }),
+    [buckets, totalCount]
+  );
+
+  const tileSelectedMap = useMemo<Record<OutcomeFilter, number>>(
+    () => ({
+      all: 0,
+      new: selectedNew,
+      replace: selectedReplace,
+      same: 0,
+      skipped: 0,
+    }),
+    [selectedNew, selectedReplace]
+  );
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
