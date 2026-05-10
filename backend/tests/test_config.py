@@ -106,6 +106,7 @@ class TestEnvironmentRequired:
         monkeypatch.delenv("ENVIRONMENT", raising=False)
         with pytest.raises(ValidationError) as exc_info:
             Settings(
+                _env_file=None,  # bypass backend/.env on dev machines (issue #358)
                 database_url="postgresql+asyncpg://u:p@localhost/db",
                 discord_bot_api_url="http://bot:8001",
                 discord_bot_api_key="key",
