@@ -129,6 +129,15 @@ def _get_client_ip(request: Request) -> str:
                         suffix,
                     )
     else:
+        # DIAGNOSTIC — REMOVE before final commit
+        import sys  # noqa: PLC0415
+
+        print(  # noqa: T201
+            f"[DIAG _get_client_ip] env={settings.environment!r}"
+            f" auth_disabled={settings.auth_disabled!r}"
+            f" _last_xff_absent_warning={_last_xff_absent_warning}",
+            file=sys.stderr,
+        )
         # XFF absent — warn in production since direct backend access
         # bypassing Container Apps ingress indicates a misconfiguration.
         # The warning is throttled to at most once per 60 s to avoid log
