@@ -40,7 +40,7 @@ Get a populated local UI running in under 5 minutes — no Discord setup require
 ```bash
 # 1. Clone and enter the repo
 git clone https://github.com/glitchwerks/rsl-siege-manager.git
-cd siege-web
+cd rsl-siege-manager
 
 # 2. Copy the example env (auth is disabled by default for local dev)
 cp .env.example .env

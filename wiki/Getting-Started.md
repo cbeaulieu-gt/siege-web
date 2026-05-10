@@ -13,7 +13,7 @@ That is the entire dependency list. Python, Node.js, and a Discord bot token are
 
 ```bash
 git clone https://github.com/glitchwerks/rsl-siege-manager.git
-cd siege-web
+cd rsl-siege-manager
 cp .env.example .env
 docker-compose up --build
 ```

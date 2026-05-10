@@ -89,7 +89,7 @@ SSH into your server and run:
 
 ```bash
 git clone https://github.com/glitchwerks/rsl-siege-manager.git
-cd siege-web
+cd rsl-siege-manager
 cp .env.example .env.production
 ```
 
@@ -414,7 +414,7 @@ On a clean database, the first `alembic upgrade head` creates all tables from sc
 ### Start the stack
 
 ```bash
-cd siege-web
+cd rsl-siege-manager
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
 
@@ -561,7 +561,7 @@ For incident playbooks, log queries, secret rotation, and rollback procedures, s
 ### Updating to a new version
 
 ```bash
-cd siege-web
+cd rsl-siege-manager
 git pull origin main
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
