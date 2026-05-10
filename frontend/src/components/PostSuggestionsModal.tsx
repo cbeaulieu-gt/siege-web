@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   RefreshCw,
@@ -467,6 +467,65 @@ function StateStaleConflict({
   );
 }
 
+// ─── Expiry countdown hook ────────────────────────────────────────────────────
+
+interface ExpiryCountdown {
+  secondsLeft: number;
+  formatted: string;
+  expired: boolean;
+}
+
+/**
+ * Returns a live countdown derived from an ISO timestamp.
+ * Updates every second; clears the interval on unmount or when expiresAt changes.
+ */
+function useExpiryCountdown(expiresAt: string | undefined): ExpiryCountdown {
+  const computeSecondsLeft = () => {
+    if (!expiresAt) return 0;
+    return Math.max(
+      0,
+      Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)
+    );
+  };
+
+  const [secondsLeft, setSecondsLeft] = useState<number>(computeSecondsLeft);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    // Reset immediately when expiresAt changes
+    setSecondsLeft(computeSecondsLeft());
+
+    if (!expiresAt) return;
+
+    intervalRef.current = setInterval(() => {
+      const next = Math.max(
+        0,
+        Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000)
+      );
+      setSecondsLeft(next);
+      if (next === 0 && intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    }, 1000);
+
+    return () => {
+      if (intervalRef.current !== null) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expiresAt]);
+
+  const minutes = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const formatted = `${minutes}:${String(secs).padStart(2, "0")}`;
+  const expired = secondsLeft === 0;
+
+  return { secondsLeft, formatted, expired };
+}
+
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export default function PostSuggestionsModal({
@@ -486,6 +545,9 @@ export default function PostSuggestionsModal({
   >(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [filter, setFilter] = useState<OutcomeFilter>("all");
+
+  const { formatted: countdownFormatted, expired: previewExpired } =
+    useExpiryCountdown(preview?.expires_at);
 
   const previewMutation = useMutation({
     mutationFn: () => previewPostSuggestions(siegeId),
@@ -513,6 +575,9 @@ export default function PostSuggestionsModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
       queryClient.invalidateQueries({ queryKey: ["posts", siegeId] });
+      queryClient.invalidateQueries({
+        queryKey: ["post-suggestions-status", siegeId],
+      });
       handleClose();
     },
     onError: (err: unknown) => {
@@ -658,9 +723,21 @@ export default function PostSuggestionsModal({
               Suggest post assignments
             </DialogTitle>
             <p className="mt-0.5 text-xs text-slate-500">
-              {preview
-                ? `${totalCount} posts reviewed · matching against post conditions`
-                : "Generating suggestions…"}
+              {preview ? (
+                <>
+                  {totalCount} posts reviewed · matching against post
+                  conditions{" "}
+                  {previewExpired ? (
+                    <span className="ml-1 inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-amber-100 text-amber-800 ring-1 ring-inset ring-amber-200">
+                      Preview expired
+                    </span>
+                  ) : (
+                    <>· expires in {countdownFormatted}</>
+                  )}
+                </>
+              ) : (
+                "Generating suggestions…"
+              )}
             </p>
           </div>
           <Button
@@ -831,7 +908,14 @@ export default function PostSuggestionsModal({
                 <div className="flex items-center justify-between gap-4 border-t border-slate-100 bg-slate-50 px-6 py-3">
                   <p className="text-sm text-slate-600">
                     {totalSelected === 0 ? (
-                      <span className="text-slate-400">Nothing selected.</span>
+                      <span className="text-slate-400">
+                        Nothing selected.
+                        {previewExpired && (
+                          <span className="ml-1 text-slate-500">
+                            Click Regenerate to refresh.
+                          </span>
+                        )}
+                      </span>
                     ) : (
                       <>
                         Apply{" "}
@@ -847,6 +931,11 @@ export default function PostSuggestionsModal({
                           {selectedReplace} replacement
                           {selectedReplace === 1 ? "" : "s"}
                         </span>
+                        {previewExpired && (
+                          <span className="ml-2 text-slate-500">
+                            Click Regenerate to refresh.
+                          </span>
+                        )}
                       </>
                     )}
                   </p>
@@ -857,10 +946,12 @@ export default function PostSuggestionsModal({
                     <Button
                       onClick={() => handleApply()}
                       disabled={
-                        totalSelected === 0 || applyMutation.isPending
+                        totalSelected === 0 ||
+                        applyMutation.isPending ||
+                        previewExpired
                       }
                       className={cn(
-                        totalSelected === 0 && "opacity-40"
+                        (totalSelected === 0 || previewExpired) && "opacity-40"
                       )}
                     >
                       {applyMutation.isPending
