@@ -162,7 +162,7 @@ jobs:
   claude-lint-fix:
     name: Claude Lint Fix
     needs: [backend-ci, frontend-ci, bot-ci]
-    if: failure() && github.event_name == 'pull_request'
+    if: failure() && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
     uses: glitchwerks/github-actions/.github/workflows/claude-lint-fix.yml@89ade69f511f1b2634ea4bc2c7d4998dcbcfda50 # v2.6.1
     secrets: inherit
     with:
