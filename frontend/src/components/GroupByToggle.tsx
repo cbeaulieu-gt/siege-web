@@ -13,6 +13,13 @@ interface Props {
   onChange: (next: GroupByMode) => void;
   /** Extra class names for the container. */
   className?: string;
+  /**
+   * Override the accessible label of the radiogroup.
+   * Use "Master group-by" for the page-level master toggle and
+   * "Row group-by" for per-row toggles so tests can scope queries.
+   * Defaults to "Group by".
+   */
+  "aria-label"?: string;
 }
 
 /**
@@ -21,12 +28,17 @@ interface Props {
  * @example
  * <GroupByToggle value={mode} onChange={setMode} />
  */
-export function GroupByToggle({ value, onChange, className }: Props) {
+export function GroupByToggle({
+  value,
+  onChange,
+  className,
+  "aria-label": ariaLabel = "Group by",
+}: Props) {
   return (
     <div
       className={cn("flex items-center gap-1.5", className)}
       role="radiogroup"
-      aria-label="Group by"
+      aria-label={ariaLabel}
     >
       <span className="text-xs font-medium text-slate-500">Group by:</span>
       <div className="flex gap-0.5 rounded-md border border-slate-200 bg-slate-100 p-0.5">

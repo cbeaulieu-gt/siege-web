@@ -1,16 +1,25 @@
 /**
- * PostsPage — Group-by toggle on the condition picker inside each PostRow.
+ * PostsPage — Group-by toggle on the condition picker inside each PostRow,
+ * and the master Toggle All at the top of the page (issue #377).
  *
- * Acceptance criteria from issue #375:
+ * Acceptance criteria from issue #375 (per-row toggle):
  *  1. Default mode shows Stronghold Level headings inside the expanded picker.
  *  2. Clicking "Type" in the toggle shows type-bucket headings in spec order.
  *  3. Clicking "Type" writes 'type' to localStorage under the shared key.
  *  4. Mounting with stored value 'type' initialises the picker in type mode.
  *
+ * Acceptance criteria from issue #377 (master toggle):
+ *  5. A master "Group by" radiogroup exists at page level BEFORE any row is expanded.
+ *  6. Flipping the master propagates to ALL currently-expanded rows simultaneously.
+ *  7. Flipping a per-row toggle after a master broadcast does NOT change the master
+ *     or other rows.
+ *  8. Flipping the master writes the new mode to localStorage.
+ *  9. Initial render reads the master toggle value from localStorage.
+ *
  * Pattern mirrors GroupByConditions.test.tsx (Surfaces A & B) for consistency.
  */
 
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import {
@@ -98,6 +107,12 @@ function makePost(overrides: Partial<Post> = {}): Post {
   };
 }
 
+/** Two distinct posts for multi-row master-override tests. */
+const TWO_POSTS: Post[] = [
+  makePost({ id: 1, building_number: 1 }),
+  makePost({ id: 2, building_id: 11, building_number: 2 }),
+];
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function setupHandlers(posts: Post[] = [makePost()]) {
@@ -145,6 +160,25 @@ async function expandFirstPost(user: ReturnType<typeof userEvent.setup>) {
   );
 }
 
+/**
+ * Expand all PostRows (for multi-row master-override tests).
+ * Clicks every unnamed button (the chevron toggles) in sequence.
+ */
+async function expandAllPosts(user: ReturnType<typeof userEvent.setup>) {
+  await waitFor(() =>
+    expect(screen.queryByText("Loading...")).not.toBeInTheDocument()
+  );
+  const expandBtns = screen.getAllByRole("button", { name: "" });
+  for (const btn of expandBtns) {
+    await user.click(btn);
+  }
+  // Wait for at least two filter inputs to appear (one per expanded row)
+  await waitFor(() => {
+    const inputs = screen.getAllByPlaceholderText(/filter conditions/i);
+    expect(inputs.length).toBeGreaterThanOrEqual(2);
+  });
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("PostsPage — Group-by toggle in PostRow condition picker", () => {
@@ -165,7 +199,10 @@ describe("PostsPage — Group-by toggle in PostRow condition picker", () => {
     renderPostsPage();
     await expandFirstPost(user);
 
-    await user.click(screen.getByRole("radio", { name: "Type" }));
+    // Scope to the row-level toggle (aria-label="Row group-by") to avoid
+    // matching the master toggle that is also present on the page.
+    const rowToggle = screen.getByRole("radiogroup", { name: "Row group-by" });
+    await user.click(within(rowToggle).getByRole("radio", { name: "Type" }));
 
     await waitFor(() => {
       expect(screen.getByText("Role")).toBeInTheDocument();
@@ -185,7 +222,9 @@ describe("PostsPage — Group-by toggle in PostRow condition picker", () => {
     renderPostsPage();
     await expandFirstPost(user);
 
-    await user.click(screen.getByRole("radio", { name: "Type" }));
+    // Scope to the row-level toggle to avoid ambiguity with the master toggle.
+    const rowToggle = screen.getByRole("radiogroup", { name: "Row group-by" });
+    await user.click(within(rowToggle).getByRole("radio", { name: "Type" }));
 
     expect(
       localStorage.getItem("siege-web:postConditions:groupBy")
@@ -203,5 +242,103 @@ describe("PostsPage — Group-by toggle in PostRow condition picker", () => {
       expect(screen.getByText("Role")).toBeInTheDocument();
     });
     expect(screen.queryByText(/stronghold level/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("PostsPage — master Toggle All override (issue #377)", () => {
+  beforeEach(() => setupHandlers(TWO_POSTS));
+
+  it("master Group-by radiogroup is present at page level before any row is expanded", async () => {
+    renderPostsPage();
+    await waitFor(() =>
+      expect(screen.queryByText("Loading...")).not.toBeInTheDocument()
+    );
+    // The master toggle must be visible BEFORE any row expansion.
+    // It carries aria-label="Master group-by" to distinguish it from per-row toggles.
+    expect(
+      screen.getByRole("radiogroup", { name: "Master group-by" })
+    ).toBeInTheDocument();
+  });
+
+  it("flipping master propagates to all currently-expanded rows simultaneously", async () => {
+    const user = userEvent.setup();
+    renderPostsPage();
+    await expandAllPosts(user);
+
+    // Both rows start in default level mode — verify level headings are visible
+    await waitFor(() =>
+      expect(screen.getAllByText(/stronghold level 1/i).length).toBeGreaterThanOrEqual(2)
+    );
+
+    // Click the master "Type" radio (scoped to master to avoid per-row ambiguity)
+    const masterGroup = screen.getByRole("radiogroup", { name: "Master group-by" });
+    await user.click(within(masterGroup).getByRole("radio", { name: "Type" }));
+
+    // Both rows should now show type headings
+    await waitFor(() => {
+      // "Role" heading appears once per expanded row
+      expect(screen.getAllByText("Role").length).toBeGreaterThanOrEqual(2);
+    });
+    expect(screen.queryByText(/stronghold level/i)).not.toBeInTheDocument();
+  });
+
+  it("per-row flip after master broadcast does not affect master or other rows", async () => {
+    const user = userEvent.setup();
+    renderPostsPage();
+    await expandAllPosts(user);
+
+    // First broadcast master → type
+    const masterGroup = screen.getByRole("radiogroup", { name: "Master group-by" });
+    await user.click(within(masterGroup).getByRole("radio", { name: "Type" }));
+    await waitFor(() =>
+      expect(screen.getAllByText("Role").length).toBeGreaterThanOrEqual(2)
+    );
+
+    // Now flip only the first row back to level by clicking its own "Level" radio.
+    // Per-row radiogroups have aria-label="Row group-by".
+    const rowGroups = screen.getAllByRole("radiogroup", { name: "Row group-by" });
+    await user.click(within(rowGroups[0]).getByRole("radio", { name: "Level" }));
+
+    // Row A switches back to level headings
+    await waitFor(() =>
+      expect(screen.getByText(/stronghold level 1/i)).toBeInTheDocument()
+    );
+
+    // Row B still shows type headings
+    expect(screen.getAllByText("Role").length).toBeGreaterThanOrEqual(1);
+
+    // Master still shows "type" as active
+    expect(
+      within(masterGroup).getByRole("radio", { name: "Type" })
+    ).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("flipping master writes the new mode to localStorage", async () => {
+    const user = userEvent.setup();
+    renderPostsPage();
+    await waitFor(() =>
+      expect(screen.queryByText("Loading...")).not.toBeInTheDocument()
+    );
+
+    const masterGroup = screen.getByRole("radiogroup", { name: "Master group-by" });
+    await user.click(within(masterGroup).getByRole("radio", { name: "Type" }));
+
+    expect(
+      localStorage.getItem("siege-web:postConditions:groupBy")
+    ).toBe("type");
+  });
+
+  it("initial render reads master value from localStorage", async () => {
+    localStorage.setItem("siege-web:postConditions:groupBy", "type");
+    renderPostsPage();
+    await waitFor(() =>
+      expect(screen.queryByText("Loading...")).not.toBeInTheDocument()
+    );
+
+    // The master toggle's "Type" radio must be active (aria-checked=true)
+    const masterGroup = screen.getByRole("radiogroup", { name: "Master group-by" });
+    expect(
+      within(masterGroup).getByRole("radio", { name: "Type" })
+    ).toHaveAttribute("aria-checked", "true");
   });
 });
