@@ -137,6 +137,7 @@ function MemberAssignRow({
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["post-suggestions-status"] });
       setConfirmPending(false);
       onAssigned();
     },
@@ -354,6 +355,7 @@ function PostRow({
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["post-suggestions-status"] });
     },
   });
 
@@ -739,43 +741,8 @@ export function PostsTab({
 
   return (
     <>
-      {/* Toolbar — optimal-status chip + Suggest Assignments button */}
+      {/* Toolbar — Suggest Assignments button + optimal-status chip */}
       <div className="mb-3 flex items-center gap-2">
-        {/* Optimal-status chip (issue #364) */}
-        {chipStatus === "optimal" && (
-          <button
-            type="button"
-            onClick={() => setSuggestModalOpen(true)}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-emerald-50 text-emerald-800 ring-emerald-200 hover:bg-emerald-100 transition-colors"
-          >
-            <Check className="h-3 w-3" aria-hidden="true" />
-            Optimal
-          </button>
-        )}
-        {chipStatus === "suggestions" && (
-          <button
-            type="button"
-            onClick={() => setSuggestModalOpen(true)}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-amber-50 text-amber-800 ring-amber-200 hover:bg-amber-100 transition-colors"
-          >
-            {suggestionCount} suggestion{suggestionCount === 1 ? "" : "s"}
-          </button>
-        )}
-        {chipStatus === "loading" && (
-          <span className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-slate-50 text-slate-500 ring-slate-200">
-            Checking…
-          </span>
-        )}
-        {chipStatus === "errored" && (
-          <button
-            type="button"
-            onClick={() => setSuggestModalOpen(true)}
-            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-slate-50 text-slate-500 ring-slate-200 hover:bg-slate-100 transition-colors"
-            title="Couldn't compute (click Suggest to check)"
-          >
-            ?
-          </button>
-        )}
         <Button
           variant="outline"
           size="sm"
@@ -784,6 +751,31 @@ export function PostsTab({
         >
           Suggest Assignments
         </Button>
+        {/* Optimal-status chip (issue #364) — label only, not interactive */}
+        {chipStatus === "optimal" && (
+          <span className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-emerald-50 text-emerald-800 ring-emerald-200">
+            <Check className="h-3 w-3" aria-hidden="true" />
+            Optimal
+          </span>
+        )}
+        {chipStatus === "suggestions" && (
+          <span className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-amber-50 text-amber-800 ring-amber-200">
+            {suggestionCount} suggestion{suggestionCount === 1 ? "" : "s"}
+          </span>
+        )}
+        {chipStatus === "loading" && (
+          <span className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-slate-50 text-slate-500 ring-slate-200">
+            Checking…
+          </span>
+        )}
+        {chipStatus === "errored" && (
+          <span
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-slate-50 text-slate-500 ring-slate-200"
+            title="Couldn't compute (click Suggest to check)"
+          >
+            ?
+          </span>
+        )}
       </div>
 
       <div className="space-y-2">

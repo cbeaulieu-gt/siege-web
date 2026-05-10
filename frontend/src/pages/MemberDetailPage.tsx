@@ -147,6 +147,7 @@ export default function MemberDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["members"] });
       queryClient.invalidateQueries({ queryKey: ["member", memberId] });
+      queryClient.invalidateQueries({ queryKey: ["post-suggestions-status"] });
       setDeactivateOpen(false);
     },
   });
@@ -157,6 +158,7 @@ export default function MemberDetailPage() {
       queryClient.invalidateQueries({
         queryKey: ["memberPreferences", memberId],
       });
+      queryClient.invalidateQueries({ queryKey: ["post-suggestions-status"] });
     },
   });
 

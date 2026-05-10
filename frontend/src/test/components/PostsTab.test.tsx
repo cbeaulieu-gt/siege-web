@@ -680,9 +680,10 @@ describe("PostsTab — optimal-status chip (#364)", () => {
       expect(screen.getByText(/optimal/i)).toBeInTheDocument();
     });
 
-    // Should use an emerald styling cue — chip is a button
-    const chip = screen.getByRole("button", { name: /optimal/i });
-    expect(chip.className).toMatch(/emerald/);
+    // Chip is now a non-interactive <span>, not a button
+    const chip = screen.getByText(/optimal/i).closest("span");
+    expect(chip).not.toBeNull();
+    expect(chip!.className).toMatch(/emerald/);
   });
 
   it("chip renders suggestion count when suggestions are available", async () => {
@@ -710,9 +711,10 @@ describe("PostsTab — optimal-status chip (#364)", () => {
       expect(screen.getByText(/2 suggestion/i)).toBeInTheDocument();
     });
 
-    // Should use an amber styling cue
-    const chip = screen.getByRole("button", { name: /suggestion/i });
-    expect(chip.className).toMatch(/amber/);
+    // Chip is now a non-interactive <span>, not a button
+    const chip = screen.getByText(/2 suggestion/i).closest("span");
+    expect(chip).not.toBeNull();
+    expect(chip!.className).toMatch(/amber/);
   });
 
   it("chip flips to Optimal after a successful apply", async () => {
@@ -772,6 +774,78 @@ describe("PostsTab — optimal-status chip (#364)", () => {
     await user.click(applyBtn);
 
     // After apply, modal closes and chip should flip to Optimal
+    await waitFor(() => {
+      expect(screen.getByText(/optimal/i)).toBeInTheDocument();
+    });
+  });
+
+  it("chip auto-refreshes after reserveMutation fires (invalidates post-suggestions-status)", async () => {
+    const user = userEvent.setup();
+
+    // Board: post building with an assigned member (non-reserve) so the
+    // "Mark RESERVE" button is enabled.
+    const position = makePosition({
+      id: 10,
+      member_id: 1,
+      member_name: "Aethon",
+      is_reserve: false,
+    });
+    const post = makePost();
+
+    // Track preview endpoint calls so we can assert the chip re-fetches.
+    let previewCallCount = 0;
+    setupHandlers(makePostBoard([position]), makeSiege(), [], [post]);
+    server.use(
+      http.post("/api/sieges/42/post-suggestions", () => {
+        previewCallCount++;
+        // First call: suggestions available (chip shows count).
+        // Subsequent calls (after invalidation): optimal.
+        if (previewCallCount === 1) {
+          return HttpResponse.json(
+            makePostPreviewResult({
+              assignments: [makeSuggestionAssignment(101)],
+            })
+          );
+        }
+        return HttpResponse.json(
+          makePostPreviewResult({
+            assignments: [makeOptimalAssignment(101)],
+          })
+        );
+      }),
+      // reserveMutation calls PUT /api/sieges/42/positions/10
+      http.put("/api/sieges/42/positions/10", () =>
+        HttpResponse.json({ ok: true })
+      ),
+      // Board re-fetch after invalidation returns unchanged board
+      http.get("/api/sieges/42/board", () =>
+        HttpResponse.json(makePostBoard([position]))
+      )
+    );
+
+    renderBoard();
+    await navigateToPostsTab(user);
+
+    // Chip initially shows suggestion count
+    await waitFor(() => {
+      expect(screen.getByText(/suggestion/i)).toBeInTheDocument();
+    });
+
+    // Expand Post 1 to reveal the "Mark RESERVE" button
+    await user.click(screen.getByRole("button", { name: /post 1/i }));
+
+    // Wait for the "Mark RESERVE" button to appear
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /mark reserve/i })
+      ).toBeInTheDocument();
+    });
+
+    // Fire reserveMutation
+    await user.click(screen.getByRole("button", { name: /mark reserve/i }));
+
+    // After the mutation succeeds the chip should re-fetch and flip to Optimal,
+    // proving ["post-suggestions-status"] was invalidated.
     await waitFor(() => {
       expect(screen.getByText(/optimal/i)).toBeInTheDocument();
     });
