@@ -9,7 +9,7 @@ import {
   getMemberPreferences,
   updateMemberPreferences,
 } from "../api/members";
-import type { MemberRole, PostCondition } from "../api/types";
+import type { MemberRole } from "../api/types";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -31,6 +31,12 @@ import {
 } from "../components/ui/dialog";
 import { ArrowLeft } from "lucide-react";
 import { isAxiosError } from "axios";
+import { GroupByToggle } from "../components/GroupByToggle";
+import { groupPostConditions } from "../lib/groupPostConditions";
+import {
+  useGroupByPreference,
+  GROUP_BY_STORAGE_KEY,
+} from "../lib/useGroupByPreference";
 
 const ROLE_OPTIONS: { value: MemberRole; label: string }[] = [
   { value: "heavy_hitter", label: "Heavy Hitter" },
@@ -38,15 +44,6 @@ const ROLE_OPTIONS: { value: MemberRole; label: string }[] = [
   { value: "medium", label: "Medium" },
   { value: "novice", label: "Novice" },
 ];
-
-function groupByLevel(conditions: PostCondition[]) {
-  const groups: Record<number, PostCondition[]> = {};
-  for (const c of conditions) {
-    if (!groups[c.stronghold_level]) groups[c.stronghold_level] = [];
-    groups[c.stronghold_level].push(c);
-  }
-  return groups;
-}
 
 export default function MemberDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -64,6 +61,8 @@ export default function MemberDetailPage() {
   );
   const [prefFilter, setPrefFilter] = useState("");
   const [saveError, setSaveError] = useState("");
+  const [groupByMode, setGroupByMode] =
+    useGroupByPreference(GROUP_BY_STORAGE_KEY);
 
   const memberId = isNew ? null : Number(id);
 
@@ -188,8 +187,6 @@ export default function MemberDetailPage() {
     return <div className="py-12 text-center text-slate-500">Loading...</div>;
   }
 
-  const conditionGroups = allConditions ? groupByLevel(allConditions) : {};
-
   return (
     <div className="max-w-2xl">
       <Link
@@ -294,46 +291,44 @@ export default function MemberDetailPage() {
             Select the post conditions this member prefers to fill.
           </p>
 
-          <Input
-            placeholder="Filter conditions..."
-            value={prefFilter}
-            onChange={(e) => setPrefFilter(e.target.value)}
-            className="mb-4 h-8 text-sm"
-          />
+          <div className="mb-4 flex items-center gap-3">
+            <Input
+              placeholder="Filter conditions..."
+              value={prefFilter}
+              onChange={(e) => setPrefFilter(e.target.value)}
+              className="h-8 flex-1 text-sm"
+            />
+            <GroupByToggle value={groupByMode} onChange={setGroupByMode} />
+          </div>
 
-          {Object.entries(conditionGroups)
-            .sort(([a], [b]) => Number(a) - Number(b))
-            .map(([level, conds]) => {
-              const filtered = prefFilter
-                ? conds.filter((c) =>
-                    c.description
-                      .toLowerCase()
-                      .includes(prefFilter.toLowerCase())
-                  )
-                : conds;
-              if (filtered.length === 0) return null;
-              return (
-                <div key={level} className="mb-4">
-                  <h3 className="mb-2 text-sm font-medium text-slate-700">
-                    Stronghold Level {level}
-                  </h3>
-                  <div className="space-y-2">
-                    {filtered.map((c) => (
-                      <div key={c.id} className="flex items-center gap-2">
-                        <Checkbox
-                          id={`cond-${c.id}`}
-                          checked={selectedConditions.has(c.id)}
-                          onCheckedChange={() => toggleCondition(c.id)}
-                        />
-                        <Label htmlFor={`cond-${c.id}`} className="font-normal">
-                          {c.description}
-                        </Label>
-                      </div>
-                    ))}
+          {groupPostConditions(
+            prefFilter
+              ? allConditions.filter((c) =>
+                  c.description.toLowerCase().includes(prefFilter.toLowerCase())
+                )
+              : allConditions,
+            groupByMode
+          ).map((group) => (
+            <div key={group.heading} className="mb-4">
+              <h3 className="mb-2 text-sm font-medium text-slate-700">
+                {group.heading}
+              </h3>
+              <div className="space-y-2">
+                {group.items.map((c) => (
+                  <div key={c.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`cond-${c.id}`}
+                      checked={selectedConditions.has(c.id)}
+                      onCheckedChange={() => toggleCondition(c.id)}
+                    />
+                    <Label htmlFor={`cond-${c.id}`} className="font-normal">
+                      {c.description}
+                    </Label>
                   </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            </div>
+          ))}
 
           <Button
             className="mt-4"
