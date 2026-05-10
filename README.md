@@ -7,7 +7,16 @@
 
 🌐 **Live site:** <https://rslsiege.com>
 
-Web application for managing Raid Shadow Legends clan siege assignments. Replaces the manual Discord/Excel workflow with a unified web UI backed by a relational database.
+A comprehensive web utility for coordinating Raid Shadow Legends clan siege assignments — validated, automated, Discord-native, and self-hostable.
+
+## Features
+
+- **Validated assignments** — 16 rule checks catch overlaps, capacity errors, and misplacements before you post.
+- **One-click auto-fill** — preview a complete assignment for any empty positions, then commit exactly what you saw.
+- **Attack-day logic** — pinned members count toward Day 2 thresholds automatically; no manual bookkeeping.
+- **Discord-native sign-in and notifications** — OAuth2 login gated by Discord role, async DM batches with delivery tracking, and assignment images posted to your siege channels.
+- **Generated assignment images** — server-rendered PNGs of the full board, posted directly to Discord (no screenshots, no manual cropping).
+- **Self-hostable** — runs on any Docker host or a managed Azure stack. Open source, MIT licensed, no SaaS dependency.
 
 ## Architecture
 
