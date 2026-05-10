@@ -10,7 +10,7 @@ import {
   BookmarkCheck,
 } from "lucide-react";
 import { getPosts } from "../api/posts";
-import { getSiegeMemberPreferences } from "../api/sieges";
+import { getSiegeMemberPreferences, previewPostSuggestions } from "../api/sieges";
 import { updatePosition } from "../api/board";
 import type {
   BuildingResponse,
@@ -639,6 +639,33 @@ export function PostsTab({
     queryFn: () => getPosts(siegeId),
   });
 
+  // Optimal-status chip query (issue #364)
+  const {
+    data: suggestStatus,
+    isLoading: statusLoading,
+    isError: statusError,
+  } = useQuery({
+    queryKey: ["post-suggestions-status", siegeId],
+    queryFn: () => previewPostSuggestions(siegeId),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const chipStatus = (() => {
+    if (statusLoading) return "loading" as const;
+    if (statusError || !suggestStatus) return "errored" as const;
+    const actionable = suggestStatus.assignments.filter((a) => !a.skip_reason);
+    if (actionable.every((a) => a.matches_current)) return "optimal" as const;
+    return "suggestions" as const;
+  })();
+
+  const suggestionCount = (() => {
+    if (!suggestStatus) return 0;
+    return suggestStatus.assignments.filter(
+      (a) => !a.skip_reason && !a.matches_current
+    ).length;
+  })();
+
   // Build preference map: member_id → array of condition ids
   const preferenceMap = useMemo(() => {
     const map = new Map<number, number[]>();
@@ -712,8 +739,43 @@ export function PostsTab({
 
   return (
     <>
-      {/* Toolbar — Suggest Assignments button */}
+      {/* Toolbar — optimal-status chip + Suggest Assignments button */}
       <div className="mb-3 flex items-center gap-2">
+        {/* Optimal-status chip (issue #364) */}
+        {chipStatus === "optimal" && (
+          <button
+            type="button"
+            onClick={() => setSuggestModalOpen(true)}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-emerald-50 text-emerald-800 ring-emerald-200 hover:bg-emerald-100 transition-colors"
+          >
+            <Check className="h-3 w-3" aria-hidden="true" />
+            Optimal
+          </button>
+        )}
+        {chipStatus === "suggestions" && (
+          <button
+            type="button"
+            onClick={() => setSuggestModalOpen(true)}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-amber-50 text-amber-800 ring-amber-200 hover:bg-amber-100 transition-colors"
+          >
+            {suggestionCount} suggestion{suggestionCount === 1 ? "" : "s"}
+          </button>
+        )}
+        {chipStatus === "loading" && (
+          <span className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-slate-50 text-slate-500 ring-slate-200">
+            Checking…
+          </span>
+        )}
+        {chipStatus === "errored" && (
+          <button
+            type="button"
+            onClick={() => setSuggestModalOpen(true)}
+            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset bg-slate-50 text-slate-500 ring-slate-200 hover:bg-slate-100 transition-colors"
+            title="Couldn't compute (click Suggest to check)"
+          >
+            ?
+          </button>
+        )}
         <Button
           variant="outline"
           size="sm"

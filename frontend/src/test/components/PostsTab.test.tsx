@@ -32,6 +32,7 @@ import type {
   SiegeMember,
   Siege,
   Post,
+  PostSuggestionPreviewResult,
 } from "../../api/types";
 
 // ─── Server lifecycle ──────────────────────────────────────────────────────────
@@ -602,5 +603,177 @@ describe("PostsTab — Suggest Assignments toolbar", () => {
 
     const btn = screen.getByRole("button", { name: /suggest assignments/i });
     expect(btn).toBeDisabled();
+  });
+});
+
+// ─── Optimal-status chip (issue #364) ────────────────────────────────────────
+
+function makePostPreviewResult(
+  overrides: Partial<PostSuggestionPreviewResult> = {}
+): PostSuggestionPreviewResult {
+  return {
+    assignments: [],
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    ...overrides,
+  };
+}
+
+function makeOptimalAssignment(positionId: number) {
+  return {
+    post_id: positionId,
+    building_number: positionId,
+    priority: 1,
+    position_id: positionId,
+    suggested_member_id: 1,
+    suggested_member_name: "Aethon",
+    suggested_condition_id: 5,
+    suggested_condition_description: "Great Fortification",
+    current_member_id: 1,
+    current_member_name: "Aethon",
+    current_condition_id: 5,
+    current_condition_description: "Great Fortification",
+    matches_current: true,
+    skip_reason: null as null,
+  };
+}
+
+function makeSuggestionAssignment(positionId: number) {
+  return {
+    post_id: positionId,
+    building_number: positionId,
+    priority: 1,
+    position_id: positionId,
+    suggested_member_id: 2,
+    suggested_member_name: "Bob",
+    suggested_condition_id: 5,
+    suggested_condition_description: "Great Fortification",
+    current_member_id: null,
+    current_member_name: null,
+    current_condition_id: null,
+    current_condition_description: null,
+    matches_current: false,
+    skip_reason: null as null,
+  };
+}
+
+describe("PostsTab — optimal-status chip (#364)", () => {
+  it("chip renders Optimal when every actionable assignment matches_current", async () => {
+    const user = userEvent.setup();
+
+    setupHandlers(makePostBoard(), makeSiege(), [], [makePost()]);
+    // The status query hits the preview endpoint (POST)
+    server.use(
+      http.post("/api/sieges/42/post-suggestions", () =>
+        HttpResponse.json(
+          makePostPreviewResult({
+            assignments: [makeOptimalAssignment(101), makeOptimalAssignment(102)],
+          })
+        )
+      )
+    );
+
+    renderBoard();
+    await navigateToPostsTab(user);
+
+    // Chip should show "Optimal" (or "✓ Optimal")
+    await waitFor(() => {
+      expect(screen.getByText(/optimal/i)).toBeInTheDocument();
+    });
+
+    // Should use an emerald styling cue — chip is a button
+    const chip = screen.getByRole("button", { name: /optimal/i });
+    expect(chip.className).toMatch(/emerald/);
+  });
+
+  it("chip renders suggestion count when suggestions are available", async () => {
+    const user = userEvent.setup();
+
+    setupHandlers(makePostBoard(), makeSiege(), [], [makePost()]);
+    server.use(
+      http.post("/api/sieges/42/post-suggestions", () =>
+        HttpResponse.json(
+          makePostPreviewResult({
+            assignments: [
+              makeSuggestionAssignment(101),
+              makeSuggestionAssignment(102),
+            ],
+          })
+        )
+      )
+    );
+
+    renderBoard();
+    await navigateToPostsTab(user);
+
+    // Chip should show count of non-optimal actionable assignments: "2 suggestion(s)"
+    await waitFor(() => {
+      expect(screen.getByText(/2 suggestion/i)).toBeInTheDocument();
+    });
+
+    // Should use an amber styling cue
+    const chip = screen.getByRole("button", { name: /suggestion/i });
+    expect(chip.className).toMatch(/amber/);
+  });
+
+  it("chip flips to Optimal after a successful apply", async () => {
+    const user = userEvent.setup();
+
+    // The preview endpoint is called by both the chip query (on mount) and the modal
+    // mutation (on open). We track calls: calls 1-2 → suggestions; call 3+ → optimal.
+    // Call 1: chip query initial mount
+    // Call 2: modal mutation on open
+    // Call 3: chip query after invalidation from apply success
+    let previewCallCount = 0;
+    setupHandlers(makePostBoard(), makeSiege(), [], [makePost()]);
+    server.use(
+      http.post("/api/sieges/42/post-suggestions", () => {
+        previewCallCount++;
+        if (previewCallCount <= 2) {
+          // Initial chip + modal: has suggestions
+          return HttpResponse.json(
+            makePostPreviewResult({
+              assignments: [makeSuggestionAssignment(101)],
+            })
+          );
+        }
+        // After apply invalidation: optimal
+        return HttpResponse.json(
+          makePostPreviewResult({
+            assignments: [makeOptimalAssignment(101)],
+          })
+        );
+      }),
+      http.post("/api/sieges/42/post-suggestions/apply", () =>
+        HttpResponse.json({ applied_count: 1 })
+      )
+    );
+
+    renderBoard();
+    await navigateToPostsTab(user);
+
+    // Chip initially shows suggestions
+    await waitFor(() => {
+      expect(screen.getByText(/suggestion/i)).toBeInTheDocument();
+    });
+
+    // Open modal via Suggest button
+    const suggestBtn = screen.getByRole("button", {
+      name: /suggest assignments/i,
+    });
+    await user.click(suggestBtn);
+
+    // Wait for modal to load (the modal fires its own preview mutation)
+    await waitFor(() => {
+      expect(screen.getByText("Bob")).toBeInTheDocument();
+    });
+
+    // Click Apply in the modal
+    const applyBtn = screen.getByRole("button", { name: /apply/i });
+    await user.click(applyBtn);
+
+    // After apply, modal closes and chip should flip to Optimal
+    await waitFor(() => {
+      expect(screen.getByText(/optimal/i)).toBeInTheDocument();
+    });
   });
 });
