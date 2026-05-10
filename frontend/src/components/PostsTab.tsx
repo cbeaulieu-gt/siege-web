@@ -18,6 +18,7 @@ import type {
   PostConditionRef,
 } from "../api/types";
 import { Button } from "./ui/button";
+import PostSuggestionsModal from "./PostSuggestionsModal";
 
 // ─── Constants (duplicated from BoardPage to keep this file self-contained) ───
 
@@ -635,6 +636,8 @@ export function PostsTab({
   isLocked: boolean;
   memberRoleMap?: Record<number, string>; // accepted for API compatibility, used by callers
 }) {
+  const [suggestModalOpen, setSuggestModalOpen] = useState(false);
+
   const { data: preferences, isLoading: prefLoading } = useQuery({
     queryKey: ["memberPreferences", siegeId],
     queryFn: () => getSiegeMemberPreferences(siegeId),
@@ -721,7 +724,20 @@ export function PostsTab({
   }
 
   return (
-    <div className="space-y-2">
+    <>
+      {/* Toolbar — Suggest Assignments button */}
+      <div className="mb-3 flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isLocked}
+          onClick={() => setSuggestModalOpen(true)}
+        >
+          Suggest Assignments
+        </Button>
+      </div>
+
+      <div className="space-y-2">
       {sortedPostBuildings.map((building) => {
         const post = postByNumber.get(building.building_number);
         return (
@@ -740,6 +756,13 @@ export function PostsTab({
           />
         );
       })}
-    </div>
+      </div>
+
+      <PostSuggestionsModal
+        open={suggestModalOpen}
+        onClose={() => setSuggestModalOpen(false)}
+        siegeId={siegeId}
+      />
+    </>
   );
 }

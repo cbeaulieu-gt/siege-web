@@ -19,6 +19,7 @@ from app.api.lifecycle import router as lifecycle_router
 from app.api.members import router as members_router
 from app.api.notifications import router as notifications_router
 from app.api.post_priority_config import router as post_priority_config_router
+from app.api.post_suggestions import router as post_suggestions_router
 from app.api.posts import router as posts_router
 from app.api.reference import router as reference_router
 from app.api.siege_members import router as siege_members_router
@@ -108,6 +109,7 @@ app.include_router(lifecycle_router, prefix="/api", dependencies=_auth_deps)
 app.include_router(posts_router, prefix="/api", dependencies=_auth_deps)
 app.include_router(validation_router, prefix="/api", dependencies=_auth_deps)
 app.include_router(autofill_router, prefix="/api", dependencies=_auth_deps)
+app.include_router(post_suggestions_router, prefix="/api", dependencies=_auth_deps)
 app.include_router(comparison_router, prefix="/api", dependencies=_auth_deps)
 app.include_router(attack_day_router, prefix="/api", dependencies=_auth_deps)
 app.include_router(changelog_router, prefix="/api", dependencies=_auth_deps)

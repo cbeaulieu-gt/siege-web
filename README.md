@@ -104,6 +104,9 @@ cd backend && alembic revision --autogenerate -m "description"
 # Backend
 cd backend && python -m pytest --ignore=tests/test_schema.py -v
 
+# Frontend unit tests (Vitest)
+cd frontend && npm test
+
 # Frontend type check + build
 cd frontend && npm run build
 

@@ -13,6 +13,8 @@ import type {
   AttackDayPreviewResult,
   AttackDayApplyResult,
   ComparisonResult,
+  PostSuggestionPreviewResult,
+  PostSuggestionApplyResult,
 } from "./types";
 
 export async function getSieges(params?: {
@@ -211,6 +213,26 @@ export async function compareSiegesSpecific(
 ): Promise<ComparisonResult> {
   const res = await apiClient.get<ComparisonResult>(
     `/api/sieges/${siegeId}/compare/${otherId}`
+  );
+  return res.data;
+}
+
+export async function previewPostSuggestions(
+  siegeId: number
+): Promise<PostSuggestionPreviewResult> {
+  const res = await apiClient.post<PostSuggestionPreviewResult>(
+    `/api/sieges/${siegeId}/post-suggestions`
+  );
+  return res.data;
+}
+
+export async function applyPostSuggestions(
+  siegeId: number,
+  applyPositionIds: number[]
+): Promise<PostSuggestionApplyResult> {
+  const res = await apiClient.post<PostSuggestionApplyResult>(
+    `/api/sieges/${siegeId}/post-suggestions/apply`,
+    { apply_position_ids: applyPositionIds }
   );
   return res.data;
 }

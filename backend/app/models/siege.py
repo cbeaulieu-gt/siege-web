@@ -31,6 +31,8 @@ class Siege(Base):
     autofill_preview_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
     attack_day_preview: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     attack_day_preview_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    post_suggest_preview: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    post_suggest_preview_expires_at: Mapped[datetime | None] = mapped_column(nullable=True)
 
     buildings: Mapped[list["Building"]] = relationship(
         back_populates="siege", cascade="all, delete-orphan", passive_deletes=True

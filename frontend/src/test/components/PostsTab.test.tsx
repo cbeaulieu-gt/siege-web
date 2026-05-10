@@ -573,3 +573,34 @@ describe("PostsTab — inline duplicate-condition indicator (#196)", () => {
     });
   });
 });
+
+// ─── Suggest Assignments toolbar (issue #197) ─────────────────────────────────
+
+describe("PostsTab — Suggest Assignments toolbar", () => {
+  it("shows Suggest Assignments button in toolbar", async () => {
+    const user = userEvent.setup();
+    setupHandlers(makePostBoard(), makeSiege(), [], [makePost()]);
+    renderBoard();
+    await navigateToPostsTab(user);
+
+    expect(
+      screen.getByRole("button", { name: /suggest assignments/i })
+    ).toBeInTheDocument();
+  });
+
+  it("Suggest Assignments button is disabled when siege is locked", async () => {
+    const user = userEvent.setup();
+    // A completed siege is locked
+    setupHandlers(
+      makePostBoard(),
+      makeSiege({ status: "complete" }),
+      [],
+      [makePost()]
+    );
+    renderBoard();
+    await navigateToPostsTab(user);
+
+    const btn = screen.getByRole("button", { name: /suggest assignments/i });
+    expect(btn).toBeDisabled();
+  });
+});

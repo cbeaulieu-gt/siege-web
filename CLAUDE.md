@@ -22,7 +22,7 @@ Data flow:
 
 See `docs/superpowers/plans/discord-auth-plan.md` for the canonical auth spec.
 
- - Keep `docs/STATUS.md` with a high level summary of the state of the project and the anticipated next steps. Frequently update it.
+Project state lives on GitHub — current release in [Releases](https://github.com/glitchwerks/siege-web/releases), active workstreams in [Milestones](https://github.com/glitchwerks/siege-web/milestones), open work in [Issues](https://github.com/glitchwerks/siege-web/issues), recent changes in `CHANGELOG.md`. Do not maintain a local status doc.
 
 ## Common Commands
 
@@ -107,7 +107,8 @@ pytest
 
 On PR to `main`:
 - **Backend**: black check → ruff → pytest (uses test DB URL from env)
-- **Frontend**: npm ci → eslint → npm build
+- **Frontend**: npm ci → eslint → npm test → npm build
+- **Bot**: pytest
 
 Registry image retention is automated via a scheduled ACR Task (`weekly-purge`) in both registries — release tags (`v*`) are preserved forever; SHA/commit tags beyond the last 10 per repo and untagged manifests older than 7 days are deleted every Sunday at 03:00 UTC.
 
@@ -129,9 +130,15 @@ Copy `.env.example` to `.env`. Required:
 | `DISCORD_GUILD_ID` | backend, bot |
 | `DISCORD_BOT_API_URL` | backend (calls bot) |
 | `DISCORD_BOT_API_KEY` / `BOT_API_KEY` | backend → bot auth |
-| `DISCORD_SIEGE_CHANNEL` | backend (channel to post images) |
-| `DISCORD_SIEGE_IMAGES_CHANNEL` | backend (channel to post image CDN links) |
+| `DISCORD_SIEGE_CHANNEL` | backend (channel to post the text summary after image CDN links are known) |
+| `DISCORD_SIEGE_IMAGES_CHANNEL` | backend (channel where assignment and reserves images are posted) |
 | `ENVIRONMENT` | all (controls debug/docs) |
+| `AUTH_DISABLED` | backend (dev-only login bypass; startup guard blocks `true` outside development) |
+| `SESSION_SECRET` | backend (HS256 JWT signing key; required when auth is enabled) |
+| `DISCORD_REQUIRED_ROLE` | backend (Discord role name required to log in; default `Clan Deputies`; exact, case-sensitive match) |
+| `BOT_SERVICE_TOKEN` | backend (Bearer token for bot→backend calls; startup guard rejects empty string outside development) |
+| `ALLOWED_ORIGINS` | backend (comma-separated CORS allowlist; required for non-localhost deployments) |
+| `VITE_PUBLIC_URL` | frontend (canonical URL used in `<link rel="canonical">` and `og:url` meta tags) |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | backend, bot (optional; telemetry no-op when unset) |
 
 ## Domain Reference
