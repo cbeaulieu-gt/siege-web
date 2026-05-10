@@ -494,6 +494,75 @@ async def test_preview_determinism_same_output_on_repeat():
 
 
 @pytest.mark.asyncio
+async def test_preview_current_member_preferred_when_equally_qualified():
+    """Regression test for #360: bistable flip-flop.
+
+    Setup:
+    - 1 post, condition id=10.
+    - Alice (id=1) is currently assigned to the position with count=1
+      (her own assignment counts toward her total).
+    - Bob (id=2) has count=0 (not assigned anywhere yet).
+
+    Without the fix, the score tuple is (dup_penalty, count, name):
+      Alice → (0, 1, "Alice"), Bob → (0, 0, "Bob") → Bob wins.
+    Apply Bob; Bob's count becomes 1, Alice's drops to 0.
+    Re-run: Alice → (0, 0, "Alice"), Bob → (0, 1, "Bob") → Alice wins.
+    Bistable flip-flop: the algorithm perpetually proposes a swap.
+
+    With the fix, the current member receives an extra preference signal
+    so the score is stable: re-running after apply always returns
+    matches_current=True for every row, meaning the suggestion set never
+    proposes a change to an already-optimal board.
+    """
+    cond = _make_condition(id=10, description="Attack L1")
+    alice = _make_member(id=1, name="Alice", preferences=[cond])
+    bob = _make_member(id=2, name="Bob", preferences=[cond])
+    sm_alice = _make_siege_member(alice)
+    sm_bob = _make_siege_member(bob)
+
+    # Alice is currently assigned (member_id=1, condition=10).
+    # Her count is 1 (she occupies this position in the DB).
+    pos = _make_position(id=101, member_id=1, member_name="Alice", matched_condition_id=10)
+    grp = _make_group([pos])
+    bld = _make_building(id=1, building_number=1, groups=[grp])
+    post = _make_post(id=10, building=bld, priority=1, active_conditions=[cond])
+    siege = _make_siege(posts=[post], siege_members=[sm_alice, sm_bob])
+
+    # Run 1: Alice is the incumbent with count=1, Bob has count=0.
+    result1 = await _preview(siege, assignment_counts={1: 1})
+
+    # The algorithm must prefer Alice (current member) over Bob.
+    # Without the fix, Bob wins because count 0 < 1.
+    assert result1.assignments[0].suggested_member_id == 1, (
+        "Run 1: expected Alice (current member) to be preferred, got "
+        f"member_id={result1.assignments[0].suggested_member_id}"
+    )
+    assert (
+        result1.assignments[0].matches_current is True
+    ), "Run 1: matches_current should be True when current member is retained"
+
+    # Simulate apply: Bob is now assigned, Alice's count drops.
+    # (In the flip-flop scenario, applying Bob would give Bob count=1, Alice=0.)
+    # Run 2 after hypothetical apply of Bob: Bob is incumbent with count=1, Alice=0.
+    pos2 = _make_position(id=101, member_id=2, member_name="Bob", matched_condition_id=10)
+    grp2 = _make_group([pos2])
+    bld2 = _make_building(id=1, building_number=1, groups=[grp2])
+    post2 = _make_post(id=10, building=bld2, priority=1, active_conditions=[cond])
+    siege2 = _make_siege(posts=[post2], siege_members=[sm_alice, sm_bob])
+
+    result2 = await _preview(siege2, assignment_counts={2: 1})
+
+    # Now Bob is the incumbent; the algorithm must prefer Bob.
+    assert result2.assignments[0].suggested_member_id == 2, (
+        "Run 2: expected Bob (current member) to be preferred, got "
+        f"member_id={result2.assignments[0].suggested_member_id}"
+    )
+    assert (
+        result2.assignments[0].matches_current is True
+    ), "Run 2: matches_current should be True when current member is retained"
+
+
+@pytest.mark.asyncio
 async def test_preview_lowest_condition_id_picked_as_tiebreak():
     """Two matching conditions, neither used → lowest id is picked."""
     cond_hi = _make_condition(id=20, description="High ID")
