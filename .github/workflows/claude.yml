@@ -18,5 +18,5 @@ permissions:
 
 jobs:
   respond:
-    uses: glitchwerks/github-actions/.github/workflows/claude-tag-respond.yml@v2.6.1
+    uses: glitchwerks/github-actions/.github/workflows/claude-tag-respond.yml@89ade69f511f1b2634ea4bc2c7d4998dcbcfda50 # v2.6.1
     secrets: inherit

@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   fix:
-    uses: glitchwerks/github-actions/.github/workflows/ci-failure.yaml@v2.6.1
+    uses: glitchwerks/github-actions/.github/workflows/ci-failure.yaml@89ade69f511f1b2634ea4bc2c7d4998dcbcfda50 # v2.6.1
     secrets: inherit
     with:
       auto_apply: true
