@@ -38,6 +38,10 @@ def _get_client_ip(request: Request) -> str:
     """
     forwarded_for = request.headers.get("X-Forwarded-For", "")
     if forwarded_for:
+        # Cap before splitting — defense-in-depth against pathologically long
+        # headers; ASGI servers already cap total header size, but this keeps
+        # our split O(1) if anything upstream changes.
+        forwarded_for = forwarded_for[:8192]
         # Leftmost entry is written by the trusted ingress proxy.
         return forwarded_for.split(",")[0].strip()
     return get_remote_address(request)

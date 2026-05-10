@@ -14,4 +14,7 @@ azure-monitor-opentelemetry>=1.6
 opentelemetry-instrumentation-fastapi>=0.50b0
 opentelemetry-instrumentation-sqlalchemy>=0.50b0
 opentelemetry-instrumentation-asyncpg>=0.50b0
-slowapi>=0.1.9
+# Upper bound guards against _rate_limit_exceeded_handler being renamed or
+# removed — that leading-underscore symbol is private API with no stability
+# guarantee beyond the current minor series.
+slowapi>=0.1.9,<0.2

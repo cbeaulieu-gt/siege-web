@@ -46,7 +46,7 @@ async def _get(client: AsyncClient, url: str, headers: dict | None = None) -> in
 
 @pytest.mark.asyncio
 async def test_login_rate_limit_triggers_429(monkeypatch):
-    """11th rapid request to /api/auth/login returns 429.
+    """3rd rapid request to /api/auth/login returns 429 when limit is 2/minute.
 
     The limit is overridden to "2/minute" via monkeypatch so the test does
     not need to wait for a real one-minute window.
@@ -96,7 +96,7 @@ async def test_login_rate_limit_independent_per_ip(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_callback_rate_limit_triggers_429(monkeypatch):
-    """6th rapid request to /api/auth/callback returns 429.
+    """3rd rapid request to /api/auth/callback returns 429 when limit is 2/minute.
 
     Limit overridden to "2/minute" for speed.  The handler returns 302
     (invalid_state redirect) for valid-rate requests; we only care that
@@ -173,3 +173,38 @@ async def test_callback_no_429_when_auth_disabled(monkeypatch):
                 headers={"X-Forwarded-For": "9.9.9.9"},
             )
             assert resp.status_code != 429, f"Got unexpected 429 on request {i + 1}"
+
+
+# ---------------------------------------------------------------------------
+# Tests: X-Forwarded-For header cap
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_xff_pathological_header_parses_to_leftmost_ip(monkeypatch):
+    """Pathologically long X-Forwarded-For header is handled without error.
+
+    Constructs a header that far exceeds 8192 characters and verifies that
+    the rate-limiter correctly extracts the leftmost IP (the real client IP
+    written by the trusted ingress proxy), even after the 8 KB cap truncates
+    the tail of the header.
+    """
+    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.environment", "development")
+    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
+    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
+
+    # Build a header where the leftmost entry is a real IP followed by enough
+    # padding to exceed 8192 bytes.  After truncation the split still yields
+    # the leftmost IP as the bucket key, so the request must not 429.
+    leftmost_ip = "1.2.3.4"
+    filler = ", 10.0.0.1" * 1000  # well over 8 KB
+    long_xff = f"{leftmost_ip}{filler}"
+    assert len(long_xff) > 8192, "Precondition: header must exceed the cap"
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        status = await _get(client, LOGIN_URL, headers={"X-Forwarded-For": long_xff})
+        # With a generous 100/minute limit and a unique-looking first IP this
+        # should succeed — the key point is no exception is raised by the cap.
+        assert status == 200, f"Expected 200 for long XFF header, got {status}"

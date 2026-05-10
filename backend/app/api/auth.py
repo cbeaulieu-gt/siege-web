@@ -122,6 +122,9 @@ async def callback(
     sidecar, matches to a Member record, and issues a signed JWT session cookie.
 
     Rate-limited per client IP via AUTH_CALLBACK_RATE_LIMIT (default 5/minute).
+    The limit is read lazily from ``settings`` so env-var overrides and test
+    monkeypatches take effect without reloading the module.  The ``request``
+    parameter is required by slowapi's decorator.
     """
     # 1. Validate state (CSRF)
     stored_state = request.cookies.get("oauth_state", "")
