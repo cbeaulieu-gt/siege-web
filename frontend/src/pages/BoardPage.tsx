@@ -138,6 +138,7 @@ function PositionCell({
     }) => updatePosition(siegeId, position.id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["post-suggestions-status"] });
       onUpdate();
       setMenuOpen(false);
     },
@@ -757,6 +758,7 @@ export default function BoardPage() {
     mutationFn: () => applyAutofill(siegeId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["post-suggestions-status"] });
       setAutofillOpen(false);
       setAutofillPreview(null);
     },
@@ -906,6 +908,7 @@ export default function BoardPage() {
       is_reserve: false,
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ["board", siegeId] });
+      queryClient.invalidateQueries({ queryKey: ["post-suggestions-status"] });
     });
   }
 
