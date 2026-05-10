@@ -251,3 +251,45 @@ export interface MemberRoleInfo {
   display: string;
   default_attack_day: number;
 }
+
+// Post Suggestions
+export type PostSuggestionSkipReason = "no_match" | "reserve" | "disabled";
+
+export interface PostSuggestionEntry {
+  post_id: number;
+  building_number: number;
+  priority: number;
+  position_id: number;
+  suggested_member_id: number | null;
+  suggested_member_name: string | null;
+  suggested_condition_id: number | null;
+  suggested_condition_description: string | null;
+  current_member_id: number | null;
+  current_member_name: string | null;
+  current_condition_id: number | null;
+  matches_current: boolean;
+  skip_reason: PostSuggestionSkipReason | null;
+}
+
+export interface PostSuggestionPreviewResult {
+  assignments: PostSuggestionEntry[];
+  expires_at: string;
+}
+
+export type PostSuggestionStaleReason =
+  | "position_missing"
+  | "position_disabled"
+  | "position_reserve"
+  | "member_inactive"
+  | "member_changed"; // another planner wrote a different member since preview
+
+export interface PostSuggestionStaleEntry {
+  position_id: number;
+  reason: PostSuggestionStaleReason;
+}
+
+// Apply 409 response shape: { detail: { stale_entries: PostSuggestionStaleEntry[] } }
+
+export interface PostSuggestionApplyResult {
+  applied_count: number;
+}
