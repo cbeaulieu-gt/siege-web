@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   review:
-    uses: glitchwerks/github-actions/.github/workflows/claude-pr-review.yml@v2.6.1
+    uses: glitchwerks/github-actions/.github/workflows/claude-pr-review.yml@1528c7cde177d9e0d1593976f5824323ec169571 # v2.6.1
     with:
       authorized_users: cbeaulieu-gt
     secrets: inherit
