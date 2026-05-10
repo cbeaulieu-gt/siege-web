@@ -341,4 +341,21 @@ describe("PostsPage — master Toggle All override (issue #377)", () => {
       within(masterGroup).getByRole("radio", { name: "Type" })
     ).toHaveAttribute("aria-checked", "true");
   });
+
+  it("rows initialize with master's stored preference on first mount", async () => {
+    // Regression guard for bot finding #1: each PostRow calls useGroupByPreference
+    // independently, so each row reads localStorage on mount. This test verifies
+    // that rows initialize to the stored value — NOT the default "level" mode.
+    localStorage.setItem("siege-web:postConditions:groupBy", "type");
+    const user = userEvent.setup();
+    renderPostsPage();
+    await expandAllPosts(user);
+
+    // Both rows should initialize in Type mode (Role / Affinity / ... headings),
+    // NOT in Level mode (Stronghold Level 1 / 2 / 3 headings).
+    await waitFor(() => {
+      expect(screen.getAllByText("Role").length).toBeGreaterThanOrEqual(1);
+    });
+    expect(screen.queryByText(/stronghold level/i)).not.toBeInTheDocument();
+  });
 });

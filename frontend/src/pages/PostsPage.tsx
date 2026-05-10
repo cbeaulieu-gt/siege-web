@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPosts, setPostConditions } from "../api/posts";
@@ -55,20 +55,24 @@ function PostRow({
   const [expanded, setExpanded] = useState(initialExpanded);
   const [condFilter, setCondFilter] = useState("");
   const [groupByMode, setGroupByMode] = useGroupByPreference(GROUP_BY_STORAGE_KEY);
+  // Tracks the last forcedVersion this row applied so the effect does not re-fire
+  // when other deps (groupByMode, forcedMode) change after a per-row flip.
+  const appliedVersionRef = useRef(0);
   const [selectedConditions, setSelectedConditions] = useState<Set<number>>(
     new Set(post.active_conditions.map((c) => c.id))
   );
 
   // Master override: when forcedVersion bumps, snap this row's local state to
-  // forcedMode. We intentionally depend only on forcedVersion (not forcedMode)
-  // so the effect fires exactly when the master broadcasts — not on every
-  // re-render where the two values happen to match.
+  // forcedMode. appliedVersionRef tracks the last version we acted on so the
+  // effect is a no-op when other deps (groupByMode, forcedMode) change due to a
+  // per-row flip — preserving row independence after a master broadcast while
+  // still including all deps in the array (no eslint-disable needed).
   useEffect(() => {
-    if (forcedVersion > 0) {
+    if (forcedVersion > 0 && forcedVersion !== appliedVersionRef.current) {
+      appliedVersionRef.current = forcedVersion;
       setGroupByMode(forcedMode);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional version-only dep
-  }, [forcedVersion]);
+  }, [forcedVersion, forcedMode, setGroupByMode]);
 
   const { data: allConditions } = useQuery({
     queryKey: ["postConditions"],
