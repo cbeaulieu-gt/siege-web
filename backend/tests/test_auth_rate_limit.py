@@ -5,18 +5,47 @@ Covers:
 - /api/auth/callback 429s on the (N+1)th request within the window
 - AUTH_DISABLED=true suppresses all rate limiting
 - X-Forwarded-For header is the bucket key (different IPs = independent)
+- Invalid XFF value falls back to remote-address bucket
+- Garbage XFF values do NOT create unique per-request buckets
+- 429 response includes a Retry-After header
+- Production warning fires when XFF absent; silent in development
 
 Rate limits are driven by env-tunable settings.  For tests we override them
 to a tight "2/minute" value so we only need 3 rapid requests to trigger a
 429 — no real-time waiting required.
 """
 
+import logging
 import secrets
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+import app.rate_limit as _rate_limit_module
 from app.main import app
+from app.rate_limit import limiter
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limit_state():
+    """Reset per-test rate-limit state before each test.
+
+    Resets two pieces of module-level state so tests cannot bleed into
+    each other:
+
+    1. ``limiter._storage`` — the in-memory bucket store.  Tests that
+       share the same fallback IP (127.0.0.1 / "testclient") would
+       otherwise see residual counts from earlier tests.
+
+    2. ``_last_xff_absent_warning`` — the throttle timestamp for the
+       production XFF-absent warning.  Without this reset, a
+       production-warning test run immediately after another one would
+       suppress the warning (throttle not yet expired) and fail.
+    """
+    limiter._storage.reset()
+    _rate_limit_module._last_xff_absent_warning = 0.0
+    yield
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -207,4 +236,186 @@ async def test_xff_pathological_header_parses_to_leftmost_ip(monkeypatch):
         status = await _get(client, LOGIN_URL, headers={"X-Forwarded-For": long_xff})
         # With a generous 100/minute limit and a unique-looking first IP this
         # should succeed — the key point is no exception is raised by the cap.
-        assert status == 200, f"Expected 200 for long XFF header, got {status}"
+        assert status == 200, f"Expected 200 (no exception raised from long XFF), got {status}"
+
+
+# ---------------------------------------------------------------------------
+# Tests: XFF validation (Finding #1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_garbage_xff_falls_back_to_remote_address_bucket(monkeypatch):
+    """Garbage XFF value falls back to the ASGI remote-address bucket.
+
+    Sending ``X-Forwarded-For: not-an-ip`` must NOT create a unique bucket
+    for the garbage string.  Instead the fallback remote-address bucket
+    ('testclient' / 127.0.0.1) is used, so repeated garbage-XFF requests
+    accumulate in the same bucket and eventually hit the rate limit.
+    """
+    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "2/minute")
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.environment", "development")
+    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
+    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Two requests with garbage XFF fill the remote-address bucket.
+        for _ in range(2):
+            status = await _get(client, LOGIN_URL, headers={"X-Forwarded-For": "not-an-ip"})
+            assert status == 200, f"Expected 200 before limit, got {status}"
+
+        # Third request with garbage XFF hits the rate limit (same remote-address
+        # bucket — garbage did NOT escape into its own fresh bucket).
+        status = await _get(client, LOGIN_URL, headers={"X-Forwarded-For": "not-an-ip"})
+        assert status == 429, (
+            f"Expected 429 — garbage XFF must not create a fresh per-request "
+            f"bucket, got {status}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_different_garbage_xff_values_share_remote_address_bucket(monkeypatch):
+    """Different garbage XFF strings all resolve to the same remote-address bucket.
+
+    An attacker who rotates ``X-Forwarded-For`` values through unique garbage
+    strings must NOT bypass the limiter by getting a fresh bucket each time.
+    All garbage values share the fallback remote-address bucket.
+    """
+    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "2/minute")
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.environment", "development")
+    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
+    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Exhaust the bucket with distinct garbage values.
+        garbage_headers = ["not-an-ip", "shared-bucket", "totally-fake"]
+        for h in garbage_headers[:2]:
+            status = await _get(client, LOGIN_URL, headers={"X-Forwarded-For": h})
+            assert status == 200, f"Expected 200 before limit, got {status}"
+
+        # A third distinct garbage value still hits the limit —
+        # same remote-address fallback bucket.
+        status = await _get(client, LOGIN_URL, headers={"X-Forwarded-For": garbage_headers[2]})
+        assert status == 429, (
+            f"Expected 429 — different garbage XFF values must not each get their "
+            f"own fresh bucket, got {status}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_valid_xff_still_buckets_by_ip(monkeypatch):
+    """Valid XFF IP values are still used as the bucket key (regression guard).
+
+    Ensures the garbage-XFF fallback path does not accidentally affect
+    requests that carry a legitimate X-Forwarded-For value.
+    """
+    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "2/minute")
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.environment", "development")
+    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
+    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Exhaust the bucket for IP A.
+        for _ in range(2):
+            await _get(client, LOGIN_URL, headers={"X-Forwarded-For": "10.0.0.1"})
+        status_a = await _get(client, LOGIN_URL, headers={"X-Forwarded-For": "10.0.0.1"})
+        assert status_a == 429, "IP A should be rate-limited"
+
+        # IP B is a completely separate bucket — should not be affected.
+        status_b = await _get(client, LOGIN_URL, headers={"X-Forwarded-For": "10.0.0.2"})
+        assert status_b == 200, f"IP B must have its own fresh bucket, got {status_b}"
+
+
+# ---------------------------------------------------------------------------
+# Tests: custom 429 handler — Retry-After header (Finding #2 / #4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_429_response_includes_retry_after_header(monkeypatch):
+    """A 429 response must include a Retry-After header with a positive integer.
+
+    Verifies that our custom rate-limit-exceeded handler sets the header so
+    clients know when they can retry without polling.
+    """
+    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "2/minute")
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.environment", "development")
+    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
+    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        # Exhaust the limit.
+        for _ in range(2):
+            await _get(client, LOGIN_URL, headers={"X-Forwarded-For": "2.3.4.5"})
+
+        # Trigger the 429 and capture the full response.
+        resp = await client.get(LOGIN_URL, headers={"X-Forwarded-For": "2.3.4.5"})
+        assert resp.status_code == 429, f"Expected 429, got {resp.status_code}"
+
+        retry_after = resp.headers.get("Retry-After")
+        assert retry_after is not None, "Retry-After header must be present on 429"
+        assert (
+            retry_after.isdigit()
+        ), f"Retry-After must be a plain integer string, got {retry_after!r}"
+        assert int(retry_after) > 0, f"Retry-After must be a positive integer, got {retry_after}"
+
+
+# ---------------------------------------------------------------------------
+# Tests: production warning when XFF absent (Finding #3)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_missing_xff_in_production_logs_warning(monkeypatch, caplog):
+    """XFF absent in production emits a WARNING via the rate_limit logger.
+
+    Ensures the warning fires exactly once for a request that arrives without
+    X-Forwarded-For when ENVIRONMENT=production, signalling potential
+    misconfiguration (direct backend access bypassing Container Apps ingress).
+    """
+    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.environment", "production")
+    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
+    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
+
+    with caplog.at_level(logging.WARNING, logger="app.rate_limit"):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            # No X-Forwarded-For header — simulates direct backend access.
+            await _get(client, LOGIN_URL)
+
+    warning_records = [
+        r for r in caplog.records if r.levelno == logging.WARNING and "X-Forwarded-For" in r.message
+    ]
+    assert (
+        len(warning_records) >= 1
+    ), "Expected at least one WARNING about missing X-Forwarded-For in production"
+
+
+@pytest.mark.asyncio
+async def test_missing_xff_in_development_does_not_log_warning(monkeypatch, caplog):
+    """XFF absent in development must NOT emit the production trust-model warning.
+
+    Direct access without a proxy is normal in local dev — the warning would
+    be noise and should be suppressed when ENVIRONMENT != production.
+    """
+    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.environment", "development")
+    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
+    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
+
+    with caplog.at_level(logging.WARNING, logger="app.rate_limit"):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await _get(client, LOGIN_URL)
+
+    warning_records = [
+        r for r in caplog.records if r.levelno == logging.WARNING and "X-Forwarded-For" in r.message
+    ]
+    assert (
+        len(warning_records) == 0
+    ), f"Expected no XFF warning in development, got: {warning_records}"
