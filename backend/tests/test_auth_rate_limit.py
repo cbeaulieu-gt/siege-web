@@ -396,7 +396,7 @@ async def test_missing_xff_in_production_logs_warning(monkeypatch, caplog):
     # DIAGNOSTIC — REMOVE before final commit
     rate_limit_logger = logging.getLogger("app.rate_limit")
     root_logger = logging.getLogger()
-    print(f"\n=== LOGGER CONFIG (before set_level) ===", file=sys.stderr)
+    print("\n=== LOGGER CONFIG (before set_level) ===", file=sys.stderr)
     print(
         f"rate_limit.propagate: {rate_limit_logger.propagate}",
         file=sys.stderr,
@@ -427,7 +427,7 @@ async def test_missing_xff_in_production_logs_warning(monkeypatch, caplog):
     caplog.set_level(logging.WARNING, logger="app.rate_limit")
 
     # DIAGNOSTIC — REMOVE before final commit
-    print(f"\n=== LOGGER CONFIG (after set_level) ===", file=sys.stderr)
+    print("\n=== LOGGER CONFIG (after set_level) ===", file=sys.stderr)
     print(
         f"rate_limit.level: {rate_limit_logger.level}"
         f" (effective: {rate_limit_logger.getEffectiveLevel()})",
@@ -446,7 +446,7 @@ async def test_missing_xff_in_production_logs_warning(monkeypatch, caplog):
         await _get(client, LOGIN_URL)
 
     # DIAGNOSTIC — REMOVE before final commit
-    print(f"\n=== AFTER REQUEST ===", file=sys.stderr)
+    print("\n=== AFTER REQUEST ===", file=sys.stderr)
     print(f"caplog.records: {caplog.records}", file=sys.stderr)
     print(
         f"caplog.handler in root.handlers: {caplog.handler in root_logger.handlers}",
