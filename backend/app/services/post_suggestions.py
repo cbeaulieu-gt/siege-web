@@ -41,7 +41,7 @@ from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -118,7 +118,7 @@ async def preview_post_suggestions(
     # reserve, and broken-building positions — only "live" assignments).
     # ------------------------------------------------------------------
     counts_result = await session.execute(
-        select(Position.member_id, _count_star())
+        select(Position.member_id, func.count())
         .join(BuildingGroup, Position.building_group_id == BuildingGroup.id)
         .join(Building, BuildingGroup.building_id == Building.id)
         .where(Building.siege_id == siege_id)
@@ -133,7 +133,7 @@ async def preview_post_suggestions(
     # ------------------------------------------------------------------
     # Build active-member list and their preference sets.
     # ------------------------------------------------------------------
-    active_members: list = [
+    active_members: list[Member] = [
         sm.member for sm in siege.siege_members if sm.member is not None and sm.member.is_active
     ]
     member_preference_ids: dict[int, set[int]] = {
@@ -517,10 +517,3 @@ def _null_entry(
         matches_current=False,
         skip_reason=skip_reason,
     )
-
-
-def _count_star():
-    """Return a SQLAlchemy count(*) expression."""
-    from sqlalchemy import func
-
-    return func.count()
