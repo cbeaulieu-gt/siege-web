@@ -12,7 +12,7 @@ Three architectural choices were locked in via clarifying questions:
 2. **First available position per post** — each post building has one group; the suggestion targets the first non-disabled, non-reserve position. If none available, the post is skipped.
 3. **Top-of-tab toolbar + Dialog** — new toolbar above the post list with a "Suggest Assignments" button; opens a Dialog modeled after `DiscordSyncModal`.
 
-GitHub Issue: [#197](https://github.com/glitchwerks/siege-web/issues/197) (existing, no new issue needed).
+GitHub Issue: [#197](https://github.com/glitchwerks/rsl-siege-manager/issues/197) (existing, no new issue needed).
 
 ---
 

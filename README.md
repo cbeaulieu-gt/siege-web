@@ -1,8 +1,8 @@
 # Siege Assignment Web App
 
-[![CI](https://img.shields.io/github/actions/workflow/status/glitchwerks/siege-web/ci.yml?branch=main&label=CI&logo=github)](https://github.com/glitchwerks/siege-web/actions/workflows/ci.yml)
-[![Deploy](https://img.shields.io/github/actions/workflow/status/glitchwerks/siege-web/deploy.yml?branch=main&label=deploy&logo=github)](https://github.com/glitchwerks/siege-web/actions/workflows/deploy.yml)
-[![Latest release](https://img.shields.io/github/v/release/glitchwerks/siege-web?label=release&logo=github&color=blue)](https://github.com/glitchwerks/siege-web/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/glitchwerks/rsl-siege-manager/ci.yml?branch=main&label=CI&logo=github)](https://github.com/glitchwerks/rsl-siege-manager/actions/workflows/ci.yml)
+[![Deploy](https://img.shields.io/github/actions/workflow/status/glitchwerks/rsl-siege-manager/deploy.yml?branch=main&label=deploy&logo=github)](https://github.com/glitchwerks/rsl-siege-manager/actions/workflows/deploy.yml)
+[![Latest release](https://img.shields.io/github/v/release/glitchwerks/rsl-siege-manager?label=release&logo=github&color=blue)](https://github.com/glitchwerks/rsl-siege-manager/releases/latest)
 [![Live site](https://img.shields.io/badge/live-rslsiege.com-success?logo=cloudflare&logoColor=white)](https://rslsiege.com)
 
 🌐 **Live site:** <https://rslsiege.com>
@@ -39,8 +39,8 @@ Get a populated local UI running in under 5 minutes — no Discord setup require
 
 ```bash
 # 1. Clone and enter the repo
-git clone https://github.com/glitchwerks/siege-web.git
-cd siege-web
+git clone https://github.com/glitchwerks/rsl-siege-manager.git
+cd rsl-siege-manager
 
 # 2. Copy the example env (auth is disabled by default for local dev)
 cp .env.example .env
@@ -146,12 +146,12 @@ The in-app changelog dropdown reads from `CHANGELOG.md` at the repo root. Parsin
 
 ## Run it yourself
 
-Full self-host guides live in the [project wiki](https://github.com/glitchwerks/siege-web/wiki):
+Full self-host guides live in the [project wiki](https://github.com/glitchwerks/rsl-siege-manager/wiki):
 
-- **[Self-Host on Any VPS](https://github.com/glitchwerks/siege-web/wiki/Self-Host-on-Any-VPS)** — any Linux host that runs Docker, with Caddy for free TLS and an optional Cloudflare Tunnel path if you can't open ports. The portable path — no cloud account required.
-- **[Self-Host on Azure](https://github.com/glitchwerks/siege-web/wiki/Self-Host-on-Azure)** — Container Apps + Key Vault + PostgreSQL Flexible Server, with a GitHub Actions deploy pipeline. The managed, hands-off path.
+- **[Self-Host on Any VPS](https://github.com/glitchwerks/rsl-siege-manager/wiki/Self-Host-on-Any-VPS)** — any Linux host that runs Docker, with Caddy for free TLS and an optional Cloudflare Tunnel path if you can't open ports. The portable path — no cloud account required.
+- **[Self-Host on Azure](https://github.com/glitchwerks/rsl-siege-manager/wiki/Self-Host-on-Azure)** — Container Apps + Key Vault + PostgreSQL Flexible Server, with a GitHub Actions deploy pipeline. The managed, hands-off path.
 
-New to the project? Start at **[Getting Started](https://github.com/glitchwerks/siege-web/wiki/Getting-Started)** in the wiki.
+New to the project? Start at **[Getting Started](https://github.com/glitchwerks/rsl-siege-manager/wiki/Getting-Started)** in the wiki.
 
 ## Deploy Environments
 
