@@ -16,6 +16,7 @@ from app.config import JWT_ALGORITHM, settings
 from app.db.session import get_db
 from app.dependencies.auth import AuthenticatedUser, get_current_user
 from app.models.member import Member
+from app.rate_limit import limiter
 from app.services.bot_client import bot_client
 
 logger = logging.getLogger(__name__)
@@ -72,11 +73,17 @@ async def _check_guild_membership(discord_id: str) -> dict:
 
 
 @router.get("/login")
-async def login(response: Response) -> dict:
+@limiter.limit(lambda: settings.auth_login_rate_limit)
+async def login(request: Request, response: Response) -> dict:
     """Initiate Discord OAuth2 flow.
 
     Generates a CSRF state token, stores it in a short-lived cookie, and
     returns the Discord authorization URL for the frontend to redirect to.
+
+    Rate-limited per client IP via AUTH_LOGIN_RATE_LIMIT (default 10/minute).
+    The limit is read lazily from ``settings`` so env-var overrides and test
+    monkeypatches take effect without reloading the module.  The ``request``
+    parameter is required by slowapi's decorator.
     """
     state = secrets.token_hex(32)
     params = urlencode(
@@ -101,6 +108,7 @@ async def login(response: Response) -> dict:
 
 
 @router.get("/callback")
+@limiter.limit(lambda: settings.auth_callback_rate_limit)
 async def callback(
     code: str,
     state: str,
@@ -112,6 +120,11 @@ async def callback(
     Validates CSRF state, exchanges the authorization code for an access token,
     fetches the Discord user profile, verifies guild membership via the bot
     sidecar, matches to a Member record, and issues a signed JWT session cookie.
+
+    Rate-limited per client IP via AUTH_CALLBACK_RATE_LIMIT (default 5/minute).
+    The limit is read lazily from ``settings`` so env-var overrides and test
+    monkeypatches take effect without reloading the module.  The ``request``
+    parameter is required by slowapi's decorator.
     """
     # 1. Validate state (CSRF)
     stored_state = request.cookies.get("oauth_state", "")

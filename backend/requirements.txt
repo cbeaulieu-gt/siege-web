@@ -14,3 +14,9 @@ azure-monitor-opentelemetry>=1.6
 opentelemetry-instrumentation-fastapi>=0.50b0
 opentelemetry-instrumentation-sqlalchemy>=0.50b0
 opentelemetry-instrumentation-asyncpg>=0.50b0
+# Upper bound is defense-in-depth: we no longer import _rate_limit_exceeded_handler
+# (replaced by our own rate_limit_exceeded_handler in app/rate_limit.py), so
+# the only public contracts we rely on are Limiter and RateLimitExceeded.
+# Minor upgrades within 0.1.x may still rename these symbols; the pin keeps
+# CI deterministic.
+slowapi>=0.1.9,<0.2
