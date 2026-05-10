@@ -16,6 +16,13 @@ select = ["E", "F", "I", "UP"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Set log_level so pytest's catching_logs fixture explicitly initialises the
+# caplog handler and root logger to WARNING for every test.  Without this,
+# catching_logs receives level=None and skips the setLevel/setLevel calls,
+# which leaves the handler uninitialised on Python 3.12 + Linux (CI) in a
+# way that prevents caplog from capturing WARNING records from child loggers
+# (e.g. app.rate_limit) even when caplog.at_level() is used inside the test.
+log_level = "WARNING"
 
 [tool.coverage.run]
 source = ["app"]
