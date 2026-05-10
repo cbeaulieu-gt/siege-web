@@ -5,13 +5,19 @@ import { getPosts, setPostConditions } from "../api/posts";
 import { getPostConditions } from "../api/members";
 import { getSiege } from "../api/sieges";
 import { getBoard } from "../api/board";
-import type { Post, PostConditionRef, BuildingResponse } from "../api/types";
+import type { Post, BuildingResponse } from "../api/types";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Checkbox } from "../components/ui/checkbox";
 import { Badge } from "../components/ui/badge";
 import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
+import { GroupByToggle } from "../components/GroupByToggle";
+import { groupPostConditions } from "../lib/groupPostConditions";
+import {
+  useGroupByPreference,
+  GROUP_BY_STORAGE_KEY,
+} from "../lib/useGroupByPreference";
 
 const PRIORITY_LABELS: Record<number, string> = {
   0: "Unset",
@@ -19,15 +25,6 @@ const PRIORITY_LABELS: Record<number, string> = {
   2: "Medium",
   3: "High",
 };
-
-function groupConditionsByLevel(conditions: PostConditionRef[]) {
-  const groups: Record<number, PostConditionRef[]> = {};
-  for (const c of conditions) {
-    if (!groups[c.stronghold_level]) groups[c.stronghold_level] = [];
-    groups[c.stronghold_level].push(c);
-  }
-  return groups;
-}
 
 function PostRow({
   post,
@@ -45,6 +42,7 @@ function PostRow({
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(initialExpanded);
   const [condFilter, setCondFilter] = useState("");
+  const [groupByMode, setGroupByMode] = useGroupByPreference(GROUP_BY_STORAGE_KEY);
   const [selectedConditions, setSelectedConditions] = useState<Set<number>>(
     new Set(post.active_conditions.map((c) => c.id))
   );
@@ -75,7 +73,7 @@ function PostRow({
     });
   }
 
-  const condGroups = allConditions ? groupConditionsByLevel(allConditions) : {};
+  const condGroups = groupPostConditions(allConditions ?? [], groupByMode);
 
   // Derive the assignment match state from the board data for this building.
   // Flatten all non-reserve, non-disabled positions and find the first assigned one.
@@ -169,27 +167,28 @@ function PostRow({
             <h4 className="mb-2 text-sm font-medium text-slate-700">
               Conditions (max 3)
             </h4>
-            <Input
-              placeholder="Filter conditions..."
-              value={condFilter}
-              onChange={(e) => setCondFilter(e.target.value)}
-              className="mb-3 h-8 text-sm"
-            />
-            {Object.entries(condGroups)
-              .sort(([a], [b]) => Number(a) - Number(b))
-              .map(([level, conds]) => {
+            <div className="mb-3 flex items-center gap-2">
+              <Input
+                placeholder="Filter conditions..."
+                value={condFilter}
+                onChange={(e) => setCondFilter(e.target.value)}
+                className="h-8 flex-1 text-sm"
+              />
+              <GroupByToggle value={groupByMode} onChange={setGroupByMode} />
+            </div>
+            {condGroups.map((group) => {
                 const filtered = condFilter
-                  ? conds.filter((c) =>
+                  ? group.items.filter((c) =>
                       c.description
                         .toLowerCase()
                         .includes(condFilter.toLowerCase())
                     )
-                  : conds;
+                  : group.items;
                 if (filtered.length === 0) return null;
                 return (
-                  <div key={level} className="mb-3">
+                  <div key={group.heading} className="mb-3">
                     <p className="mb-1 text-xs font-medium text-slate-500">
-                      Stronghold Level {level}
+                      {group.heading}
                     </p>
                     <div className="grid grid-cols-2 gap-1.5">
                       {filtered.map((c) => {
