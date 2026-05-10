@@ -385,11 +385,35 @@ async def test_missing_xff_in_production_logs_warning(monkeypatch, caplog):
     X-Forwarded-For when ENVIRONMENT=production, signalling potential
     misconfiguration (direct backend access bypassing Container Apps ingress).
     """
+    import sys
+
     monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
     monkeypatch.setattr("app.config.settings.auth_disabled", False)
     monkeypatch.setattr("app.config.settings.environment", "production")
     monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
     monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
+
+    # DIAGNOSTIC — REMOVE before final commit
+    rate_limit_logger = logging.getLogger("app.rate_limit")
+    root_logger = logging.getLogger()
+    print(f"\n=== LOGGER CONFIG (before set_level) ===", file=sys.stderr)
+    print(
+        f"rate_limit.propagate: {rate_limit_logger.propagate}",
+        file=sys.stderr,
+    )
+    print(
+        f"rate_limit.handlers: {rate_limit_logger.handlers}",
+        file=sys.stderr,
+    )
+    print(
+        f"rate_limit.level: {rate_limit_logger.level}"
+        f" (effective: {rate_limit_logger.getEffectiveLevel()})",
+        file=sys.stderr,
+    )
+    print(f"root.handlers: {root_logger.handlers}", file=sys.stderr)
+    print(f"root.level: {root_logger.level}", file=sys.stderr)
+    print(f"caplog.handler: {caplog.handler}", file=sys.stderr)
+    print(f"caplog.handler.level: {caplog.handler.level}", file=sys.stderr)
 
     # caplog.set_level is used instead of the caplog.at_level context manager
     # because it persists for the entire test and is managed by pytest's fixture
@@ -401,9 +425,35 @@ async def test_missing_xff_in_production_logs_warning(monkeypatch, caplog):
     # in pyproject.toml (added alongside this fix) addresses the root cause;
     # caplog.set_level here is belt-and-suspenders so the intent is explicit.
     caplog.set_level(logging.WARNING, logger="app.rate_limit")
+
+    # DIAGNOSTIC — REMOVE before final commit
+    print(f"\n=== LOGGER CONFIG (after set_level) ===", file=sys.stderr)
+    print(
+        f"rate_limit.level: {rate_limit_logger.level}"
+        f" (effective: {rate_limit_logger.getEffectiveLevel()})",
+        file=sys.stderr,
+    )
+    print(f"root.handlers: {root_logger.handlers}", file=sys.stderr)
+    print(f"root.level: {root_logger.level}", file=sys.stderr)
+    print(f"caplog.handler.level: {caplog.handler.level}", file=sys.stderr)
+    print(
+        f"caplog.handler in root.handlers: {caplog.handler in root_logger.handlers}",
+        file=sys.stderr,
+    )
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # No X-Forwarded-For header — simulates direct backend access.
         await _get(client, LOGIN_URL)
+
+    # DIAGNOSTIC — REMOVE before final commit
+    print(f"\n=== AFTER REQUEST ===", file=sys.stderr)
+    print(f"caplog.records: {caplog.records}", file=sys.stderr)
+    print(
+        f"caplog.handler in root.handlers: {caplog.handler in root_logger.handlers}",
+        file=sys.stderr,
+    )
+    import app.rate_limit as _rl
+    print(f"_last_xff_absent_warning: {_rl._last_xff_absent_warning}", file=sys.stderr)
 
     warning_records = [
         r for r in caplog.records if r.levelno == logging.WARNING and "X-Forwarded-For" in r.message
