@@ -14,7 +14,7 @@ on:
         default: 'false'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   publish:
@@ -28,7 +28,7 @@ jobs:
         uses: Andrew-Chen-Wang/github-wiki-action@v5
         with:
           path: wiki/
-          token: ${{ secrets.WIKI_PAT }}
+          token: ${{ github.token }}
           dry-run: ${{ github.event.inputs.dry_run || 'false' }}
           ignore: |
             .DS_Store
