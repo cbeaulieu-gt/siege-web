@@ -227,12 +227,20 @@ async def preview_post_suggestions(
             continue
 
         # Score each candidate and pick the best.
+        # Tuple: (dup_penalty, not_current, assignment_count, member_name)
+        # not_current=0 if the candidate is the current occupant (prefer them),
+        # 1 otherwise.  This makes the algorithm idempotent: re-running after
+        # apply always retains the incumbent when they are equally qualified,
+        # preventing the bistable flip-flop described in issue #360.
+        # Among non-incumbents, assignment_count then member_name (ASC)
+        # break ties deterministically.
         def _score(m) -> tuple:
             matching = member_preference_ids[m.id] & post_condition_ids
             already_used = used_member_conditions[m.id]
             fresh = matching - already_used
             dup_penalty = 0 if fresh else 1
-            return (dup_penalty, member_assignment_counts.get(m.id, 0), m.name)
+            not_current = 0 if m.id == current_member_id else 1
+            return (dup_penalty, not_current, member_assignment_counts.get(m.id, 0), m.name)
 
         best = min(candidates, key=_score)
 
