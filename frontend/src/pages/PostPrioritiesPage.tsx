@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPostPriorities, updatePostPriority } from "../api/posts";
 import { getPostConditions } from "../api/members";
-import type { PostCondition } from "../api/types";
 import {
   Table,
   TableBody,
@@ -21,15 +20,11 @@ import {
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
 import { cn } from "../lib/utils";
+import { GroupByToggle } from "../components/GroupByToggle";
+import { groupPostConditions } from "../lib/groupPostConditions";
+import { useGroupByPreference } from "../lib/useGroupByPreference";
 
-function groupByLevel(conds: PostCondition[]) {
-  const groups: Record<number, PostCondition[]> = {};
-  for (const c of conds) {
-    if (!groups[c.stronghold_level]) groups[c.stronghold_level] = [];
-    groups[c.stronghold_level].push(c);
-  }
-  return groups;
-}
+const GROUP_BY_STORAGE_KEY = "siege-web:postConditions:groupBy";
 
 function DescriptionCell({
   postNumber,
@@ -70,6 +65,7 @@ type Tab = "priorities" | "conditions";
 export default function PostPrioritiesPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("priorities");
+  const [groupByMode, setGroupByMode] = useGroupByPreference(GROUP_BY_STORAGE_KEY);
 
   const { data: priorities, isLoading } = useQuery({
     queryKey: ["postPriorities"],
@@ -187,33 +183,34 @@ export default function PostPrioritiesPage() {
       {/* Conditions tab */}
       {activeTab === "conditions" && (
         <>
-          <p className="mb-4 text-sm text-slate-500">
-            Reference list of all post conditions by stronghold level.
-          </p>
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm text-slate-500">
+              Reference list of all post conditions.
+            </p>
+            <GroupByToggle value={groupByMode} onChange={setGroupByMode} />
+          </div>
           {conditions ? (
             <div className="space-y-4">
-              {Object.entries(groupByLevel(conditions))
-                .sort(([a], [b]) => Number(a) - Number(b))
-                .map(([level, conds]) => (
-                  <div
-                    key={level}
-                    className="rounded-lg border border-slate-200 bg-white p-4"
-                  >
-                    <h3 className="mb-3 text-sm font-semibold text-slate-900">
-                      Stronghold Level {level}
-                      <Badge variant="secondary" className="ml-2">
-                        {conds.length}
-                      </Badge>
-                    </h3>
-                    <ul className="space-y-1.5">
-                      {conds.map((c) => (
-                        <li key={c.id} className="text-sm text-slate-700">
-                          {c.description}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
+              {groupPostConditions(conditions, groupByMode).map((group) => (
+                <div
+                  key={group.heading}
+                  className="rounded-lg border border-slate-200 bg-white p-4"
+                >
+                  <h3 className="mb-3 text-sm font-semibold text-slate-900">
+                    {group.heading}
+                    <Badge variant="secondary" className="ml-2">
+                      {group.items.length}
+                    </Badge>
+                  </h3>
+                  <ul className="space-y-1.5">
+                    {group.items.map((c) => (
+                      <li key={c.id} className="text-sm text-slate-700">
+                        {c.description}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="py-12 text-center text-slate-500">Loading...</div>
