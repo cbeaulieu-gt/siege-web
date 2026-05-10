@@ -207,6 +207,20 @@ async def preview_post_suggestions(
             )
             continue
 
+        if not post.active_conditions:
+            assignments.append(
+                _null_entry(
+                    post,
+                    position_id=position.id,
+                    skip_reason="no_conditions",
+                    current_member_id=current_member_id,
+                    current_member_name=current_member_name,
+                    current_condition_id=current_condition_id,
+                    current_condition_description=current_condition_description,
+                )
+            )
+            continue
+
         post_condition_ids: set[int] = {c.id for c in post.active_conditions}
 
         # Build candidate list: members whose preferences intersect post conditions.
@@ -514,7 +528,7 @@ def _null_entry(
     Args:
         post: Post ORM object (or SimpleNamespace in tests).
         position_id: The target position id (0 if no position exists).
-        skip_reason: One of "no_match", "reserve", "disabled".
+        skip_reason: One of "no_conditions", "no_match", "reserve", "disabled".
         current_member_id: Existing member assignment, if any.
         current_member_name: Existing member name, if any.
         current_condition_id: Existing matched condition, if any.

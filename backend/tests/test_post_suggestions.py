@@ -298,6 +298,100 @@ async def test_preview_disabled_position_produces_skip_reason_disabled():
 
 
 # ---------------------------------------------------------------------------
+# Section: No-conditions skip (issue #366)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_preview_post_with_no_active_conditions_produces_skip_reason_no_conditions():
+    """Issue #366: post with empty active_conditions → skip_reason='no_conditions'.
+
+    When a post has zero active conditions the algorithm cannot match any
+    member — but this is distinct from no_match (which means conditions
+    exist but no member qualifies).  The correct response is no_conditions
+    so the user knows to configure the post rather than add eligible members.
+    """
+    member = _make_member(id=1, name="Alice", preferences=[_make_condition(id=10)])
+    sm = _make_siege_member(member)
+    pos = _make_position(id=101)
+    grp = _make_group([pos])
+    bld = _make_building(id=5, building_number=1, groups=[grp])
+    # active_conditions intentionally empty
+    post = _make_post(id=20, building=bld, priority=1, active_conditions=[])
+    siege = _make_siege(posts=[post], siege_members=[sm])
+
+    result = await _preview(siege)
+
+    assert len(result.assignments) == 1
+    entry = result.assignments[0]
+    assert entry.suggested_member_id is None
+    assert entry.skip_reason == "no_conditions"
+
+
+@pytest.mark.asyncio
+async def test_preview_post_with_conditions_but_no_matching_member_still_no_match():
+    """Issue #366: no_match is unchanged when conditions exist but no member qualifies.
+
+    Regression guard — the no_conditions early-exit must not absorb cases
+    where conditions are present but the member pool is simply disjoint.
+    """
+    cond_post = _make_condition(id=10, description="Post cond")
+    cond_member = _make_condition(id=20, description="Member cond")
+    member = _make_member(id=1, name="Bob", preferences=[cond_member])
+    sm = _make_siege_member(member)
+    pos = _make_position(id=102)
+    grp = _make_group([pos])
+    bld = _make_building(id=6, building_number=2, groups=[grp])
+    post = _make_post(id=21, building=bld, priority=1, active_conditions=[cond_post])
+    siege = _make_siege(posts=[post], siege_members=[sm])
+
+    result = await _preview(siege)
+
+    entry = result.assignments[0]
+    assert entry.suggested_member_id is None
+    assert entry.skip_reason == "no_match"
+
+
+@pytest.mark.asyncio
+async def test_preview_mixed_no_conditions_no_match_and_assigned_in_one_preview():
+    """Issue #366: all three outcomes coexist without conflation.
+
+    One post has no conditions → no_conditions.
+    One post has conditions but no qualifying member → no_match.
+    One post has a match → assigned.
+    This proves the three cases are distinct in the output.
+    """
+    shared_cond = _make_condition(id=10, description="Shared cond")
+    other_cond = _make_condition(id=20, description="Other cond")
+    member = _make_member(id=1, name="Alice", preferences=[shared_cond])
+    sm = _make_siege_member(member)
+
+    # Post A: no conditions → no_conditions
+    pos_a = _make_position(id=101)
+    bld_a = _make_building(id=1, building_number=1, groups=[_make_group([pos_a])])
+    post_a = _make_post(id=10, building=bld_a, priority=1, active_conditions=[])
+
+    # Post B: conditions present but disjoint from member → no_match
+    pos_b = _make_position(id=102)
+    bld_b = _make_building(id=2, building_number=2, groups=[_make_group([pos_b])])
+    post_b = _make_post(id=11, building=bld_b, priority=2, active_conditions=[other_cond])
+
+    # Post C: condition matches Alice → assigned
+    pos_c = _make_position(id=103)
+    bld_c = _make_building(id=3, building_number=3, groups=[_make_group([pos_c])])
+    post_c = _make_post(id=12, building=bld_c, priority=3, active_conditions=[shared_cond])
+
+    siege = _make_siege(posts=[post_a, post_b, post_c], siege_members=[sm])
+    result = await _preview(siege)
+
+    by_post = {e.post_id: e for e in result.assignments}
+    assert by_post[10].skip_reason == "no_conditions"
+    assert by_post[11].skip_reason == "no_match"
+    assert by_post[12].suggested_member_id == 1
+    assert by_post[12].skip_reason is None
+
+
+# ---------------------------------------------------------------------------
 # Section: Priority ordering (AC #3)
 # ---------------------------------------------------------------------------
 

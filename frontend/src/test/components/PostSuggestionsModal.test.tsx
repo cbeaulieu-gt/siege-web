@@ -17,6 +17,7 @@
  * 12. "Apply remaining N" re-issues apply with only non-stale IDs.
  * 13. Expiry countdown renders given a fixed expires_at (~5 min in the future).
  * 14. Apply button disables when expiry hits zero; "Preview expired" chip appears.
+ * 15. no_conditions rows render distinct copy and a different icon than no_match rows.
  */
 
 import { screen, waitFor, within } from "@testing-library/react";
@@ -656,5 +657,73 @@ describe("PostSuggestionsModal", () => {
 
     // "Preview expired" chip should be visible in the header.
     expect(screen.getByText("Preview expired")).toBeInTheDocument();
+  });
+
+  it("no_conditions rows render distinct copy and a different icon than no_match rows", async () => {
+    // Preview with one no_conditions row and one no_match row so we can
+    // verify both the label text and that the SVG icons differ.
+    const preview = makePreview({
+      assignments: [
+        {
+          post_id: 1,
+          building_number: 1,
+          priority: 2,
+          position_id: 101,
+          suggested_member_id: null,
+          suggested_member_name: null,
+          suggested_condition_id: null,
+          suggested_condition_description: null,
+          current_member_id: null,
+          current_member_name: null,
+          current_condition_id: null,
+          current_condition_description: null,
+          matches_current: false,
+          skip_reason: "no_conditions",
+        },
+        {
+          post_id: 2,
+          building_number: 2,
+          priority: 1,
+          position_id: 102,
+          suggested_member_id: null,
+          suggested_member_name: null,
+          suggested_condition_id: null,
+          suggested_condition_description: null,
+          current_member_id: null,
+          current_member_name: null,
+          current_condition_id: null,
+          current_condition_description: null,
+          matches_current: false,
+          skip_reason: "no_match",
+        },
+      ],
+    });
+
+    server.use(
+      http.post("/api/sieges/42/post-suggestions", () =>
+        HttpResponse.json(preview)
+      )
+    );
+
+    renderModal();
+
+    // no_conditions label
+    await waitFor(() =>
+      expect(
+        screen.getByText("No conditions configured for this post")
+      ).toBeInTheDocument()
+    );
+
+    // no_match label still present (unchanged)
+    expect(
+      screen.getByText("No member matches any of the post conditions")
+    ).toBeInTheDocument();
+
+    // Icons must differ: no_conditions uses SlidersHorizontal, no_match uses Info.
+    // lucide-react adds a CSS class lucide-<kebab-name> to every icon SVG.
+    const slidersIcons = document.querySelectorAll(".lucide-sliders-horizontal");
+    const infoIcons = document.querySelectorAll(".lucide-info");
+    expect(slidersIcons.length).toBeGreaterThanOrEqual(1);
+    expect(infoIcons.length).toBeGreaterThanOrEqual(1);
   });
 });
