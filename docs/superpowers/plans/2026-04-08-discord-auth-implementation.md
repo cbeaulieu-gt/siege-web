@@ -1,6 +1,6 @@
 # Discord OAuth2 Authentication — Implementation Plan
 
-> **Status: COMPLETED (2026-03)** — Discord OAuth2 is shipped and live. This file is a historical record of the implementation plan. For the canonical ongoing spec, see [`discord-auth-plan.md`](./discord-auth-plan.md). For current project status, see [`docs/STATUS.md`](../../STATUS.md).
+> **Status: COMPLETED (2026-03)** — Discord OAuth2 is shipped and live. This file is a historical record of the implementation plan. For the canonical ongoing spec, see [`discord-auth-plan.md`](./discord-auth-plan.md). For current project status, see [GitHub Releases](https://github.com/glitchwerks/siege-web/releases) and [open Issues](https://github.com/glitchwerks/siege-web/issues).
 
 > ~~**For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.~~ *(Historical — this plan is complete; do not re-execute.)*
 
