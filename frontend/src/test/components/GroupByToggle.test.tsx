@@ -2,10 +2,12 @@
  * GroupByToggle component tests.
  *
  * Covered:
- * 1. Renders "Group by:" label with Level and Type buttons.
- * 2. The active mode button has aria-pressed=true.
- * 3. Clicking the inactive button calls onChange with the new mode.
- * 4. Clicking the already-active button still calls onChange.
+ * 1. Renders "Group by:" label with Level and Type radio buttons.
+ * 2. The wrapper has role="radiogroup".
+ * 3. Each button has role="radio".
+ * 4. The active mode button has aria-checked=true; inactive has aria-checked=false.
+ * 5. Clicking the inactive button calls onChange with the new mode.
+ * 6. Clicking the already-active button still calls onChange.
  */
 
 import { render, screen } from "@testing-library/react";
@@ -14,50 +16,57 @@ import { describe, it, expect, vi } from "vitest";
 import { GroupByToggle } from "../../components/GroupByToggle";
 
 describe("GroupByToggle", () => {
-  it("renders Group by label with Level and Type buttons", () => {
+  it("renders Group by label with Level and Type radio buttons", () => {
     render(<GroupByToggle value="level" onChange={() => {}} />);
     expect(screen.getByText(/group by:/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Level" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Type" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Level" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Type" })).toBeInTheDocument();
   });
 
-  it("Level button has aria-pressed=true when value=level", () => {
+  it("wrapper has role=radiogroup", () => {
     render(<GroupByToggle value="level" onChange={() => {}} />);
-    expect(screen.getByRole("button", { name: "Level" })).toHaveAttribute(
-      "aria-pressed",
+    expect(
+      screen.getByRole("radiogroup", { name: /group by/i })
+    ).toBeInTheDocument();
+  });
+
+  it("Level radio has aria-checked=true when value=level", () => {
+    render(<GroupByToggle value="level" onChange={() => {}} />);
+    expect(screen.getByRole("radio", { name: "Level" })).toHaveAttribute(
+      "aria-checked",
       "true"
     );
-    expect(screen.getByRole("button", { name: "Type" })).toHaveAttribute(
-      "aria-pressed",
+    expect(screen.getByRole("radio", { name: "Type" })).toHaveAttribute(
+      "aria-checked",
       "false"
     );
   });
 
-  it("Type button has aria-pressed=true when value=type", () => {
+  it("Type radio has aria-checked=true when value=type", () => {
     render(<GroupByToggle value="type" onChange={() => {}} />);
-    expect(screen.getByRole("button", { name: "Type" })).toHaveAttribute(
-      "aria-pressed",
+    expect(screen.getByRole("radio", { name: "Type" })).toHaveAttribute(
+      "aria-checked",
       "true"
     );
-    expect(screen.getByRole("button", { name: "Level" })).toHaveAttribute(
-      "aria-pressed",
+    expect(screen.getByRole("radio", { name: "Level" })).toHaveAttribute(
+      "aria-checked",
       "false"
     );
   });
 
-  it("calls onChange with 'type' when Type button is clicked", async () => {
+  it("calls onChange with 'type' when Type radio is clicked", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<GroupByToggle value="level" onChange={onChange} />);
-    await user.click(screen.getByRole("button", { name: "Type" }));
+    await user.click(screen.getByRole("radio", { name: "Type" }));
     expect(onChange).toHaveBeenCalledWith("type");
   });
 
-  it("calls onChange with 'level' when Level button is clicked", async () => {
+  it("calls onChange with 'level' when Level radio is clicked", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(<GroupByToggle value="type" onChange={onChange} />);
-    await user.click(screen.getByRole("button", { name: "Level" }));
+    await user.click(screen.getByRole("radio", { name: "Level" }));
     expect(onChange).toHaveBeenCalledWith("level");
   });
 });

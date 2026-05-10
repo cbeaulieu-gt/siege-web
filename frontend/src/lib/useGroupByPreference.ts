@@ -2,11 +2,14 @@
  * Hook: persists the "Group by" toggle choice in localStorage.
  *
  * Usage:
- *   const [mode, setMode] = useGroupByPreference("siege-web:postConditions:groupBy");
+ *   const [mode, setMode] = useGroupByPreference(GROUP_BY_STORAGE_KEY);
  */
 
 import { useState } from "react";
 import type { GroupByMode } from "./groupPostConditions";
+
+/** Canonical localStorage key for the post-conditions group-by preference. */
+export const GROUP_BY_STORAGE_KEY = "siege-web:postConditions:groupBy";
 
 const VALID_MODES = new Set<GroupByMode>(["level", "type"]);
 

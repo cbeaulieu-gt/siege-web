@@ -22,9 +22,10 @@ import { Badge } from "../components/ui/badge";
 import { cn } from "../lib/utils";
 import { GroupByToggle } from "../components/GroupByToggle";
 import { groupPostConditions } from "../lib/groupPostConditions";
-import { useGroupByPreference } from "../lib/useGroupByPreference";
-
-const GROUP_BY_STORAGE_KEY = "siege-web:postConditions:groupBy";
+import {
+  useGroupByPreference,
+  GROUP_BY_STORAGE_KEY,
+} from "../lib/useGroupByPreference";
 
 function DescriptionCell({
   postNumber,
@@ -65,7 +66,8 @@ type Tab = "priorities" | "conditions";
 export default function PostPrioritiesPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<Tab>("priorities");
-  const [groupByMode, setGroupByMode] = useGroupByPreference(GROUP_BY_STORAGE_KEY);
+  const [groupByMode, setGroupByMode] =
+    useGroupByPreference(GROUP_BY_STORAGE_KEY);
 
   const { data: priorities, isLoading } = useQuery({
     queryKey: ["postPriorities"],

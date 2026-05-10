@@ -56,19 +56,43 @@ afterAll(() => server.close());
 /** A small representative slice of the 36 canonical conditions. */
 const SAMPLE_CONDITIONS: PostCondition[] = [
   // League L1
-  { id: 1, description: "Only Champions from the Telerian League can be used.", stronghold_level: 1 },
+  {
+    id: 1,
+    description: "Only Champions from the Telerian League can be used.",
+    stronghold_level: 1,
+  },
   // Role L1
   { id: 5, description: "Only HP Champions can be used.", stronghold_level: 1 },
   // Faction L1
-  { id: 9, description: "Only Banner Lord Champions can be used.", stronghold_level: 1 },
+  {
+    id: 9,
+    description: "Only Banner Lord Champions can be used.",
+    stronghold_level: 1,
+  },
   // Affinity L2
-  { id: 19, description: "Only Void Champions can be used.", stronghold_level: 2 },
+  {
+    id: 19,
+    description: "Only Void Champions can be used.",
+    stronghold_level: 2,
+  },
   // Faction L2
-  { id: 23, description: "Only Demonspawn Champions can be used.", stronghold_level: 2 },
+  {
+    id: 23,
+    description: "Only Demonspawn Champions can be used.",
+    stronghold_level: 2,
+  },
   // Rarity L3
-  { id: 29, description: "Only Legendary Champions can be used.", stronghold_level: 3 },
+  {
+    id: 29,
+    description: "Only Legendary Champions can be used.",
+    stronghold_level: 3,
+  },
   // Effect L3
-  { id: 35, description: "All Champions are immune to [Sheep] debuffs.", stronghold_level: 3 },
+  {
+    id: 35,
+    description: "All Champions are immune to [Sheep] debuffs.",
+    stronghold_level: 3,
+  },
   // Other L3
   { id: 36, description: "Champions cannot be revived.", stronghold_level: 3 },
 ];
@@ -125,7 +149,7 @@ describe("PostPrioritiesPage — Group by toggle on Conditions tab", () => {
     const user = userEvent.setup();
     await openConditionsTab(user);
 
-    await user.click(screen.getByRole("button", { name: "Type" }));
+    await user.click(screen.getByRole("radio", { name: "Type" }));
 
     // These buckets have members in SAMPLE_CONDITIONS
     await waitFor(() => {
@@ -142,13 +166,21 @@ describe("PostPrioritiesPage — Group by toggle on Conditions tab", () => {
   it("type headings appear in spec order (Role before Affinity before Faction...)", async () => {
     const user = userEvent.setup();
     await openConditionsTab(user);
-    await user.click(screen.getByRole("button", { name: "Type" }));
+    await user.click(screen.getByRole("radio", { name: "Type" }));
 
     await waitFor(() => {
       expect(screen.getByText("Role")).toBeInTheDocument();
     });
 
-    const headings = ["Role", "Affinity", "Faction", "League", "Rarity", "Effect", "Other"];
+    const headings = [
+      "Role",
+      "Affinity",
+      "Faction",
+      "League",
+      "Rarity",
+      "Effect",
+      "Other",
+    ];
     const elements = headings.map((h) => screen.getByText(h));
     // Verify DOM order matches spec order
     for (let i = 0; i < elements.length - 1; i++) {
@@ -166,7 +198,7 @@ describe("PostPrioritiesPage — Group by toggle on Conditions tab", () => {
     // Verify level headings initially present
     expect(screen.getByText(/stronghold level 1/i)).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Type" }));
+    await user.click(screen.getByRole("radio", { name: "Type" }));
 
     await waitFor(() => {
       expect(screen.queryByText(/stronghold level/i)).not.toBeInTheDocument();
@@ -177,7 +209,7 @@ describe("PostPrioritiesPage — Group by toggle on Conditions tab", () => {
     const user = userEvent.setup();
     await openConditionsTab(user);
 
-    await user.click(screen.getByRole("button", { name: "Type" }));
+    await user.click(screen.getByRole("radio", { name: "Type" }));
 
     expect(localStorage.getItem("siege-web:postConditions:groupBy")).toBe(
       "type"
@@ -238,7 +270,7 @@ describe("MemberDetailPage — Group by toggle on Post Preferences", () => {
     renderMemberDetail();
     await waitForPreferences();
 
-    await user.click(screen.getByRole("button", { name: "Type" }));
+    await user.click(screen.getByRole("radio", { name: "Type" }));
 
     // Check for type headings as h3 elements (not the "Role" field label)
     await waitFor(() => {
@@ -254,7 +286,7 @@ describe("MemberDetailPage — Group by toggle on Post Preferences", () => {
     renderMemberDetail();
     await waitForPreferences();
 
-    await user.click(screen.getByRole("button", { name: "Type" }));
+    await user.click(screen.getByRole("radio", { name: "Type" }));
 
     expect(localStorage.getItem("siege-web:postConditions:groupBy")).toBe(
       "type"

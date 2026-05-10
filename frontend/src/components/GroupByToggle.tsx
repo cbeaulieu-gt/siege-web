@@ -25,14 +25,15 @@ export function GroupByToggle({ value, onChange, className }: Props) {
   return (
     <div
       className={cn("flex items-center gap-1.5", className)}
-      role="group"
+      role="radiogroup"
       aria-label="Group by"
     >
       <span className="text-xs font-medium text-slate-500">Group by:</span>
       <div className="flex gap-0.5 rounded-md border border-slate-200 bg-slate-100 p-0.5">
         <button
           type="button"
-          aria-pressed={value === "level"}
+          role="radio"
+          aria-checked={value === "level"}
           onClick={() => onChange("level")}
           className={cn(
             "rounded px-2.5 py-1 text-xs font-medium transition-colors",
@@ -45,7 +46,8 @@ export function GroupByToggle({ value, onChange, className }: Props) {
         </button>
         <button
           type="button"
-          aria-pressed={value === "type"}
+          role="radio"
+          aria-checked={value === "type"}
           onClick={() => onChange("type")}
           className={cn(
             "rounded px-2.5 py-1 text-xs font-medium transition-colors",

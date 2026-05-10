@@ -33,9 +33,10 @@ import { ArrowLeft } from "lucide-react";
 import { isAxiosError } from "axios";
 import { GroupByToggle } from "../components/GroupByToggle";
 import { groupPostConditions } from "../lib/groupPostConditions";
-import { useGroupByPreference } from "../lib/useGroupByPreference";
-
-const GROUP_BY_STORAGE_KEY = "siege-web:postConditions:groupBy";
+import {
+  useGroupByPreference,
+  GROUP_BY_STORAGE_KEY,
+} from "../lib/useGroupByPreference";
 
 const ROLE_OPTIONS: { value: MemberRole; label: string }[] = [
   { value: "heavy_hitter", label: "Heavy Hitter" },
@@ -60,7 +61,8 @@ export default function MemberDetailPage() {
   );
   const [prefFilter, setPrefFilter] = useState("");
   const [saveError, setSaveError] = useState("");
-  const [groupByMode, setGroupByMode] = useGroupByPreference(GROUP_BY_STORAGE_KEY);
+  const [groupByMode, setGroupByMode] =
+    useGroupByPreference(GROUP_BY_STORAGE_KEY);
 
   const memberId = isNew ? null : Number(id);
 
