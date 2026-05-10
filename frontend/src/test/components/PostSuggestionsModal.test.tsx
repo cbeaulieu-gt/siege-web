@@ -15,6 +15,8 @@
  * 10. Loading state shows the spinner copy.
  * 11. Non-409 error shows the generic error banner.
  * 12. "Apply remaining N" re-issues apply with only non-stale IDs.
+ * 13. Expiry countdown renders given a fixed expires_at (~5 min in the future).
+ * 14. Apply button disables when expiry hits zero; "Preview expired" chip appears.
  */
 
 import { screen, waitFor, within } from "@testing-library/react";
@@ -80,7 +82,9 @@ function makePreview(
         skip_reason: "no_match",
       },
     ],
-    expires_at: "2026-05-09T13:00:00",
+    // Always set expiry 10 minutes in the future so the Apply button stays enabled
+    // in tests that don't exercise the expiry path.
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     ...overrides,
   };
 }
@@ -604,5 +608,53 @@ describe("PostSuggestionsModal", () => {
     expect(
       secondApplyBody!.apply_position_ids as number[]
     ).not.toContain(101);
+  });
+
+  it("expiry countdown renders given a fixed expires_at (~5 minutes in the future)", async () => {
+    // Set expires_at to exactly 5 minutes from now
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+    server.use(
+      http.post("/api/sieges/42/post-suggestions", () =>
+        HttpResponse.json(makePreview({ expires_at: expiresAt }))
+      )
+    );
+
+    renderModal();
+
+    await waitFor(() => expect(screen.getByText("Alice")).toBeInTheDocument());
+
+    // Countdown should appear in the form "expires in M:SS"
+    // Allow for 4:59 or 5:00 (render timing may consume a second)
+    await waitFor(() => {
+      const subtitle = screen.getByText(/expires in \d+:\d{2}/i);
+      expect(subtitle).toBeInTheDocument();
+    });
+  });
+
+  it("Apply button disables and Preview expired chip appears when expiry hits zero", async () => {
+    // Use an expires_at in the past so the hook computes secondsLeft=0 immediately.
+    // This avoids needing fake timers to advance past the TTL.
+    const expiresAt = new Date(Date.now() - 5000).toISOString();
+
+    server.use(
+      http.post("/api/sieges/42/post-suggestions", () =>
+        HttpResponse.json(makePreview({ expires_at: expiresAt }))
+      )
+    );
+
+    renderModal();
+
+    await waitFor(() => expect(screen.getByText("Alice")).toBeInTheDocument());
+
+    // With expires_at in the past, the countdown is already at 0 on first render.
+    // Apply button should be disabled.
+    await waitFor(() => {
+      const applyBtn = screen.getByRole("button", { name: /apply/i });
+      expect(applyBtn).toBeDisabled();
+    });
+
+    // "Preview expired" chip should be visible in the header.
+    expect(screen.getByText("Preview expired")).toBeInTheDocument();
   });
 });
