@@ -453,6 +453,7 @@ async def test_missing_xff_in_production_logs_warning(monkeypatch, caplog):
         file=sys.stderr,
     )
     import app.rate_limit as _rl
+
     print(f"_last_xff_absent_warning: {_rl._last_xff_absent_warning}", file=sys.stderr)
 
     warning_records = [
