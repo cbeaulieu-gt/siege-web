@@ -9,6 +9,8 @@ Covers:
 - Garbage XFF values do NOT create unique per-request buckets
 - 429 response includes a Retry-After header
 - Production warning fires when XFF absent; silent in development
+- Thread-safety: absent-XFF warning fires exactly once under concurrency
+- Invalid XFF in production logs a throttled warning; silent in development
 
 Rate limits are driven by env-tunable settings.  For tests we override them
 to a tight "2/minute" value so we only need 3 rapid requests to trigger a
@@ -17,21 +19,22 @@ to a tight "2/minute" value so we only need 3 rapid requests to trigger a
 
 import logging
 import secrets
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from starlette.requests import Request as StarletteRequest
 
 import app.rate_limit as _rate_limit_module
 from app.main import app
-from app.rate_limit import limiter
+from app.rate_limit import _get_client_ip, limiter
 
 
 @pytest.fixture(autouse=True)
 def reset_rate_limit_state():
     """Reset per-test rate-limit state before each test.
 
-    Resets two pieces of module-level state so tests cannot bleed into
-    each other:
+    Resets module-level state so tests cannot bleed into each other:
 
     1. ``limiter._storage`` — the in-memory bucket store.  Tests that
        share the same fallback IP (127.0.0.1 / "testclient") would
@@ -41,9 +44,14 @@ def reset_rate_limit_state():
        production XFF-absent warning.  Without this reset, a
        production-warning test run immediately after another one would
        suppress the warning (throttle not yet expired) and fail.
+
+    3. ``_last_xff_invalid_warning`` — the throttle timestamp for the
+       invalid-XFF production warning (Finding #2).  Same rationale as
+       above.
     """
     limiter._storage.reset()
     _rate_limit_module._last_xff_absent_warning = 0.0
+    _rate_limit_module._last_xff_invalid_warning = 0.0
     yield
 
 
@@ -419,3 +427,162 @@ async def test_missing_xff_in_development_does_not_log_warning(monkeypatch, capl
     assert (
         len(warning_records) == 0
     ), f"Expected no XFF warning in development, got: {warning_records}"
+
+
+# ---------------------------------------------------------------------------
+# Tests: thread-safety of _last_xff_absent_warning (Finding #1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_concurrent_absent_xff_in_production_warns_exactly_once(monkeypatch, caplog):
+    """Concurrent requests with no XFF in production fire the warning once.
+
+    _last_xff_absent_warning is read-compared-written by multiple threads
+    simultaneously (slowapi calls the sync key_func from a thread pool).
+    Without a threading.Lock those threads can all observe the old timestamp
+    and all decide to log — the throttle degrades to "sometimes fires extra
+    times".  With the lock, exactly one thread wins the write and the rest
+    skip, so exactly one warning is emitted no matter how many concurrent
+    requests arrive within the 60-second window.
+    """
+    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.environment", "production")
+    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
+    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
+
+    N = 20  # threads contending simultaneously
+
+    def _call_get_client_ip() -> None:
+        """Invoke _get_client_ip directly with a no-XFF request."""
+        # Build a minimal Starlette Request with no XFF header so the
+        # absent-XFF production code path is exercised on each thread.
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/",
+            "headers": [],
+            "client": ("127.0.0.1", 9000),
+        }
+        req = StarletteRequest(scope)
+        _get_client_ip(req)
+
+    with caplog.at_level(logging.WARNING, logger="app.rate_limit"):
+        with ThreadPoolExecutor(max_workers=N) as pool:
+            futures = [pool.submit(_call_get_client_ip) for _ in range(N)]
+            for f in futures:
+                f.result()  # surface any exceptions
+
+    absent_warnings = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "X-Forwarded-For absent" in r.message
+    ]
+    assert len(absent_warnings) == 1, (
+        f"Expected exactly 1 absent-XFF warning under {N} concurrent threads, "
+        f"got {len(absent_warnings)}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Tests: invalid-XFF warning in production (Finding #2)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_invalid_xff_in_production_logs_warning(monkeypatch, caplog):
+    """Invalid X-Forwarded-For in production emits a WARNING via rate_limit logger.
+
+    When the leftmost XFF value is not a valid IP address and the environment
+    is production, the code must log a throttled WARNING so that attackers
+    probing with malformed headers leave a trace in the logs.
+    """
+    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.environment", "production")
+    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
+    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
+
+    with caplog.at_level(logging.WARNING, logger="app.rate_limit"):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await _get(
+                client,
+                LOGIN_URL,
+                headers={"X-Forwarded-For": "not-a-valid-ip"},
+            )
+
+    invalid_warnings = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "Invalid X-Forwarded-For" in r.message
+    ]
+    assert (
+        len(invalid_warnings) >= 1
+    ), "Expected at least one WARNING about invalid X-Forwarded-For in production"
+
+
+@pytest.mark.asyncio
+async def test_invalid_xff_in_development_does_not_log_warning(monkeypatch, caplog):
+    """Invalid X-Forwarded-For in development must NOT emit a warning.
+
+    Direct / tool access with malformed headers is common in local dev and
+    CI; logging would be noise.  The warning must only fire in production.
+    """
+    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.environment", "development")
+    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
+    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
+
+    with caplog.at_level(logging.WARNING, logger="app.rate_limit"):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            await _get(
+                client,
+                LOGIN_URL,
+                headers={"X-Forwarded-For": "not-a-valid-ip"},
+            )
+
+    invalid_warnings = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "Invalid X-Forwarded-For" in r.message
+    ]
+    assert (
+        len(invalid_warnings) == 0
+    ), f"Expected no invalid-XFF warning in development, got: {invalid_warnings}"
+
+
+@pytest.mark.asyncio
+async def test_invalid_xff_warning_is_throttled_to_once_per_window(monkeypatch, caplog):
+    """Rapid invalid-XFF requests in production log the warning only once.
+
+    The invalid-XFF warning must be throttled with the same 60-second window
+    as the absent-XFF warning: no matter how many requests arrive with
+    malformed X-Forwarded-For values within the window, only one WARNING is
+    emitted.
+    """
+    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.environment", "production")
+    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
+    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
+
+    with caplog.at_level(logging.WARNING, logger="app.rate_limit"):
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            for _ in range(5):
+                await _get(
+                    client,
+                    LOGIN_URL,
+                    headers={"X-Forwarded-For": "bad-ip-value"},
+                )
+
+    invalid_warnings = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING and "Invalid X-Forwarded-For" in r.message
+    ]
+    assert len(invalid_warnings) == 1, (
+        f"Expected exactly 1 throttled invalid-XFF warning for 5 rapid "
+        f"requests, got {len(invalid_warnings)}"
+    )

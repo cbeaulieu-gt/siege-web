@@ -19,6 +19,7 @@ The module also exposes:
 
 import ipaddress
 import logging
+import threading
 import time
 import uuid
 
@@ -34,8 +35,18 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 # Rate-limit the production XFF-absent warning so it does not flood logs.
+# A threading.Lock (not asyncio.Lock) is required because _get_client_ip is
+# called from slowapi's synchronous key_func, which FastAPI runs in a thread
+# pool — there is no event loop in scope on those threads.
+_xff_warning_lock: threading.Lock = threading.Lock()
 _last_xff_absent_warning: float = 0.0
+_last_xff_invalid_warning: float = 0.0
 _XFF_WARN_INTERVAL_SECS: float = 60.0
+
+# Maximum number of characters of an invalid XFF value to include in the
+# warning log.  Caps user-controlled data to prevent log injection or
+# oversized log lines.
+_XFF_LOG_VALUE_MAX_CHARS: int = 64
 
 
 def _get_client_ip(request: Request) -> str:
@@ -55,6 +66,9 @@ def _get_client_ip(request: Request) -> str:
     - Rotating unique garbage values cannot generate a fresh rate-limit bucket
       on every request (unlimited bypass).
 
+    In production, an invalid XFF value triggers a throttled WARNING so that
+    attackers probing with malformed headers are visible in logs.
+
     Falls back to the ASGI transport remote address when the header is absent
     (e.g. local dev with no proxy).  In production, absence of the header
     triggers a throttled WARNING because it suggests direct backend access
@@ -65,6 +79,12 @@ def _get_client_ip(request: Request) -> str:
     deployment adds additional upstream proxies, shift the index right
     accordingly.
 
+    Thread safety: both throttle timestamps are guarded by
+    ``_xff_warning_lock`` (a :class:`threading.Lock`) because this function
+    is invoked from slowapi's synchronous ``key_func``, which FastAPI
+    dispatches via a thread pool.  ``asyncio.Lock`` would be incorrect here
+    as there is no event loop on those threads.
+
     Args:
         request: The incoming FastAPI/Starlette request.
 
@@ -72,7 +92,7 @@ def _get_client_ip(request: Request) -> str:
         A string representation of the client IP address to use as the
         rate-limit bucket key.
     """
-    global _last_xff_absent_warning
+    global _last_xff_absent_warning, _last_xff_invalid_warning
 
     forwarded_for = request.headers.get("X-Forwarded-For", "")
     if forwarded_for:
@@ -86,16 +106,42 @@ def _get_client_ip(request: Request) -> str:
             return leftmost
         except ValueError:
             # Invalid IP in XFF — fall through to the ASGI remote address so
-            # that garbage values cannot escape or manipulate rate-limit buckets.
-            pass
+            # that garbage values cannot escape or manipulate rate-limit
+            # buckets.  Log a throttled WARNING in production so that
+            # attackers probing with malformed headers leave a trace.
+            if settings.environment == "production":
+                should_log = False
+                with _xff_warning_lock:
+                    now = time.monotonic()
+                    if now - _last_xff_invalid_warning >= _XFF_WARN_INTERVAL_SECS:
+                        _last_xff_invalid_warning = now
+                        should_log = True
+                if should_log:
+                    # Truncate user-controlled data before logging to prevent
+                    # log injection and oversized lines.
+                    preview = leftmost[:_XFF_LOG_VALUE_MAX_CHARS]
+                    suffix = "[truncated]" if len(leftmost) > _XFF_LOG_VALUE_MAX_CHARS else ""
+                    logger.warning(
+                        "Invalid X-Forwarded-For value in production request"
+                        " — falling back to remote address."
+                        " value_preview=%s%s",
+                        preview,
+                        suffix,
+                    )
     else:
-        # XFF absent — warn in production since direct backend access bypassing
-        # Container Apps ingress indicates a misconfiguration.  The warning is
-        # throttled to at most once per 60 s to avoid log flooding.
+        # XFF absent — warn in production since direct backend access
+        # bypassing Container Apps ingress indicates a misconfiguration.
+        # The warning is throttled to at most once per 60 s to avoid log
+        # flooding.  The lock prevents the read-compare-write from racing
+        # when multiple thread-pool workers enter simultaneously.
         if settings.environment == "production":
-            now = time.monotonic()
-            if now - _last_xff_absent_warning >= _XFF_WARN_INTERVAL_SECS:
-                _last_xff_absent_warning = now
+            should_log = False
+            with _xff_warning_lock:
+                now = time.monotonic()
+                if now - _last_xff_absent_warning >= _XFF_WARN_INTERVAL_SECS:
+                    _last_xff_absent_warning = now
+                    should_log = True
+            if should_log:
                 logger.warning(
                     "X-Forwarded-For absent in production request — trust "
                     "model assumes Container Apps ingress is in front. "
