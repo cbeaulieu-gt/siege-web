@@ -8,6 +8,7 @@ import {
   Lock,
   Ban,
   Info,
+  SlidersHorizontal,
 } from "lucide-react";
 import { previewPostSuggestions, applyPostSuggestions } from "../api/sieges";
 import type {
@@ -70,6 +71,7 @@ const SKIP_REASON_LABEL: Record<
   NonNullable<PostSuggestionEntry["skip_reason"]>,
   string
 > = {
+  no_conditions: "No conditions configured for this post",
   no_match: "No member matches any of the post conditions",
   reserve: "Position is set to reserve",
   disabled: "Position is disabled",
@@ -248,6 +250,8 @@ function SkipIcon({ reason }: { reason: string | null }) {
     return <Lock className="h-3 w-3" aria-hidden="true" />;
   if (reason === "disabled")
     return <Ban className="h-3 w-3" aria-hidden="true" />;
+  if (reason === "no_conditions")
+    return <SlidersHorizontal className="h-3 w-3" aria-hidden="true" />;
   return <Info className="h-3 w-3" aria-hidden="true" />;
 }
 

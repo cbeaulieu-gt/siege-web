@@ -38,8 +38,10 @@ class PostSuggestionEntry(BaseModel):
             None.
         skip_reason: Set when suggested_member_id is None.  Indicates why
             the post was skipped:
-            - "no_match": no candidate member whose preferences intersect
-              the post's active conditions.
+            - "no_conditions": the post has zero active conditions so no
+              member can ever match (user must configure the post first).
+            - "no_match": conditions exist but no candidate member's
+              preferences intersect the post's active conditions.
             - "reserve": target position has is_reserve=True.
             - "disabled": target position has is_disabled=True.
     """
@@ -57,7 +59,7 @@ class PostSuggestionEntry(BaseModel):
     current_condition_id: int | None
     current_condition_description: str | None
     matches_current: bool
-    skip_reason: Literal["no_match", "reserve", "disabled"] | None
+    skip_reason: Literal["no_conditions", "no_match", "reserve", "disabled"] | None
 
 
 class PostSuggestionPreviewResult(BaseModel):

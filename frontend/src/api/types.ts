@@ -253,7 +253,11 @@ export interface MemberRoleInfo {
 }
 
 // Post Suggestions
-export type PostSuggestionSkipReason = "no_match" | "reserve" | "disabled";
+export type PostSuggestionSkipReason =
+  | "no_conditions"
+  | "no_match"
+  | "reserve"
+  | "disabled";
 
 export interface PostSuggestionEntry {
   post_id: number;
