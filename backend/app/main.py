@@ -1,3 +1,5 @@
+"""FastAPI application factory and middleware wiring."""
+
 import logging
 from contextlib import asynccontextmanager
 
@@ -30,6 +32,7 @@ from app.config import settings
 from app.db.session import engine
 from app.dependencies.auth import get_current_user
 from app.middleware import RequestLoggingMiddleware
+from app.rate_limit import RateLimitExceeded, _rate_limit_exceeded_handler, limiter
 from app.telemetry import configure_telemetry
 
 logging.basicConfig(
@@ -69,6 +72,11 @@ app = FastAPI(
     redoc_url=None,
     lifespan=lifespan,
 )
+
+# Register rate limiter — must come before routes are added so that the
+# limiter state is available on app.state when endpoint decorators fire.
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Configure telemetry AFTER the app object is created so that
 # FastAPIInstrumentor can wrap it, and after the engine is imported so that

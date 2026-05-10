@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # e.g. "https://rslsiege.com" or "https://rslsiege.com,https://www.rslsiege.com".
     allowed_origins: str = "http://localhost:5173"
 
+    # Rate-limit strings for the auth endpoints.  These accept any slowapi-
+    # parseable rate string, e.g. "10/minute", "5/second", "100/hour".
+    # See: https://limits.readthedocs.io/en/stable/string-notation.html
+    auth_login_rate_limit: str = "10/minute"
+    auth_callback_rate_limit: str = "5/minute"
+
 
 settings = Settings()
 
