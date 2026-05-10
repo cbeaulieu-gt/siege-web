@@ -1,6 +1,6 @@
 # Component Versioning Plan (Issue #311)
 
-> Refs: https://github.com/glitchwerks/siege-web/issues/311
+> Refs: https://github.com/glitchwerks/rsl-siege-manager/issues/311
 > Drafted: 2026-05-08
 > Status: greenlit — 2× inquisitor passes resolved; ready for Phase 1 implementation
 

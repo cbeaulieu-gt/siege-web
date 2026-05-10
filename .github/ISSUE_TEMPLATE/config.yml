@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
   - name: Ask a question
-    url: https://github.com/glitchwerks/siege-web/issues/new?labels=question
+    url: https://github.com/glitchwerks/rsl-siege-manager/issues/new?labels=question
     about: For questions (not bugs), open an Issue with the Question label. GitHub Discussions is not currently enabled on this repository.

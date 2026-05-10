@@ -22,7 +22,7 @@ Data flow:
 
 See `docs/superpowers/plans/discord-auth-plan.md` for the canonical auth spec.
 
-Project state lives on GitHub — current release in [Releases](https://github.com/glitchwerks/siege-web/releases), active workstreams in [Milestones](https://github.com/glitchwerks/siege-web/milestones), open work in [Issues](https://github.com/glitchwerks/siege-web/issues), recent changes in `CHANGELOG.md`. Do not maintain a local status doc.
+Project state lives on GitHub — current release in [Releases](https://github.com/glitchwerks/rsl-siege-manager/releases), active workstreams in [Milestones](https://github.com/glitchwerks/rsl-siege-manager/milestones), open work in [Issues](https://github.com/glitchwerks/rsl-siege-manager/issues), recent changes in `CHANGELOG.md`. Do not maintain a local status doc.
 
 ## Common Commands
 

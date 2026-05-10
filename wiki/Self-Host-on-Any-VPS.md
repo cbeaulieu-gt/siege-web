@@ -88,7 +88,7 @@ The app uses Discord OAuth2 for user login. Only the backend's `/api/auth/callba
 SSH into your server and run:
 
 ```bash
-git clone https://github.com/glitchwerks/siege-web.git
+git clone https://github.com/glitchwerks/rsl-siege-manager.git
 cd siege-web
 cp .env.example .env.production
 ```
@@ -556,7 +556,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d backend
 
 ## 10. Day-two ops
 
-For incident playbooks, log queries, secret rotation, and rollback procedures, see [RUNBOOK.md in the main repo](https://github.com/glitchwerks/siege-web/blob/main/docs/RUNBOOK.md).
+For incident playbooks, log queries, secret rotation, and rollback procedures, see [RUNBOOK.md in the main repo](https://github.com/glitchwerks/rsl-siege-manager/blob/main/docs/RUNBOOK.md).
 
 ### Updating to a new version
 
