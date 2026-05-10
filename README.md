@@ -1,5 +1,12 @@
 # Siege Assignment Web App
 
+[![CI](https://img.shields.io/github/actions/workflow/status/glitchwerks/siege-web/ci.yml?branch=main&label=CI&logo=github)](https://github.com/glitchwerks/siege-web/actions/workflows/ci.yml)
+[![Deploy](https://img.shields.io/github/actions/workflow/status/glitchwerks/siege-web/deploy.yml?branch=main&label=deploy&logo=github)](https://github.com/glitchwerks/siege-web/actions/workflows/deploy.yml)
+[![Latest release](https://img.shields.io/github/v/release/glitchwerks/siege-web?label=release&logo=github&color=blue)](https://github.com/glitchwerks/siege-web/releases/latest)
+[![Live site](https://img.shields.io/badge/live-rslsiege.com-success?logo=cloudflare&logoColor=white)](https://rslsiege.com)
+
+🌐 **Live site:** <https://rslsiege.com>
+
 Web application for managing Raid Shadow Legends clan siege assignments. Replaces the manual Discord/Excel workflow with a unified web UI backed by a relational database.
 
 ## Architecture
