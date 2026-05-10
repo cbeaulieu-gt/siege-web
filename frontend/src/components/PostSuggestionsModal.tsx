@@ -668,7 +668,7 @@ export default function PostSuggestionsModal({
             size="sm"
             onClick={() => previewMutation.mutate()}
             disabled={previewMutation.isPending}
-            className="ml-4 shrink-0 text-xs"
+            className="ml-4 mr-8 shrink-0 text-xs"
           >
             <RefreshCw
               className={cn(
