@@ -69,7 +69,7 @@ jobs:
     steps:
       - name: Mint GitHub App token
         id: app-token
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -92,7 +92,7 @@ jobs:
           done
 
       - name: Post failure comment
-        if: failure() && github.event_name == 'pull_request'
+        if: failure() && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         uses: actions/github-script@v9
         with:
           # Use App token on PRs (enables @claude triggering); fall back to GITHUB_TOKEN on other events
@@ -118,7 +118,7 @@ jobs:
     steps:
       - name: Mint GitHub App token
         id: app-token
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -134,7 +134,7 @@ jobs:
         run: az bicep build --file infra/main.bicep --outfile /tmp/main.json
 
       - name: Post failure comment
-        if: failure() && github.event_name == 'pull_request'
+        if: failure() && github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         uses: actions/github-script@v9
         with:
           github-token: ${{ steps.app-token.outputs.token || github.token }}
@@ -157,12 +157,13 @@ jobs:
   infra-validate-dev:
     name: ARM Preflight Validation (dev)
     needs: infra-build
+    if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
     runs-on: ubuntu-latest
 
     steps:
       - name: Mint GitHub App token
         id: app-token
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.APP_ID }}
@@ -221,12 +222,13 @@ jobs:
   infra-what-if-dev:
     name: What-if Change Impact (dev)
     needs: infra-validate-dev
+    if: github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork
     runs-on: ubuntu-latest
 
     steps:
       - name: Mint GitHub App token
         id: app-token
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && !github.event.pull_request.head.repo.fork
         uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.APP_ID }}
