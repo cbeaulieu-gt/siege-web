@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getPosts, setPostConditions } from "../api/posts";
@@ -14,6 +14,7 @@ import { Badge } from "../components/ui/badge";
 import { ArrowLeft, ChevronDown, ChevronUp } from "lucide-react";
 import { GroupByToggle } from "../components/GroupByToggle";
 import { groupPostConditions } from "../lib/groupPostConditions";
+import type { GroupByMode } from "../lib/groupPostConditions";
 import {
   useGroupByPreference,
   GROUP_BY_STORAGE_KEY,
@@ -32,20 +33,46 @@ function PostRow({
   isLocked,
   initialExpanded = false,
   building,
+  forcedMode,
+  forcedVersion,
 }: {
   post: Post;
   siegeId: number;
   isLocked?: boolean;
   initialExpanded?: boolean;
   building?: BuildingResponse;
+  /** The mode last broadcast by the master toggle. */
+  forcedMode: GroupByMode;
+  /**
+   * Incremented each time the master toggle fires an override.
+   * Using a version counter (not a direct dep on forcedMode) means the effect
+   * only fires when the user explicitly clicks the master — not on every
+   * re-render where forcedMode happens to equal the current row value.
+   */
+  forcedVersion: number;
 }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(initialExpanded);
   const [condFilter, setCondFilter] = useState("");
   const [groupByMode, setGroupByMode] = useGroupByPreference(GROUP_BY_STORAGE_KEY);
+  // Tracks the last forcedVersion this row applied so the effect does not re-fire
+  // when other deps (groupByMode, forcedMode) change after a per-row flip.
+  const appliedVersionRef = useRef(0);
   const [selectedConditions, setSelectedConditions] = useState<Set<number>>(
     new Set(post.active_conditions.map((c) => c.id))
   );
+
+  // Master override: when forcedVersion bumps, snap this row's local state to
+  // forcedMode. appliedVersionRef tracks the last version we acted on so the
+  // effect is a no-op when other deps (groupByMode, forcedMode) change due to a
+  // per-row flip — preserving row independence after a master broadcast while
+  // still including all deps in the array (no eslint-disable needed).
+  useEffect(() => {
+    if (forcedVersion > 0 && forcedVersion !== appliedVersionRef.current) {
+      appliedVersionRef.current = forcedVersion;
+      setGroupByMode(forcedMode);
+    }
+  }, [forcedVersion, forcedMode, setGroupByMode]);
 
   const { data: allConditions } = useQuery({
     queryKey: ["postConditions"],
@@ -174,7 +201,11 @@ function PostRow({
                 onChange={(e) => setCondFilter(e.target.value)}
                 className="h-8 flex-1 text-sm"
               />
-              <GroupByToggle value={groupByMode} onChange={setGroupByMode} />
+              <GroupByToggle
+                value={groupByMode}
+                onChange={setGroupByMode}
+                aria-label="Row group-by"
+              />
             </div>
             {condGroups.map((group) => {
                 const filtered = condFilter
@@ -239,6 +270,19 @@ export default function PostsPage() {
     ? Number(searchParams.get("post"))
     : null;
 
+  // Master group-by toggle: a one-shot override for all mounted PostRows.
+  // useGroupByPreference is per-component state (useState + localStorage lazy
+  // init); per-row toggles are independent after mount. The master broadcasts
+  // via broadcastVersion — each PostRow's useEffect fires only when that
+  // version bumps, ensuring the override is explicit (not reactive).
+  const [masterMode, setMasterMode] = useGroupByPreference(GROUP_BY_STORAGE_KEY);
+  const [broadcastVersion, setBroadcastVersion] = useState(0);
+
+  function broadcastMode(next: GroupByMode) {
+    setMasterMode(next); // writes localStorage via the hook
+    setBroadcastVersion((v) => v + 1); // fires the override in every PostRow
+  }
+
   const { data: siege } = useQuery({
     queryKey: ["siege", siegeId],
     queryFn: () => getSiege(siegeId),
@@ -270,9 +314,16 @@ export default function PostsPage() {
           <ArrowLeft className="h-4 w-4" />
           Back to Sieges
         </Link>
-        <h1 className="text-2xl font-bold text-slate-900">
-          Posts — Siege #{siegeId}
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-slate-900">
+            Posts — Siege #{siegeId}
+          </h1>
+          <GroupByToggle
+            value={masterMode}
+            onChange={broadcastMode}
+            aria-label="Master group-by"
+          />
+        </div>
         <p className="mt-1 text-sm text-slate-500">
           Set post conditions for each post in this siege.
         </p>
@@ -300,6 +351,8 @@ export default function PostsPage() {
               isLocked={siege?.status === "complete"}
               initialExpanded={expandPostNumber === post.building_number}
               building={board?.buildings.find((b) => b.id === post.building_id)}
+              forcedMode={masterMode}
+              forcedVersion={broadcastVersion}
             />
           ))}
         </div>
