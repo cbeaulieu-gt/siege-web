@@ -683,49 +683,63 @@ async def test_preview_lowest_condition_id_picked_as_tiebreak():
 
 @pytest.mark.asyncio
 async def test_preview_suboptimality_invariants_hold():
-    """Charge #14: known greedy suboptimality fixture — assert invariants, not exact output.
+    """Charge #14: greedy invariants hold even when a condition is shared across posts.
 
-    Setup: 2 posts, 2 members, each member matches exactly 1 unique condition.
-    Post 1 requires cond_a; Post 2 requires cond_b.
-    Member 1 matches only cond_a; Member 2 matches only cond_b.
-    Optimal: member 1 → post 1, member 2 → post 2.
-    Greedy with priority order is correct here.
+    Setup: 2 posts, 2 members.
+    - cond_shared is active on BOTH posts (this is the shared-condition scenario
+      that previously triggered the #381 duplicate bug).
+    - cond_b is active on post 2 only.
+    - m1 matches only cond_shared.
+    - m2 matches cond_shared AND cond_b.
+
+    This means the duplicate code path IS reachable: after m1 is assigned
+    cond_shared on post1, cond_shared is a used condition for m1.  If the
+    candidate filter does not exclude exhausted members, m1 could be
+    matched to post2 with the same condition — violating invariant 1.
 
     We assert invariants that any correct algorithm must satisfy:
     1. No member is assigned the same condition to two posts simultaneously.
-    2. Every assigned post has a member whose preferences include the matched condition.
+    2. Every assigned post has a member whose preferences include the matched
+       condition.
     3. The number of assigned posts is >= 1 (greedy lower bound).
     """
-    cond_a = _make_condition(id=1, description="Cond A")
+    cond_shared = _make_condition(id=1, description="Cond Shared")
     cond_b = _make_condition(id=2, description="Cond B")
-    m1 = _make_member(id=1, name="Alpha", preferences=[cond_a])
-    m2 = _make_member(id=2, name="Beta", preferences=[cond_b])
+    # m1 only matches the shared condition — after post1 consumes it, m1
+    # has no fresh matching condition left for post2.
+    m1 = _make_member(id=1, name="Alpha", preferences=[cond_shared])
+    # m2 matches both; it can satisfy post2 with either condition.
+    m2 = _make_member(id=2, name="Beta", preferences=[cond_shared, cond_b])
     sm1 = _make_siege_member(m1)
     sm2 = _make_siege_member(m2)
 
     pos1 = _make_position(id=101)
     grp1 = _make_group([pos1])
     bld1 = _make_building(id=1, building_number=1, groups=[grp1])
-    post1 = _make_post(id=10, building=bld1, priority=5, active_conditions=[cond_a])
+    # Both posts share cond_shared; post2 also accepts cond_b.
+    post1 = _make_post(id=10, building=bld1, priority=5, active_conditions=[cond_shared])
 
     pos2 = _make_position(id=102)
     grp2 = _make_group([pos2])
     bld2 = _make_building(id=2, building_number=2, groups=[grp2])
-    post2 = _make_post(id=20, building=bld2, priority=3, active_conditions=[cond_b])
+    post2 = _make_post(id=20, building=bld2, priority=3, active_conditions=[cond_shared, cond_b])
 
     siege = _make_siege(posts=[post1, post2], siege_members=[sm1, sm2])
     result = await _preview(siege, assignment_counts={})
 
     assigned = [e for e in result.assignments if e.suggested_member_id is not None]
 
-    # Invariant 1: no member assigned same condition to two posts
+    # Invariant 1: no member assigned same condition to two posts (#381 regression).
     seen: dict[tuple[int, int], int] = {}
     for e in assigned:
         key = (e.suggested_member_id, e.suggested_condition_id)
-        assert key not in seen, "Member assigned same condition to two posts"
+        assert key not in seen, (
+            f"Member {e.suggested_member_id} assigned condition "
+            f"{e.suggested_condition_id} to two posts — duplicate (#381)"
+        )
         seen[key] = e.position_id
 
-    # Invariant 2: matched condition is in the member's preferences
+    # Invariant 2: matched condition is in the member's preferences.
     member_prefs = {
         m1.id: {c.id for c in m1.post_preferences},
         m2.id: {c.id for c in m2.post_preferences},
@@ -736,7 +750,7 @@ async def test_preview_suboptimality_invariants_hold():
             e.suggested_condition_id in prefs
         ), f"Suggested condition {e.suggested_condition_id} not in member's preferences"
 
-    # Invariant 3: at least 1 post assigned (greedy lower bound)
+    # Invariant 3: at least 1 post assigned (greedy lower bound).
     assert len(assigned) >= 1
 
 
@@ -1157,3 +1171,47 @@ async def test_apply_completed_siege_raises_400():
     with pytest.raises(HTTPException) as exc:
         await service.apply_post_suggestions(session, siege_id=1, data=data)
     assert exc.value.status_code == 400
+
+
+# ---------------------------------------------------------------------------
+# Section: Regression — duplicate (member, condition) pairs (#381)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_preview_skips_post_when_only_candidate_has_used_condition():
+    """Regression for #381.
+
+    Setup: one member matches a condition that is active on two posts.
+    Expected: the member is assigned to ONE post; the second post is
+    suggested with skip_reason='no_match' (not assigned to the same
+    member with a duplicate condition).
+    """
+    cond_x = _make_condition(id=1, description="Cond X")
+    m1 = _make_member(id=1, name="Alice", preferences=[cond_x])
+    sm1 = _make_siege_member(m1)
+
+    pos1 = _make_position(id=101)
+    grp1 = _make_group([pos1])
+    bld1 = _make_building(id=1, building_number=1, groups=[grp1])
+    post1 = _make_post(id=10, building=bld1, priority=5, active_conditions=[cond_x])
+
+    pos2 = _make_position(id=102)
+    grp2 = _make_group([pos2])
+    bld2 = _make_building(id=2, building_number=2, groups=[grp2])
+    # Same condition on the second post — this is the duplicate scenario.
+    post2 = _make_post(id=20, building=bld2, priority=3, active_conditions=[cond_x])
+
+    siege = _make_siege(posts=[post1, post2], siege_members=[sm1])
+    result = await _preview(siege, assignment_counts={})
+
+    by_pos = {e.position_id: e for e in result.assignments}
+
+    # Post 1 (priority 5) wins Alice with cond_x.
+    assert by_pos[101].suggested_member_id == m1.id
+    assert by_pos[101].suggested_condition_id == cond_x.id
+
+    # Post 2 must not duplicate the (Alice, cond_x) pair — no_match instead.
+    assert by_pos[102].suggested_member_id is None
+    assert by_pos[102].suggested_condition_id is None
+    assert by_pos[102].skip_reason == "no_match"

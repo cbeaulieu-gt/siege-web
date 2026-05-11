@@ -15,12 +15,15 @@ preview_post_suggestions runs a priority-ordered greedy assignment:
    post's building's single group).
 4. Skip posts whose target position is is_reserve or is_disabled.
 5. Build candidate set: active siege members whose post_preferences
-   intersect the post's active_conditions.
+   intersect the post's active_conditions AND who still have at least
+   one fresh (not yet used this run) matching condition.  This prevents
+   the same (member, condition) pair from appearing on multiple posts
+   (issue #381).
 6. Sort posts by priority desc, building_number asc.
 7. Greedy loop with a lexicographic scoring tuple:
        (duplicate_penalty, assignment_count, member_name)
-   where duplicate_penalty=0 means the member still has a fresh matching
-   condition, and =1 means all matching conditions are already used.
+   where duplicate_penalty is retained for structural symmetry but is
+   always 0 (the candidate filter guarantees freshness).
 8. Persist preview JSON + 30-minute TTL in siege.post_suggest_preview.
 9. Return the full assignment list.
 
@@ -223,8 +226,16 @@ async def preview_post_suggestions(
 
         post_condition_ids: set[int] = {c.id for c in post.active_conditions}
 
-        # Build candidate list: members whose preferences intersect post conditions.
-        candidates = [m for m in active_members if member_preference_ids[m.id] & post_condition_ids]
+        # Build candidate list: members whose preferences intersect post conditions
+        # AND have at least one FRESH (not yet used by them this run) matching
+        # condition.  Members who have already exhausted their matching conditions
+        # on prior posts in this run are excluded — preventing the same
+        # (member, condition) pair from being suggested twice.  See issue #381.
+        candidates = [
+            m
+            for m in active_members
+            if (member_preference_ids[m.id] & post_condition_ids) - used_member_conditions[m.id]
+        ]
 
         if not candidates:
             assignments.append(
@@ -248,6 +259,11 @@ async def preview_post_suggestions(
         # preventing the bistable flip-flop described in issue #360.
         # Among non-incumbents, assignment_count then member_name (ASC)
         # break ties deterministically.
+        #
+        # dup_penalty is defensively retained but structurally unreachable: the
+        # candidate filter above guarantees every candidate has at least one
+        # fresh matching condition, so `fresh` is always non-empty and
+        # dup_penalty is always 0.  See issue #381.
         def _score(m) -> tuple:
             matching = member_preference_ids[m.id] & post_condition_ids
             already_used = used_member_conditions[m.id]
@@ -258,11 +274,15 @@ async def preview_post_suggestions(
 
         best = min(candidates, key=_score)
 
-        # Pick the matched condition: prefer fresh (lowest id), fall back to used.
+        # Pick the matched condition: always fresh (members reaching this point are
+        # guaranteed by the candidate filter above to have at least one fresh
+        # matching condition).  The fallback to `min(matching_ids)` that previously
+        # existed here is removed because it produced duplicate (member, condition)
+        # pairs across posts (issue #381).
         matching_ids = member_preference_ids[best.id] & post_condition_ids
         already_used = used_member_conditions[best.id]
         fresh_ids = matching_ids - already_used
-        chosen_condition_id = min(fresh_ids) if fresh_ids else min(matching_ids)
+        chosen_condition_id = min(fresh_ids)
 
         # Look up the condition description from the post's active_conditions list.
         chosen_condition_description: str | None = None
