@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-05-11
+
+### Added
+
+- **Suggest Post Assignments** — one-click auto-assignment of members to posts based on each member's saved condition preferences. Preview the result as a diff list with type filters and an expiry countdown; apply atomically with race-fenced writes. The Posts tab shows an optimal-status chip indicating whether the current board is already best-possible. Per-post skip reasons distinguish "no eligible match" from "no conditions configured." Algorithm is deterministic across runs and never matches the same `(member, condition)` pair to two posts. (#335, #345, #348, #357, #359, #360, #362, #363, #364, #365, #366, #367, #368, #369, #381, #382)
+- **Group Post Conditions by Level or Type** — switch the conditions list between Stronghold Level (the existing default) and a new Type grouping (Role / Affinity / Faction / League / Rarity / Effect / Other). Choice persists per browser. Available on the Post Priorities page, Member Detail page, and the Post Condition Assignments page inside a siege; the siege page also has a master "Toggle All" control at the top right that overrides every per-row toggle. (#370, #371, #375, #376, #377, #378)
+- **Rate-limited Discord OAuth2 endpoints** — `/api/auth/login` (10/min) and `/api/auth/callback` (5/min), env-tunable via `AUTH_LOGIN_RATE_LIMIT` / `AUTH_CALLBACK_RATE_LIMIT`. Client IP is read from the leftmost validated `X-Forwarded-For` entry, with throttled production warnings on missing or non-IP headers. (#153, #352)
+
+### Fixed
+
+- Backend test suite is reliably green on CI's Linux + Python 3.12 runners — caplog handler-install race in `test_auth_rate_limit.py` and a dotenv leak in `test_config.py` were resolved. (#358, #372, #374, #379, #380)
+
+### Infrastructure
+
+- Repository renamed: `glitchwerks/siege-web` → `glitchwerks/rsl-siege-manager`; all docs, setup guides, and config updated. (#349, #361)
+- Fork-PR-friendly CI: secret-dependent steps now skip when running on fork PRs. Reusable-workflow version bumps to `glitchwerks/github-actions` v2.6.2. (#350, #351, #353, #354, #355, #356)
+
 ## [1.1.0] - 2026-05-08
 
 ### Added
@@ -128,6 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vitest component tests for the assignment board (`BoardPage`) and notification polling (`SiegeSettingsPage`)
 - CI on every PR to `main`: black + ruff + pytest (backend); ESLint + build (frontend)
 
+[1.2.0]: https://github.com/glitchwerks/rsl-siege-manager/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/glitchwerks/rsl-siege-manager/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/glitchwerks/rsl-siege-manager/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/glitchwerks/rsl-siege-manager/compare/v1.0.1...v1.0.2
