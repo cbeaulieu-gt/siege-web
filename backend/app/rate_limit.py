@@ -109,14 +109,9 @@ def _get_client_ip(request: Request) -> str:
             # that garbage values cannot escape or manipulate rate-limit
             # buckets.  Log a throttled WARNING in production so that
             # attackers probing with malformed headers leave a trace.
-            #
-            # ``settings.environment`` is read inside the lock so that the
-            # acquire acts as a memory barrier, guaranteeing that the value
-            # written by the test's monkeypatch (or by the real startup) is
-            # visible to this thread before the comparison executes.
             should_log = False
-            with _xff_warning_lock:
-                if settings.environment == "production":
+            if settings.environment == "production":
+                with _xff_warning_lock:
                     now = time.monotonic()
                     if now - _last_xff_invalid_warning >= _XFF_WARN_INTERVAL_SECS:
                         _last_xff_invalid_warning = now
@@ -139,14 +134,9 @@ def _get_client_ip(request: Request) -> str:
         # The warning is throttled to at most once per 60 s to avoid log
         # flooding.  The lock prevents the read-compare-write from racing
         # when multiple thread-pool workers enter simultaneously.
-        #
-        # ``settings.environment`` is read inside the lock so that the
-        # acquire acts as a memory barrier, guaranteeing that the value
-        # written by the test's monkeypatch (or by the real startup) is
-        # visible to this thread before the comparison executes.
         should_log = False
-        with _xff_warning_lock:
-            if settings.environment == "production":
+        if settings.environment == "production":
+            with _xff_warning_lock:
                 now = time.monotonic()
                 if now - _last_xff_absent_warning >= _XFF_WARN_INTERVAL_SECS:
                     _last_xff_absent_warning = now
