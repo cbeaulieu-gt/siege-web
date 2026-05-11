@@ -109,44 +109,44 @@ def _get_client_ip(request: Request) -> str:
             # that garbage values cannot escape or manipulate rate-limit
             # buckets.  Log a throttled WARNING in production so that
             # attackers probing with malformed headers leave a trace.
+            should_log = False
             if settings.environment == "production":
-                should_log = False
                 with _xff_warning_lock:
                     now = time.monotonic()
                     if now - _last_xff_invalid_warning >= _XFF_WARN_INTERVAL_SECS:
                         _last_xff_invalid_warning = now
                         should_log = True
-                if should_log:
-                    # Truncate user-controlled data before logging to prevent
-                    # log injection and oversized lines.
-                    preview = leftmost[:_XFF_LOG_VALUE_MAX_CHARS]
-                    suffix = "[truncated]" if len(leftmost) > _XFF_LOG_VALUE_MAX_CHARS else ""
-                    logger.warning(
-                        "Invalid X-Forwarded-For value in production request"
-                        " — falling back to remote address."
-                        " value_preview=%s%s",
-                        preview,
-                        suffix,
-                    )
+            if should_log:
+                # Truncate user-controlled data before logging to prevent
+                # log injection and oversized lines.
+                preview = leftmost[:_XFF_LOG_VALUE_MAX_CHARS]
+                suffix = "[truncated]" if len(leftmost) > _XFF_LOG_VALUE_MAX_CHARS else ""
+                logger.warning(
+                    "Invalid X-Forwarded-For value in production request"
+                    " — falling back to remote address."
+                    " value_preview=%s%s",
+                    preview,
+                    suffix,
+                )
     else:
         # XFF absent — warn in production since direct backend access
         # bypassing Container Apps ingress indicates a misconfiguration.
         # The warning is throttled to at most once per 60 s to avoid log
         # flooding.  The lock prevents the read-compare-write from racing
         # when multiple thread-pool workers enter simultaneously.
+        should_log = False
         if settings.environment == "production":
-            should_log = False
             with _xff_warning_lock:
                 now = time.monotonic()
                 if now - _last_xff_absent_warning >= _XFF_WARN_INTERVAL_SECS:
                     _last_xff_absent_warning = now
                     should_log = True
-            if should_log:
-                logger.warning(
-                    "X-Forwarded-For absent in production request — trust "
-                    "model assumes Container Apps ingress is in front. "
-                    "Direct backend access may indicate misconfiguration."
-                )
+        if should_log:
+            logger.warning(
+                "X-Forwarded-For absent in production request — trust "
+                "model assumes Container Apps ingress is in front. "
+                "Direct backend access may indicate misconfiguration."
+            )
 
     return get_remote_address(request)
 

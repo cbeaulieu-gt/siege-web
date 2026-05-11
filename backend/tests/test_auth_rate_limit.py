@@ -19,6 +19,7 @@ to a tight "2/minute" value so we only need 3 rapid requests to trigger a
 
 import logging
 import secrets
+from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -28,6 +29,63 @@ from starlette.requests import Request as StarletteRequest
 import app.rate_limit as _rate_limit_module
 from app.main import app
 from app.rate_limit import _get_client_ip, limiter
+
+
+class _RecordingHandler(logging.Handler):
+    """In-process log handler that accumulates records for test assertions.
+
+    Attached directly to ``logging.getLogger("app.rate_limit")`` so that
+    records are captured regardless of root-logger state, ``basicConfig``
+    side effects, or pytest-asyncio handler-installation timing (all of
+    which contributed to the intermittent 0-record CI failures tracked in
+    issue #379).
+
+    Thread-safe: ``logging.Handler.emit`` is already called under the
+    ``Handler.acquire()`` lock provided by the ``logging.Handler`` base
+    class, so appending to ``self.records`` from concurrent threads is safe.
+    """
+
+    def __init__(self) -> None:
+        """Initialise at WARNING level to match the production warning paths."""
+        super().__init__(level=logging.WARNING)
+        self.records: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Append *record* to ``self.records``."""
+        self.records.append(record)
+
+
+@pytest.fixture()
+def rate_limit_log() -> Generator["_RecordingHandler", None, None]:
+    """Attach *_RecordingHandler* directly to the ``app.rate_limit`` logger.
+
+    Yields the handler so tests can inspect captured records.  The handler
+    is removed and the logger's ``propagate`` flag and effective level are
+    restored on teardown, leaving the logging tree exactly as it was before
+    the test ran.
+
+    Using a direct handler rather than pytest's ``caplog`` fixture avoids
+    the propagation-chain timing issue: ``caplog`` installs its handler on
+    the root logger (or uses ``catching_logs`` for a named logger), which
+    can miss records emitted from thread-pool workers before the fixture's
+    handler is fully wired — the exact failure mode seen on GitHub Actions.
+    A handler attached directly to ``logging.getLogger("app.rate_limit")``
+    captures records at the point of emission, bypassing root-logger state
+    entirely.
+    """
+    _logger = logging.getLogger("app.rate_limit")
+    handler = _RecordingHandler()
+
+    orig_level = _logger.level
+    orig_propagate = _logger.propagate
+    _logger.setLevel(logging.WARNING)
+    _logger.addHandler(handler)
+
+    yield handler
+
+    _logger.removeHandler(handler)
+    _logger.setLevel(orig_level)
+    _logger.propagate = orig_propagate
 
 
 @pytest.fixture(autouse=True)
@@ -378,12 +436,17 @@ async def test_429_response_includes_retry_after_header(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_missing_xff_in_production_logs_warning(monkeypatch, caplog):
+async def test_missing_xff_in_production_logs_warning(monkeypatch, rate_limit_log):
     """XFF absent in production emits a WARNING via the rate_limit logger.
 
     Ensures the warning fires exactly once for a request that arrives without
     X-Forwarded-For when ENVIRONMENT=production, signalling potential
     misconfiguration (direct backend access bypassing Container Apps ingress).
+
+    Uses ``rate_limit_log`` (a handler attached directly to
+    ``logging.getLogger("app.rate_limit")``) instead of ``caplog`` to avoid
+    intermittent 0-record failures on GitHub Actions / Python 3.12 Linux.
+    See issue #379 for the full investigation.
     """
     monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
     monkeypatch.setattr("app.config.settings.auth_disabled", False)
@@ -391,22 +454,14 @@ async def test_missing_xff_in_production_logs_warning(monkeypatch, caplog):
     monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
     monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
 
-    # caplog.set_level is used instead of the caplog.at_level context manager
-    # because it persists for the entire test and is managed by pytest's fixture
-    # teardown, which works correctly across Python versions and operating systems.
-    # caplog.at_level() as a context manager can miss records emitted from
-    # thread-pool threads (via asyncio run_in_executor) on Python 3.12 / Linux
-    # due to handler-level initialisation differences in catching_logs when
-    # log_level is not set in pyproject.toml.  The log_level = "WARNING" entry
-    # in pyproject.toml (added alongside this fix) addresses the root cause;
-    # caplog.set_level here is belt-and-suspenders so the intent is explicit.
-    caplog.set_level(logging.WARNING, logger="app.rate_limit")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # No X-Forwarded-For header — simulates direct backend access.
         await _get(client, LOGIN_URL)
 
     warning_records = [
-        r for r in caplog.records if r.levelno == logging.WARNING and "X-Forwarded-For" in r.message
+        r
+        for r in rate_limit_log.records
+        if r.levelno == logging.WARNING and "X-Forwarded-For" in r.message
     ]
     assert (
         len(warning_records) >= 1
@@ -444,7 +499,7 @@ async def test_missing_xff_in_development_does_not_log_warning(monkeypatch, capl
 
 
 @pytest.mark.asyncio
-async def test_concurrent_absent_xff_in_production_warns_exactly_once(monkeypatch, caplog):
+async def test_concurrent_absent_xff_in_production_warns_exactly_once(monkeypatch, rate_limit_log):
     """Concurrent requests with no XFF in production fire the warning once.
 
     _last_xff_absent_warning is read-compared-written by multiple threads
@@ -454,6 +509,11 @@ async def test_concurrent_absent_xff_in_production_warns_exactly_once(monkeypatc
     times".  With the lock, exactly one thread wins the write and the rest
     skip, so exactly one warning is emitted no matter how many concurrent
     requests arrive within the 60-second window.
+
+    Uses ``rate_limit_log`` (a handler attached directly to
+    ``logging.getLogger("app.rate_limit")``) instead of ``caplog`` to avoid
+    intermittent 0-record failures on GitHub Actions / Python 3.12 Linux.
+    See issue #379 for the full investigation.
     """
     monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
     monkeypatch.setattr("app.config.settings.auth_disabled", False)
@@ -477,10 +537,8 @@ async def test_concurrent_absent_xff_in_production_warns_exactly_once(monkeypatc
         req = StarletteRequest(scope)
         _get_client_ip(req)
 
-    # caplog.set_level persists for the full test so the handler is guaranteed
-    # at WARNING before the thread pool is submitted.  See comment in
-    # test_missing_xff_in_production_logs_warning for the full rationale.
-    caplog.set_level(logging.WARNING, logger="app.rate_limit")
+    # rate_limit_log is already attached before the thread pool is submitted,
+    # so no handler-installation race exists here.
     with ThreadPoolExecutor(max_workers=N) as pool:
         futures = [pool.submit(_call_get_client_ip) for _ in range(N)]
         for f in futures:
@@ -488,7 +546,7 @@ async def test_concurrent_absent_xff_in_production_warns_exactly_once(monkeypatc
 
     absent_warnings = [
         r
-        for r in caplog.records
+        for r in rate_limit_log.records
         if r.levelno == logging.WARNING and "X-Forwarded-For absent" in r.message
     ]
     assert len(absent_warnings) == 1, (
@@ -503,12 +561,17 @@ async def test_concurrent_absent_xff_in_production_warns_exactly_once(monkeypatc
 
 
 @pytest.mark.asyncio
-async def test_invalid_xff_in_production_logs_warning(monkeypatch, caplog):
+async def test_invalid_xff_in_production_logs_warning(monkeypatch, rate_limit_log):
     """Invalid X-Forwarded-For in production emits a WARNING via rate_limit logger.
 
     When the leftmost XFF value is not a valid IP address and the environment
     is production, the code must log a throttled WARNING so that attackers
     probing with malformed headers leave a trace in the logs.
+
+    Uses ``rate_limit_log`` (a handler attached directly to
+    ``logging.getLogger("app.rate_limit")``) instead of ``caplog`` to avoid
+    intermittent 0-record failures on GitHub Actions / Python 3.12 Linux.
+    See issue #379 for the full investigation.
     """
     monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
     monkeypatch.setattr("app.config.settings.auth_disabled", False)
@@ -516,9 +579,6 @@ async def test_invalid_xff_in_production_logs_warning(monkeypatch, caplog):
     monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
     monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
 
-    # caplog.set_level persists for the full test.  See comment in
-    # test_missing_xff_in_production_logs_warning for the full rationale.
-    caplog.set_level(logging.WARNING, logger="app.rate_limit")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         await _get(
             client,
@@ -528,7 +588,7 @@ async def test_invalid_xff_in_production_logs_warning(monkeypatch, caplog):
 
     invalid_warnings = [
         r
-        for r in caplog.records
+        for r in rate_limit_log.records
         if r.levelno == logging.WARNING and "Invalid X-Forwarded-For" in r.message
     ]
     assert (
@@ -568,13 +628,18 @@ async def test_invalid_xff_in_development_does_not_log_warning(monkeypatch, capl
 
 
 @pytest.mark.asyncio
-async def test_invalid_xff_warning_is_throttled_to_once_per_window(monkeypatch, caplog):
+async def test_invalid_xff_warning_is_throttled_to_once_per_window(monkeypatch, rate_limit_log):
     """Rapid invalid-XFF requests in production log the warning only once.
 
     The invalid-XFF warning must be throttled with the same 60-second window
     as the absent-XFF warning: no matter how many requests arrive with
     malformed X-Forwarded-For values within the window, only one WARNING is
     emitted.
+
+    Uses ``rate_limit_log`` (a handler attached directly to
+    ``logging.getLogger("app.rate_limit")``) instead of ``caplog`` to avoid
+    intermittent 0-record failures on GitHub Actions / Python 3.12 Linux.
+    See issue #379 for the full investigation.
     """
     monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
     monkeypatch.setattr("app.config.settings.auth_disabled", False)
@@ -582,9 +647,6 @@ async def test_invalid_xff_warning_is_throttled_to_once_per_window(monkeypatch, 
     monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
     monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
 
-    # caplog.set_level persists for the full test.  See comment in
-    # test_missing_xff_in_production_logs_warning for the full rationale.
-    caplog.set_level(logging.WARNING, logger="app.rate_limit")
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         for _ in range(5):
             await _get(
@@ -595,7 +657,7 @@ async def test_invalid_xff_warning_is_throttled_to_once_per_window(monkeypatch, 
 
     invalid_warnings = [
         r
-        for r in caplog.records
+        for r in rate_limit_log.records
         if r.levelno == logging.WARNING and "Invalid X-Forwarded-For" in r.message
     ]
     assert len(invalid_warnings) == 1, (
