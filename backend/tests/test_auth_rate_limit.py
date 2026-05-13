@@ -463,6 +463,7 @@ async def test_concurrent_absent_xff_in_production_warns_exactly_once(monkeypatc
     monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
     monkeypatch.setattr("app.config.settings.auth_disabled", False)
     monkeypatch.setattr("app.config.settings.environment", "production")
+    monkeypatch.setattr("app.rate_limit._XFF_WARN_INTERVAL_SECS", 1.0)
     monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
     monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
 
@@ -593,6 +594,7 @@ async def test_invalid_xff_warning_is_throttled_to_once_per_window(monkeypatch):
     monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
     monkeypatch.setattr("app.config.settings.auth_disabled", False)
     monkeypatch.setattr("app.config.settings.environment", "production")
+    monkeypatch.setattr("app.rate_limit._XFF_WARN_INTERVAL_SECS", 1.0)
     monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
     monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
 
