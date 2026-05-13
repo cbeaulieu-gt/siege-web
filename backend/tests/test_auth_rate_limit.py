@@ -15,6 +15,21 @@ Covers:
 Rate limits are driven by env-tunable settings.  For tests we override them
 to a tight "2/minute" value so we only need 3 rapid requests to trigger a
 429 — no real-time waiting required.
+
+The four production-warning tests (``test_missing_xff_in_production_logs_warning``,
+``test_invalid_xff_in_production_logs_warning``,
+``test_concurrent_absent_xff_in_production_warns_exactly_once``,
+``test_invalid_xff_warning_is_throttled_to_once_per_window``) were rewritten
+in PR #389 to assert on throttle-state advancement
+(``_last_xff_absent_warning`` / ``_last_xff_invalid_warning`` timestamps)
+instead of captured log records, after two prior fix attempts (PRs #373 and
+#380) failed to eliminate intermittent flakes.  The agreed kill criterion: if
+these tests flake again after this rewrite, delete them outright — the
+security behavior of ``_get_client_ip`` is already covered by the non-flaky
+``test_garbage_xff_*``,
+``test_xff_pathological_header_parses_to_leftmost_ip``, and
+``test_*_buckets_by_ip`` tests in this same file.  See GitHub issue #387 for
+the full history.
 """
 
 import logging
