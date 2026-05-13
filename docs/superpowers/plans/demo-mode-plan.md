@@ -100,7 +100,7 @@ if not is_demo_claim and has_dsid:
 
 Mismatched claims are 401 + logged security events. Prevents a future copy-paste bug in `auth.py` from silently issuing a real-user JWT that escalates into the demo branch.
 
-**Demo JWT shape**: `{is_demo: true, demo_session_id: "<uuid>", exp: now + 7d}`. No `sub`. Real-user JWT shape: `{sub: "<member_id>", name: "...", iat, exp}`. No `is_demo`, no `demo_session_id`.
+**Demo JWT shape**: `{is_demo: true, demo_session_id: "<uuid>", exp: now + 5h}`. No `sub`. 5h = 4h idle window + 1h grace. Aligned with the siege's idle-reap window so JWT credential exposure does not exceed effective session lifetime. Real-user JWT shape: `{sub: "<member_id>", name: "...", iat, exp}`. No `is_demo`, no `demo_session_id`.
 
 ### Demo login & fork
 
@@ -111,6 +111,10 @@ async def demo_login(redis: Redis, db: AsyncSession):
     acquired = await acquire_demo_slot(redis)
     if not acquired:
         raise HTTPException(503, {"error": "demo_at_capacity", "retry_after": 60})
+    # Explicit Postgres-side timeout: 9s = 1s before asyncio's 10s, giving
+    # asyncio the chance to cancel cleanly. Without this, a network-stalled
+    # Postgres call could survive past asyncio's signal.
+    await db.execute(text("SET LOCAL statement_timeout = '9s'"))
     try:
         async with asyncio.timeout(10.0):
             async with db.begin():  # async transaction; rollback on exception
@@ -136,7 +140,7 @@ Notes on the structure:
 - The transaction is inside the `asyncio.timeout` (Python 3.11+ idiom; equivalent to `asyncio.wait_for`) so cancellation rolls back via `db.begin()`'s context manager.
 - Slot is released on every failure path explicitly. Success path holds the slot until janitor reaping decrements it (the natural session-lifetime tie).
 - `release_demo_slot` swallows Redis errors (logs and continues) — the 6h reconcile job is the backstop.
-- Postgres `statement_timeout` set at session level as defense in depth against asyncio signal delays.
+- Postgres `statement_timeout = '9s'` set via `SET LOCAL` before the transaction, 1 second before asyncio's 10s timeout — gives asyncio the chance to cancel cleanly before Postgres times out. Defense in depth against asyncio signal delays on network-stalled DB calls.
 - **Resolves Charge 14**: autofill operates on `siege.siege_members` which is now populated by `attach_demo_members`.
 
 **Timeout failure (Charge 12)**: `asyncio.wait_for` triggers `CancelledError` → SQLAlchemy async session's `__aexit__` rolls back. Postgres `statement_timeout` is the backstop if asyncio's signal is delayed. User sees 503 with `{"error": "demo_fork_timeout", "retry_after": 5}` and a frontend toast "Demo couldn't start; try again in a moment." **Timeout failures DO NOT count against the rate limit** — Redis-backed limiter has a rollback hook on this specific error.
@@ -176,14 +180,32 @@ The Phase 0 task produces a verified per-endpoint disposition table — the plan
 Single `ContextVar[Optional[AuthenticatedUser]]` (`_current_user`), set by FastAPI middleware after auth resolves. `bot_client`'s 5 public methods wrap:
 
 ```python
+class CurrentUserNotSetError(RuntimeError):
+    """ContextVar _current_user was unexpectedly unset inside a bot_client call.
+
+    Fail-closed defense-in-depth: if middleware did not set the ContextVar (a bug),
+    we refuse to make the bot call rather than silently proceeding as if the
+    request were a real-user request. Background tasks must re-establish the
+    ContextVar inside the task body — see _send_dms for the pattern.
+    """
+
 async def _maybe_short_circuit(method_name: str) -> CannedResponse | None:
     user = _current_user.get(None)
-    if user and user.is_demo:
+    if user is None:
+        # Fail CLOSED: never proceed with a bot call when we don't know who the
+        # caller is. The middleware should always set this; if we hit this branch,
+        # there's a bug (probably a background task that forgot to re-establish).
+        raise CurrentUserNotSetError(
+            f"_current_user ContextVar was unset when bot_client.{method_name} was called. "
+            f"In request scope, the FastAPI middleware sets it after auth resolves. "
+            f"In background tasks, re-establish it explicitly from row state (see _send_dms)."
+        )
+    if user.is_demo:
         return _canned_response_for(method_name)
     return None
 ```
 
-**For background tasks (`_send_dms`)**: explicitly re-establish the ContextVar inside the task body, reading `is_demo` from `NotificationBatch.is_demo`. Documented pattern in `bot_client.py` with a comment block for future copy-paste.
+**For background tasks (`_send_dms`)**: explicitly re-establish the ContextVar inside the task body, reading `is_demo` from `NotificationBatch.is_demo`. Documented pattern in `bot_client.py` with a comment block for future copy-paste. Failure to re-establish the ContextVar in a background task will now raise `CurrentUserNotSetError` rather than silently making a real bot call — making the bug loud at first invocation rather than silent on tenant boundaries.
 
 ### Frontend
 
@@ -191,15 +213,9 @@ async def _maybe_short_circuit(method_name: str) -> CannedResponse | None:
 - `DemoBanner` — persistent header when `isDemo`. Shows session idle window, "Exit demo".
 - `SimulatedAction` wrapper — adds "(simulated)" badge + tooltip when `isDemo`. Applied to Notify Members, Post to Discord, Sync Discord buttons.
 - `AuthContext` — `isDemo: boolean` from `/api/auth/me`.
-- **401 interceptor (Charge 7 resolution)**: decodes JWT from `document.cookie` via a small inline base64-decode helper (the JWT is httponly — wait, that's a problem; see below). Reads `is_demo` claim directly. Redirects to `/demo` if demo, `/login` if real.
+- **401 interceptor (Charge 7 resolution)**: the JWT cookie is httponly, so frontend JS cannot decode it directly. On 401 the interceptor calls `/api/auth/me` to learn fresh state (NOT cached `AuthContext`), then redirects: `isDemo: true` → `/demo`, otherwise → `/login`. One extra HTTP call on the rare 401 path — cheap, correct, no side-channel cookies. Resolves pass-2 Charge 7 (stale-state failures from trusting cached AuthContext).
 
-**Wait — httponly cookie consideration**: the existing auth flow sets the JWT cookie as `httponly=True`. Frontend JS cannot read `document.cookie` for it. Two resolution options:
-- (a) Read `isDemo` from a NON-httponly companion cookie set alongside the JWT (e.g. `demo_hint=1` — non-sensitive flag).
-- (b) Frontend always calls `/api/auth/me` on 401 to learn current state, then redirects. Costs one extra HTTP call but is correct.
-
-**Chosen: (b)** — one extra call on 401 (rare path) is cheaper than introducing a side-channel cookie. The "stale state" concern from pass 2 Charge 7 is resolved because the interceptor now fetches fresh state on 401, not cached.
-
-**In-flight guard for the refetch (resolves pass-3 Charge 7 race)**: the 401 interceptor uses a module-level `Promise | null` (or `useRef` in a React Query interceptor) as a singleflight latch. If a `/me` refetch is already in flight when another 401 lands, the second handler awaits the first promise rather than firing a parallel `/me` call. Prevents the rare "two parallel 401s → two `/me` calls → two redirects" race that would otherwise occur.
+**In-flight guard for the refetch (pass-3 Charge 7 follow-up)**: the 401 interceptor uses a module-level `Promise | null` (or `useRef` in a React Query interceptor) as a singleflight latch. If a `/me` refetch is already in flight when another 401 lands, the second handler awaits the first promise rather than firing a parallel `/me` call. Prevents the rare "two parallel 401s → two `/me` calls → two redirects" race.
 
 ---
 
@@ -208,6 +224,8 @@ async def _maybe_short_circuit(method_name: str) -> CannedResponse | None:
 ### Redis-backed concurrency cap + rate limit (resolves Charge 5)
 
 **New Bicep module**: `infra/modules/redis.bicep`. Provisions Azure Cache for Redis Basic SKU (C0, ~$15/mo). One per environment (dev + prod). Connection string injected as `REDIS_CONNECTION_STRING` env var into the API Container App via `kv-role-assignments.bicep`.
+
+> **Accepted availability risk** (review finding): Basic C0 tier has no SLA and no replication. Demo mode is consciously deployed against this tier — demo unavailability does not affect real users (Discord OAuth path is unrelated; failing demo-login returns 503 cleanly without cascading). The trade-off is intentional: the demo's primary value is as an adoption tool, not a high-availability product surface. **App Insights alerting must be added on Redis connectivity failures** (operational follow-up — see Phase 2 telemetry task) so we know when the dependency is degraded. If demo evolves into a load-bearing public surface (e.g. linked from a marketing page receiving sustained traffic), upgrade to Standard C0 (~$55/mo, SLA + replication) at that point.
 
 **Concurrency cap mechanism**:
 ```python
@@ -228,25 +246,36 @@ Janitor calls `release_demo_slot` per deleted siege. Demo-login calls `acquire_d
 
 ```python
 async def reconcile():
+    # Force-reconcile if we've skipped 3 consecutive times (avoids
+    # never-converge under sustained churn).
+    consecutive_skips = int(await redis.get("demo:reconcile_consecutive_skips") or 0)
+    force = consecutive_skips >= 3
+
     # Take TWO samples ~2 seconds apart; only act if the delta is stable.
     redis_n1 = await redis.get("demo:active_sessions")
     db_n1 = await fetch_count("SELECT count(*) FROM siege WHERE is_demo")
     await asyncio.sleep(2.0)
     redis_n2 = await redis.get("demo:active_sessions")
     db_n2 = await fetch_count("SELECT count(*) FROM siege WHERE is_demo")
+
     # If either sample shows churn (a login or reap landed mid-window), abort and re-run in 6h.
     if redis_n1 != redis_n2 or db_n1 != db_n2:
-        log.info("demo_slot_reconcile.churn_detected_skipping", redis=(redis_n1, redis_n2), db=(db_n1, db_n2))
-        return
+        if not force:
+            await redis.incr("demo:reconcile_consecutive_skips")
+            log.info("demo_slot_reconcile.churn_detected_skipping", consecutive=consecutive_skips + 1, redis=(redis_n1, redis_n2), db=(db_n1, db_n2))
+            return
+        log.warning("demo_slot_reconcile.churn_force_reconciling", consecutive=consecutive_skips)
+    # Reset skip counter once we proceed
+    await redis.set("demo:reconcile_consecutive_skips", 0)
     if redis_n2 == db_n2:
         return  # No drift; done.
     log.warning("demo_slot_reconcile.drift_corrected", from_=redis_n2, to=db_n2, delta=db_n2 - redis_n2)
     await redis.set("demo:active_sessions", db_n2)
 ```
 
-Stable-delta is preferred over a Redis lock because the job runs only every 6h and brief churn is the common case at scale.
+Stable-delta is preferred over a Redis lock because the job runs only every 6h and brief churn is the common case at scale. The consecutive_skips escape hatch guarantees convergence: at 6h cadence × 3 skips = 18h maximum drift window — acceptable.
 
-**Rate limit mechanism**: `slowapi` with `RedisLimiter` backend. `10/hour` per IP on `POST /api/auth/demo-login`. Timeout failures decrement the rate-limit counter (via slowapi's `rollback` hook).
+**Rate limit mechanism**: `slowapi` with `RedisLimiter` backend. `50/hour` per IP on `POST /api/auth/demo-login`. Bumped from initial 10/hour after review noted NAT scenarios (corporate networks, mobile carriers) routinely share a single egress IP — 10/hour rejected legitimate evaluators. 50/hour is the new ceiling; revisit via Phase 2 telemetry. Timeout failures decrement the rate-limit counter (via slowapi's `rollback` hook).
 
 **Python dependency**: add `redis>=5.0` and `slowapi>=0.1.9` to `backend/requirements.txt`.
 
@@ -363,12 +392,13 @@ Published in `docs/demo-boundary.md` for any future feature that touches per-use
 These tasks produce verified artifacts that the rest of Phase 1 depends on. **Each is a small PR.** Phase 0 deliberately precedes any schema/code work — the planning artifacts gate the implementation.
 
 0a. **Write-endpoint enumeration**: grep `backend/app/api/*.py` for all non-GET routes. Produce `docs/demo-boundary.md § Write Endpoint Disposition Table` mapping each to one of three dispositions. PR includes the table + reviewer sign-off.
+  - `backend/tests/test_demo_member_endpoints_403.py` (new test file) walks every route in `backend/app/api/members.py` and `backend/app/api/discord_sync.py` that is `POST/PUT/PATCH/DELETE`, calls each as a demo-authenticated request, and asserts the response is 403. This is the programmatic regression gate against accidental Member-mutation leaks through the boundary.
 
 0b. **Service-layer multi-fetch audit**: grep `backend/app/services/` for `select(Siege)` and `select(Member)` outside URL-parameter paths. Produce `docs/demo-boundary.md § Service-Layer Filter Sites`. PR includes the audited list + reviewer sign-off.
 
-0c. **Cascade FK audit**: read every SQLAlchemy model under `backend/app/models/`. Verify `Siege → Building → BuildingGroup → Position` and `Siege → NotificationBatch` cascade-delete correctly. Fix any missing `cascade="all, delete-orphan"`. PR includes verification commands + any model fixes.
+0c. **Cascade FK audit**: read every SQLAlchemy model under `backend/app/models/`. Verify `Siege → Building → BuildingGroup → Position` AND `Siege → NotificationBatch → NotificationBatchResult` cascade-delete correctly. Fix any missing `cascade="all, delete-orphan"`. PR includes verification commands + any model fixes.
 
-0d. **`[DEMO] ` prefix rendering audit**: render-test the image-gen and autofill code paths with a `Member.name` of `"[DEMO] " + "X" * 40` (long name with prefix). Verify no layout breakage. PR includes screenshots / test outputs.
+0d. **`[DEMO] ` prefix rendering audit**: render-test the image-gen and autofill code paths with realistic worst-case seeded names (e.g. `[DEMO] Sebastian` — the longest in the planned seed list) AND a pathological case (`"[DEMO] " + "X" * 40`) separately; the realistic case validates the intended UX, the pathological case is the regression gate against future longer names. Verify no layout breakage in either case. PR includes screenshots / test outputs.
 
 ### Phase 1 — Foundation (gated by Phase 0)
 
@@ -393,11 +423,12 @@ These tasks produce verified artifacts that the rest of Phase 1 depends on. **Ea
 16. Telemetry — App Insights custom events.
 17. Welcome content — non-intrusive callout on demo siege.
 18. Idle-window tuning based on telemetry.
+19. **Load testing** — probe-based concurrency tests against the Redis-backed cap and the fork transaction. Validates: (a) cap rejects 101st concurrent demo-login with 503 not 500 not hang, (b) fork timeout fires reliably at 10s under simulated DB latency, (c) janitor doesn't deadlock with high concurrent in-flight forks, (d) slot-reconcile job stable-delta behaves correctly under sustained churn. Not full production traffic — this is a correctness probe at the boundary, not a soak test.
 
 ### Phase 3 — Deferred
 
-19. SEO / og:image / marketing-page link.
-20. Multiple demo presets ("clean clan" / "messy clan").
+20. SEO / og:image / marketing-page link.
+21. Multiple demo presets ("clean clan" / "messy clan").
 
 ---
 
@@ -443,6 +474,7 @@ Defaults remain, all encoded in `config.py`:
 - 101st concurrent demo login → 503 + counter unchanged.
 - 11th rate-limited request from same IP within 1h → 429 + counter unchanged.
 - Timeout failure decrements rate-limit counter (subsequent request not penalized).
+- Redis unavailable → `acquire_demo_slot` fails fast with a clear exception → demo-login endpoint returns 503 with `{"error": "demo_dependency_unavailable"}` cleanly. Asserted by running the test with Redis stopped / `REDIS_CONNECTION_STRING=tcp://invalid:6379`. Must NOT 500, must NOT hang.
 
 ### CI-mechanism tests
 
@@ -472,7 +504,28 @@ Defaults remain, all encoded in `config.py`:
 
 ## Migration-to-Tenancy Appendix
 
-(Unchanged from R1 — see plan-file revision history for the four-step migration path if a tenancy upgrade trigger fires. Estimated effort if triggered: 3-4 weeks. The painful query-scoping audit cost is the same whether paid now or then.)
+If a tenancy upgrade trigger fires (§ Tenancy Upgrade Triggers), here is the migration path. Inlined here so the plan is self-contained — future-us doesn't rediscover it.
+
+**Step 1 — Schema additions** (single migration):
+- Create `Tenant` table: `id`, `name`, `discord_guild_id` (nullable), `is_demo` (bool), `created_at`.
+- Add `tenant_id` FK to `Siege`, `Member`, `NotificationBatch`.
+
+**Step 2 — Backfill** (same migration, data step):
+- Insert one "default" tenant with `discord_guild_id = <settings.discord_guild_id>`, `is_demo=False`.
+- For each existing `Siege` with `is_demo=False`: `tenant_id = default.id`.
+- For each existing `Siege` with `is_demo=True`: insert a new `Tenant(is_demo=True)` per distinct `demo_session_id`, set `tenant_id` accordingly.
+- For `Member` rows: a shared demo-members tenant (since A+ shares demo members across sessions) plus the default tenant for real members.
+- Mirror for `NotificationBatch` based on `is_demo`.
+
+**Step 3 — Code migration**:
+- Replace `AuthenticatedUser.is_demo` with `AuthenticatedUser.tenant_id` + a property `is_demo` that reads from `tenant.is_demo`. The eight `is_demo` references in business code become tenant lookups; the CI grep allowlist relaxes.
+- Replace `require_demo_scope` with `require_tenant_scope`.
+- Replace the enumerated list-endpoint filters with tenant-aware filters (this is also when introducing a SQLAlchemy `with_loader_criteria` auto-filter becomes worth the complexity, since the tenant abstraction is now genuinely load-bearing).
+
+**Step 4 — Drop legacy columns** (separate migration, after a deploy cycle has confirmed the new path is stable):
+- Drop `Siege.is_demo`, `Siege.demo_session_id`, `Member.is_demo_only`, `NotificationBatch.is_demo`.
+
+**Estimated effort if triggered**: 3-4 weeks. The painful query-scoping audit (the cost of real multi-tenancy) is the same whether paid now (Option C) or then.
 
 ---
 
@@ -481,6 +534,6 @@ Defaults remain, all encoded in `config.py`:
 Once approved, file under Milestone "Demo Mode" with:
 - Phase 0: 4 issues (enumeration, service audit, cascade audit, prefix rendering).
 - Phase 1: 15 issues (one per task).
-- Phase 2: 3 issues.
+- Phase 2: 4 issues (telemetry, welcome content, idle-window tuning, load testing).
 
 Phase 0 issues are blocking prerequisites for Phase 1; tag accordingly.
