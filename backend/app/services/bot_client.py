@@ -7,8 +7,9 @@ outbound day-role-sync webhook contract defined in
 """
 
 import asyncio
+import json
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 import httpx
@@ -16,6 +17,17 @@ import httpx
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+# Maximum characters logged from a successful response body (§2 payload size
+# is bounded; 500 chars is sufficient for all status/reason fields).
+_MAX_RESPONSE_BODY_LOG_LEN = 500
+
+# Tighter cap used for already-failed response bodies in _handle_sync_response
+# to reduce noise in error paths.
+_MAX_FAILED_BODY_LOG_LEN = 200
+
+# Total HTTP attempts: 1 initial + 1 retry per contract §5.
+_MAX_ATTEMPTS = 2
 
 
 class BotClient:
@@ -161,7 +173,7 @@ class BotClient:
         # ------------------------------------------------------------------ #
         if discord_id is None:
             logger.info(
-                "sync_day_role skipped: discord_id is None " "(correlation_id=%s, siege_id=%s)",
+                "sync_day_role skipped: discord_id is None (correlation_id=%s, siege_id=%s)",
                 correlation_id,
                 siege_id,
             )
@@ -181,13 +193,39 @@ class BotClient:
             return False
 
         # ------------------------------------------------------------------ #
+        # AC4 — HTTPS required (contract §4)                                  #
+        # ------------------------------------------------------------------ #
+        if not sync_url.startswith("https://"):
+            scheme = sync_url.split("://")[0] if "://" in sync_url else "(no scheme)"
+            logger.error(
+                "DAY_ROLE_SYNC_URL must use HTTPS — rejecting non-HTTPS URL "
+                "(correlation_id=%s, scheme=%s)",
+                correlation_id,
+                scheme,
+            )
+            return False
+
+        # ------------------------------------------------------------------ #
         # Build §2 payload                                                    #
         # ------------------------------------------------------------------ #
 
-        # assigned_at must be UTC with millisecond precision (§2 / §7).
+        # assigned_at must be UTC-aware; a naive datetime or a non-UTC tzinfo
+        # would produce an incorrect ISO-8601 offset after .replace("+00:00","Z").
+        # Raise immediately — this is a programming error by the caller.
+        if assigned_at.tzinfo is None:
+            raise ValueError(
+                "assigned_at must be a UTC-aware datetime, but got a naive "
+                f"datetime: {assigned_at!r}"
+            )
+        if assigned_at.tzinfo is not UTC and assigned_at.utcoffset().total_seconds() != 0:
+            raise ValueError(
+                "assigned_at must be UTC (tzinfo=datetime.UTC), but got "
+                f"tzinfo={assigned_at.tzinfo!r}"
+            )
+
         # isoformat(timespec="milliseconds") on a UTC datetime yields the form
-        # "2026-05-14T13:52:18.247+00:00"; we normalise the offset to "Z" for
-        # readability and spec conformance.
+        # "2026-05-14T13:52:18.247+00:00"; normalise the offset to "Z" for
+        # readability and spec conformance (§2 / §7).
         assigned_at_str = assigned_at.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
         payload: dict = {
@@ -215,14 +253,15 @@ class BotClient:
             },
             timeout=10.0,
         ) as client:
-            for attempt in range(1, 3):  # attempts 1 and 2
+            # initial attempt + 1 retry per contract §5
+            for attempt in range(1, _MAX_ATTEMPTS + 1):
                 try:
                     response = await client.post(sync_url, json=payload)
                     last_status = response.status_code
-                    last_body = response.text[:500]
+                    last_body = response.text[:_MAX_RESPONSE_BODY_LOG_LEN]
                 except httpx.HTTPError as exc:
                     logger.warning(
-                        "sync_day_role HTTP error on attempt %d " "(correlation_id=%s): %s",
+                        "sync_day_role HTTP error on attempt %d (correlation_id=%s): %s",
                         attempt,
                         correlation_id,
                         exc,
@@ -239,7 +278,7 @@ class BotClient:
                     # 4xx — client error, no retry per §5.
                     logger.warning(
                         "sync_day_role 4xx on attempt %d "
-                        "(correlation_id=%s, status=%d, body=%.200s)",
+                        "(correlation_id=%s, status=%d, body=%s)",
                         attempt,
                         correlation_id,
                         last_status,
@@ -264,7 +303,7 @@ class BotClient:
         logger.warning(
             "sync_day_role retry exhausted — delivery dropped "
             "(correlation_id=%s, discord_id=%s, siege_id=%s, "
-            "action=%s, last_status=%s, last_body=%.200s)",
+            "action=%s, last_status=%s, last_body=%s)",
             correlation_id,
             discord_id,
             siege_id,
@@ -295,11 +334,11 @@ class BotClient:
         """
         try:
             body = response.json()
-        except Exception:
+        except (json.JSONDecodeError, ValueError):
             logger.warning(
-                "sync_day_role: failed to parse response JSON " "(correlation_id=%s, body=%.200s)",
+                "sync_day_role: failed to parse response JSON " "(correlation_id=%s, body=%s)",
                 correlation_id,
-                response.text[:200],
+                response.text[:_MAX_FAILED_BODY_LOG_LEN],
             )
             return False
 
@@ -310,7 +349,7 @@ class BotClient:
 
         if status == "applied":
             logger.info(
-                "sync_day_role applied " "(correlation_id=%s, added=%s, removed=%s)",
+                "sync_day_role applied (correlation_id=%s, added=%s, removed=%s)",
                 correlation_id,
                 added,
                 removed,
@@ -319,7 +358,7 @@ class BotClient:
 
         if status == "skipped":
             logger.info(
-                "sync_day_role skipped " "(correlation_id=%s, reason=%s)",
+                "sync_day_role skipped (correlation_id=%s, reason=%s)",
                 correlation_id,
                 reason,
             )
@@ -338,14 +377,14 @@ class BotClient:
 
         if status == "failed":
             logger.warning(
-                "sync_day_role failed " "(correlation_id=%s, reason=%s)",
+                "sync_day_role failed (correlation_id=%s, reason=%s)",
                 correlation_id,
                 reason,
             )
             return False
 
         logger.warning(
-            "sync_day_role: unrecognised status %r " "(correlation_id=%s)",
+            "sync_day_role: unrecognised status %r (correlation_id=%s)",
             status,
             correlation_id,
         )

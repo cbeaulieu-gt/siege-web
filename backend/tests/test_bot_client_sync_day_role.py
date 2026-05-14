@@ -13,9 +13,14 @@ Covers all 12 acceptance criteria from issue #323:
 10. 5xx → 200 applied → True, exactly 2 calls, same correlation_id
 11. action="assign" includes day_number; action="unassign" omits day_number
 12. assigned_at serializes with millisecond precision
+
+PR #409 review feedback additions:
+13. Non-HTTPS DAY_ROLE_SYNC_URL → False, ERROR log (contract §4)
+14. assigned_at with non-UTC tzinfo → ValueError
+15. assigned_at naive (no tzinfo) → ValueError
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -28,7 +33,8 @@ from app.services.bot_client import BotClient
 # Constants
 # ---------------------------------------------------------------------------
 
-_SYNC_URL = "http://mom-bot.test/api/internal/role-sync"
+_SYNC_URL = "https://mom-bot.test/api/internal/role-sync"
+# _BEARER_KEY must match DISCORD_BOT_API_KEY set in conftest.py
 _BEARER_KEY = "test-key"
 _CORRELATION_ID = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 _ASSIGNED_AT = datetime(2026, 5, 14, 13, 52, 18, 247000, tzinfo=UTC)
@@ -365,7 +371,7 @@ async def test_sync_day_role_5xx_then_200_returns_true(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_sync_day_role_set_includes_day_number(monkeypatch):
-    """AC11a: action='set' payload includes day_number field."""
+    """AC11a: action='assign' payload includes day_number field."""
     monkeypatch.setattr("app.config.settings.day_role_sync_enabled", True)
     monkeypatch.setattr("app.config.settings.day_role_sync_url", _SYNC_URL)
 
@@ -384,7 +390,7 @@ async def test_sync_day_role_set_includes_day_number(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_sync_day_role_clear_omits_day_number(monkeypatch):
-    """AC11b: action='clear' payload omits day_number field."""
+    """AC11b: action='unassign' payload omits day_number field."""
     monkeypatch.setattr("app.config.settings.day_role_sync_enabled", True)
     monkeypatch.setattr("app.config.settings.day_role_sync_url", _SYNC_URL)
 
@@ -437,3 +443,88 @@ async def test_sync_day_role_assigned_at_millisecond_precision(monkeypatch):
 
     # Verify the actual value round-trips correctly.
     assert "2026-05-14T13:52:18.247" in assigned_at_str
+
+
+# ---------------------------------------------------------------------------
+# PR #409 review — AC13: HTTPS enforcement (contract §4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_sync_day_role_non_https_url_returns_false_errors(monkeypatch, caplog):
+    """AC13: Non-HTTPS DAY_ROLE_SYNC_URL returns False and emits ERROR log.
+
+    Contract §4 requires HTTPS.  The ERROR log must include the offending
+    scheme but not the full URL to avoid leaking a misconfigured target.
+    """
+    import logging
+
+    monkeypatch.setattr("app.config.settings.day_role_sync_enabled", True)
+    monkeypatch.setattr(
+        "app.config.settings.day_role_sync_url",
+        "http://insecure-receiver.internal/role-sync",
+    )
+
+    with caplog.at_level(logging.ERROR, logger="app.services.bot_client"):
+        with respx.mock(assert_all_called=False) as mock_transport:
+            result = await _call_set(_make_bot_client())
+
+    assert result is False
+    assert mock_transport.calls.call_count == 0
+    error_records = [r for r in caplog.records if r.levelno == logging.ERROR]
+    assert error_records, "Expected an ERROR log for non-HTTPS URL"
+    # Scheme must appear in log; full URL must not.
+    assert any("http" in r.message for r in error_records)
+    assert not any("insecure-receiver.internal" in r.message for r in error_records)
+    assert any(_CORRELATION_ID in r.message for r in error_records)
+
+
+# ---------------------------------------------------------------------------
+# PR #409 review — AC14/15: UTC validation for assigned_at
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_sync_day_role_non_utc_tzinfo_raises_value_error(monkeypatch):
+    """AC14: assigned_at with a non-UTC tzinfo raises ValueError immediately.
+
+    This is a programming error by the caller — raise rather than return False.
+    """
+    monkeypatch.setattr("app.config.settings.day_role_sync_enabled", True)
+    monkeypatch.setattr("app.config.settings.day_role_sync_url", _SYNC_URL)
+
+    # UTC+5 — valid aware datetime but not UTC.
+    non_utc_dt = datetime(2026, 5, 14, 13, 52, 18, tzinfo=timezone(timedelta(hours=5)))
+
+    with pytest.raises(ValueError, match="UTC"):
+        await _make_bot_client().sync_day_role(
+            discord_id=_DISCORD_ID,
+            siege_id=_SIEGE_ID,
+            day_number=_DAY_NUMBER,
+            action="assign",
+            assigned_at=non_utc_dt,
+            correlation_id=_CORRELATION_ID,
+        )
+
+
+@pytest.mark.asyncio
+async def test_sync_day_role_naive_datetime_raises_value_error(monkeypatch):
+    """AC15: assigned_at with no tzinfo (naive datetime) raises ValueError.
+
+    A naive datetime would produce an incorrect ISO-8601 string because
+    isoformat() omits the offset entirely — the payload would be malformed.
+    """
+    monkeypatch.setattr("app.config.settings.day_role_sync_enabled", True)
+    monkeypatch.setattr("app.config.settings.day_role_sync_url", _SYNC_URL)
+
+    naive_dt = datetime(2026, 5, 14, 13, 52, 18)  # no tzinfo
+
+    with pytest.raises(ValueError, match="UTC"):
+        await _make_bot_client().sync_day_role(
+            discord_id=_DISCORD_ID,
+            siege_id=_SIEGE_ID,
+            day_number=_DAY_NUMBER,
+            action="assign",
+            assigned_at=naive_dt,
+            correlation_id=_CORRELATION_ID,
+        )
