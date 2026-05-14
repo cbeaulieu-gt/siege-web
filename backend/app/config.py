@@ -25,6 +25,13 @@ class Settings(BaseSettings):
     # Bearer token for bot→backend calls; empty string disables the check.
     bot_service_token: str = ""
 
+    # Day-role sync webhook feature gate and receiver URL.
+    # DAY_ROLE_SYNC_ENABLED defaults to False; set to True only after a
+    # conforming receiver is deployed and smoke-tested (see docs/webhooks/
+    # day-role-sync.md §9 and issue #323).
+    day_role_sync_enabled: bool = False
+    day_role_sync_url: str | None = None
+
     # Dev-only auth bypass — startup guard rejects True outside development.
     auth_disabled: bool = False
 
