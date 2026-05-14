@@ -63,8 +63,10 @@ Adjust to rsl-siege-manager's actual layout. If unsure what to ignore, skip this
 From the rsl-siege-manager root:
 
 ```powershell
-graphify .
+graphify extract .
 ```
+
+> **Estimated cost:** `$0.10–$2.00` depending on the number of docs, PDFs, and images that survive the ignore filter. Watch terminal output; `Ctrl+C` is safe at any point.
 
 What happens under the hood:
 
@@ -142,7 +144,7 @@ After this, the repo is byte-identical to before the dry-run, and `~/.claude/CLA
 
 ## Windows-specific gotchas to watch for
 
-- **`/graphify .` will fail in PowerShell.** PowerShell treats `/` as a path separator. Use `graphify .` (no leading slash). The slash form only works inside an AI coding assistant's chat prompt.
+- **`/graphify extract .` will fail in PowerShell.** PowerShell treats `/` as a path separator. Use `graphify extract .` (no leading slash). The slash form only works inside an AI coding assistant's chat prompt.
 - **The PreToolUse hook graphify installs uses `python3`.** Windows installers typically register `python.exe`, not `python3.exe`. If I do eventually run `graphify claude install`, the hook's `python3 -c "..."` may silently no-op (it's wrapped in `2>/dev/null || true`) — meaning the nudge never fires and I won't know.
 - **The hook also relies on Bash `case` syntax.** Claude Code on Windows routes hook commands through Git Bash, so this works — but it's an implicit dependency on Git Bash being present.
 - **Hook matcher is substring-based on `*grep*`.** That catches `pg_dump | grep`, `kubectl get pods | grep`, anything-grep. False-positive nudges are low cost but worth knowing.
