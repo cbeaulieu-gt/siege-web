@@ -31,7 +31,7 @@ The producer sends an HTTP POST request to the configured receiver URL (see §9 
 | `siege_id` | integer | Primary key of the siege record in the producer database. Provided for correlation and audit; receivers MAY ignore it beyond logging. |
 | `day_number` | integer | The attack-day number being assigned or unassigned. Currently `1` or `2`; the contract allows any positive integer so that future days require no schema change. |
 | `action` | string (enum) | `"assign"` — the member has been placed on this day. `"unassign"` — the member has been removed from this day. No other values are legal. |
-| `assigned_at` | string | ISO-8601 UTC timestamp (e.g. `"2026-05-14T18:30:00Z"`) representing when the assignment change was recorded. Receivers use this as a monotonic ordering token (see §7). |
+| `assigned_at` | string | ISO-8601 UTC timestamp representing when the assignment change was recorded. Producers MUST provide millisecond precision at minimum — the form with `.SSS` suffix, e.g. `"2026-05-14T13:52:18.247Z"`. Producers MAY use microsecond precision if higher resolution is needed. Receivers use this as a monotonic ordering token (see §7). |
 | `correlation_id` | string | UUID v4. Scoping and retry semantics are defined in §8. |
 
 ### Example Payload
@@ -42,7 +42,7 @@ The producer sends an HTTP POST request to the configured receiver URL (see §9 
   "siege_id": 42,
   "day_number": 1,
   "action": "assign",
-  "assigned_at": "2026-05-14T18:30:00Z",
+  "assigned_at": "2026-05-14T13:52:18.247Z",
   "correlation_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 }
 ```
@@ -71,6 +71,8 @@ The receiver MUST respond with HTTP `200` and a JSON body for all outcomes that 
 - **`partial`** — at least one role operation succeeded and at least one failed. `added` and `removed` reflect only what actually happened. `reason` MUST be present and MUST name the failure. Receivers MUST NOT report `failed` when any operation succeeded.
 - **`skipped`** — no role operations were attempted. The receiver deliberately declined to act (e.g. stale write, exact replay). `reason` MUST be present.
 - **`failed`** — no role operations succeeded and none were attempted or all that were attempted failed. `reason` SHOULD be present.
+
+**`skipped` vs `failed` disambiguation:** `skipped` means the receiver **deliberately declined to attempt** any role operation (e.g. member not in guild, role not seeded, stale write, already in target state). `failed` means the receiver **attempted at least one** role operation and got an unrecoverable error from Discord with zero successful operations (use `partial` if at least one succeeded). If no role operation is attempted, the response is never `failed`.
 
 ### `reason` Enumeration
 
@@ -146,6 +148,8 @@ On receiving a `5xx` response, the producer MUST attempt exactly one retry after
 
 There is no retry queue, no dead-letter queue, and no scheduled redrive. Delivery drops are accepted under this contract. Out-of-band reconciliation (e.g. periodic full-sync) is out of scope for this contract and should be revisited if observability data reveals unacceptable drift.
 
+**Observability on exhaustion (SHOULD).** Because the contract drops on retry exhaustion with no DLQ or reconciliation path, drift between producer state and receiver state is otherwise silent. Producers SHOULD emit a structured event (metric, log, or alert) when the single retry is exhausted, including at minimum `correlation_id`, `discord_id`, `assigned_at`, `action`, and the final HTTP status/error from both attempts. Operators of receivers SHOULD likewise emit structured events for `status: failed` and `status: partial` responses so drift is detectable from either side.
+
 ---
 
 ## 6. Idempotency Rules
@@ -174,7 +178,7 @@ Receivers SHOULD persist idempotency state across restarts so that a receiver re
 2. **Stale write** — `assigned_at` is strictly less than the receiver's stored `last_assigned_at` for this `discord_id`, AND it is not an exact replay (i.e. at least one of `action` or `day_number` differs). The receiver MUST return `{status: "skipped", reason: "stale_write", last_assigned_at: <stored>, added: [], removed: []}` without invoking role operations and without updating stored state.
 3. **Fresh write** — `assigned_at` is greater than or equal to the stored `last_assigned_at` (and it is not an exact replay). The receiver MUST apply role operations and update stored state.
 
-**Equal `assigned_at` with key mismatch is undefined behavior.** The producer MUST NOT generate two distinct payloads for the same `discord_id` with the same `assigned_at` value. Receivers MAY handle this case however they choose; no behavior is guaranteed.
+**Producer monotonicity guarantee.** For a given `discord_id`, the producer MUST generate strictly monotonically increasing `assigned_at` values across distinct payloads — i.e. each new payload's `assigned_at` is strictly greater than the previous one for that `discord_id`. Producers SHOULD source `assigned_at` from a monotonic clock (e.g. database `clock_timestamp()` in PostgreSQL, or `time.monotonic_ns()` rounded to the chosen precision) rather than wall-clock time, to avoid violations under clock skew or backwards adjustment. Millisecond precision (§2) gives sufficient headroom for typical bulk fan-out; producers expecting >1,000 distinct payloads per `discord_id` per second MUST use microsecond precision.
 
 ---
 
@@ -185,6 +189,8 @@ Receivers SHOULD persist idempotency state across restarts so that a receiver re
 - **Shared across bulk fan-out.** If one user action (e.g. an admin bulk-assign) causes the producer to emit N webhook calls for N distinct members, all N calls MUST carry the same `correlation_id`. This allows downstream operators to correlate all effects of a single action in receiver logs.
 - **Preserved across retries.** The single 5xx retry (§5) MUST carry the same `correlation_id` as the original attempt. Do not generate a new UUID for the retry.
 - **Receivers MUST log `correlation_id`** in every structured log line emitted during processing of a call. See §10 for recommended observability conventions.
+
+**Relationship to producer-internal batch identifiers (informative).** Some producers maintain their own internal batch/transaction identifiers (for example, `rsl-siege-manager`'s `NotificationBatch.id` row used for the existing reminder-posting flow). `correlation_id` on this contract is **independent of any such internal identifier** — it is a fresh `uuid4` generated per webhook call (with the fan-out and retry rules above). Producers MAY include their internal batch identifier as an additional structured-log field for cross-referencing, but MUST NOT substitute it for `correlation_id` on the wire.
 
 ---
 
@@ -201,6 +207,10 @@ The following env vars govern the webhook feature on the producer side.
 Receiver-side configuration (env var names, guild IDs, role map population) is outside the scope of this contract. Each receiver implementation documents its own configuration requirements.
 
 `DAY_ROLE_SYNC_ENABLED` defaulting to `false` is a deliberate safety property: a deployment that has not yet configured a receiver will not attempt webhook delivery and will not produce spurious errors.
+
+> **Implementer note — `rsl-siege-manager` (this repo) only.** The following guidance is normative for contributors to this repo and non-normative for any other producer that adopts this contract.
+>
+> The producer implementation lives in the `backend/` service, not `bot/`. The "backend ↔ bot HTTP-API-only" boundary is preserved — the existing `bot/app/http_api.py` inbound surface is untouched. `DAY_ROLE_SYNC_URL` and `DAY_ROLE_SYNC_ENABLED` are read by `backend/`; the outbound HTTP call follows the existing `backend/app/services/bot_client.py` httpx + Bearer pattern. This guidance is specific to this repo and does not constrain other producers that may adopt this contract in the future.
 
 ---
 
@@ -249,9 +259,4 @@ Receivers SHOULD persist idempotency state (the last processed `(discord_id, ass
 
 `glitchwerks/mom-bot` is the first conforming receiver of this webhook contract. It exposes an HTTP endpoint that accepts the payload defined in §2, applies the role operations described in §3, and responds with the structured response schema. Implementation details are tracked under the mom-bot epic at [glitchwerks/mom-bot#6](https://github.com/glitchwerks/mom-bot/issues/6).
 
-To point this webhook at a different receiver — for example, a replacement bot or a staging harness — the only changes required on `rsl-siege-manager`'s side are:
-
-1. Set `DAY_ROLE_SYNC_URL` to the new receiver's endpoint URL.
-2. Set the bearer secret env var to the new receiver's expected token.
-
-No code changes are required on this repo's side. The contract is the interface; the URL is the binding.
+**Switching receivers on the wire is a producer-side config change only** — `DAY_ROLE_SYNC_URL` and the bearer secret. **The new receiver, however, has its own provisioning work** that the contract does not eliminate: at minimum, the receiver must be a member of the same Discord guild as members it will toggle roles for, must have seeded its own `day_role_map`-equivalent table (or equivalent role→day_number lookup), and must have completed any role-hierarchy preflight applicable to its environment (§10). This contract guarantees wire portability, not operational portability.
