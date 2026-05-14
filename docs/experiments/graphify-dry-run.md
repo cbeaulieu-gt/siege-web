@@ -1,8 +1,8 @@
-# Graphify Dry-Run for siege-web
+# Graphify Dry-Run for rsl-siege-manager
 
 A scoped evaluation plan for [`safishamsi/graphify`](https://github.com/safishamsi/graphify) — a tool that builds a queryable knowledge graph (code + docs + PDFs + images) from a project folder and exposes it to AI coding assistants.
 
-**Goal of this dry-run:** produce graphify's artifacts inside `siege-web/graphify-out/` so I can judge whether the graph genuinely illuminates this codebase, **without** modifying my global `~/.claude/CLAUDE.md`, this repo's `.claude/settings.json`, or installing any harness hooks. Everything below is reversible by deleting one folder.
+**Goal of this dry-run:** produce graphify's artifacts inside `rsl-siege-manager/graphify-out/` so I can judge whether the graph genuinely illuminates this codebase, **without** modifying my global `~/.claude/CLAUDE.md`, this repo's `.claude/settings.json`, or installing any harness hooks. Everything below is reversible by deleting one folder.
 
 ---
 
@@ -39,7 +39,7 @@ If "not recognized," open a new PowerShell window — `uv tool` updates PATH but
 
 Cheap insurance. Each non-code file (markdown, PDF, image) becomes an LLM API call during the first build. A `.graphifyignore` (same syntax as `.gitignore`, including `!` negation) keeps vendored deps and build output out of scope.
 
-From the siege-web root:
+From the rsl-siege-manager root:
 
 ```powershell
 @'
@@ -54,13 +54,13 @@ coverage/
 '@ | Set-Content -Encoding UTF8 .graphifyignore
 ```
 
-Adjust to siege-web's actual layout. If unsure what to ignore, skip this step — the build will still work, just bigger.
+Adjust to rsl-siege-manager's actual layout. If unsure what to ignore, skip this step — the build will still work, just bigger.
 
 ---
 
 ## Step 3 — Build the graph (the only step with $ cost)
 
-From the siege-web root:
+From the rsl-siege-manager root:
 
 ```powershell
 graphify .
@@ -96,7 +96,7 @@ Start-Process .\graphify-out\graph.html
 Get-Content .\graphify-out\graph.json | Select-Object -First 50
 ```
 
-**The honest evaluation lives in `GRAPH_REPORT.md`, not `graph.html`.** The viz is dopamine — colorful and clickable on any codebase. The report's "god nodes," "surprising connections," and "suggested questions" sections are what tell me whether the LLM extraction actually *understood* siege-web. If those sections name files/concepts I'd nominate myself, it worked. If they're generic ("`index.ts` is highly connected") or wrong, it didn't.
+**The honest evaluation lives in `GRAPH_REPORT.md`, not `graph.html`.** The viz is dopamine — colorful and clickable on any codebase. The report's "god nodes," "surprising connections," and "suggested questions" sections are what tell me whether the LLM extraction actually *understood* rsl-siege-manager. If those sections name files/concepts I'd nominate myself, it worked. If they're generic ("`index.ts` is highly connected") or wrong, it didn't.
 
 ---
 
@@ -127,12 +127,12 @@ graphify explain "<a-concept-i-want-mapped>"
 
 ## Abort / full cleanup
 
-Nothing outside `siege-web/graphify-out/` was touched. To roll back completely:
+Nothing outside `rsl-siege-manager/graphify-out/` was touched. To roll back completely:
 
 ```powershell
 Remove-Item -Recurse -Force .\graphify-out
 Remove-Item .\.graphifyignore       # if added and unwanted
-Remove-Item .\GRAPHIFY_DRY_RUN.md   # this file
+Remove-Item .\docs\experiments\graphify-dry-run.md   # this file
 uv tool uninstall graphifyy          # remove the CLI itself
 ```
 

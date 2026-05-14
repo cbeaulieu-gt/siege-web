@@ -2,7 +2,7 @@
 
 <#
 .SYNOPSIS
-    Run the graphify dry-run against siege-web. Issue #397, Phase B.
+    Run the graphify dry-run against rsl-siege-manager. Issue #397, Phase B.
 
 .DESCRIPTION
     Builds a graphify knowledge graph for the project and writes artifacts to
@@ -15,7 +15,7 @@
     Nothing outside graphify-out/ and .graphifyignore is created or modified.
 
 .PARAMETER ProjectRoot
-    Path to the siege-web repo root. Defaults to two levels above this script
+    Path to the rsl-siege-manager repo root. Defaults to two levels above this script
     (so the script works whether invoked from the main checkout or a worktree
     that has the script committed).
 
@@ -31,12 +31,12 @@
 
 .EXAMPLE
     # From elsewhere on disk:
-    & 'I:\games\raid\siege-web\scripts\experiments\run-graphify-dry-run.ps1' `
-        -ProjectRoot 'I:\games\raid\siege-web'
+    & 'C:\path\to\rsl-siege-manager\scripts\experiments\run-graphify-dry-run.ps1' `
+        -ProjectRoot 'C:\path\to\rsl-siege-manager'
 
 .NOTES
     Cost: one LLM API call per non-code, non-ignored file. Bounded by
-    .graphifyignore (auto-created here, sane defaults for siege-web).
+    .graphifyignore (auto-created here, sane defaults for rsl-siege-manager).
     Estimate: $0.10-$2.00 depending on the doc/PDF/image count surviving
     the ignore filter. Watch terminal output; Ctrl+C is safe at any point.
 
@@ -52,7 +52,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-Write-Host "Graphify Dry-Run for siege-web (issue #397, Phase B)" -ForegroundColor Cyan
+Write-Host "Graphify Dry-Run for rsl-siege-manager (issue #397, Phase B)" -ForegroundColor Cyan
 Write-Host ""
 
 # 1) graphify CLI present? ----------------------------------------------------
