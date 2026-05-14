@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -184,6 +184,13 @@ async def apply_attack_day(session: AsyncSession, siege_id: int) -> AttackDayApp
         if sm is not None:
             sm.attack_day = entry["attack_day"]
             applied_count += 1
+            # Source assigned_at from PostgreSQL clock_timestamp() at the
+            # moment of mutation.  clock_timestamp() returns a fresh wall-clock
+            # reading per call (unlike now()/current_timestamp which are
+            # statement-scoped), giving each member a unique, strictly
+            # increasing timestamp within the same transaction (contract §7).
+            raw_ts: datetime = (await session.execute(select(func.clock_timestamp()))).scalar_one()
+            assigned_at = raw_ts.astimezone(UTC)
             # Collect per-member data for the API layer's webhook fan-out.
             discord_id: str | None = sm.member.discord_id if sm.member is not None else None
             applied_members.append(
@@ -191,6 +198,7 @@ async def apply_attack_day(session: AsyncSession, siege_id: int) -> AttackDayApp
                     member_id=sm.member_id,
                     attack_day=entry["attack_day"],
                     discord_id=discord_id,
+                    assigned_at=assigned_at,
                 )
             )
 

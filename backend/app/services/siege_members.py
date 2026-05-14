@@ -1,5 +1,7 @@
+from datetime import UTC, datetime
+
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -78,8 +80,34 @@ async def add_siege_member(session: AsyncSession, siege_id: int, member_id: int)
 
 
 async def update_siege_member(
-    session: AsyncSession, siege_id: int, member_id: int, data: SiegeMemberUpdate
-) -> SiegeMember:
+    session: AsyncSession,
+    siege_id: int,
+    member_id: int,
+    data: SiegeMemberUpdate,
+) -> tuple[SiegeMember, datetime]:
+    """Apply a partial update to a SiegeMember row and return it with a clock timestamp.
+
+    Sources ``assigned_at`` from PostgreSQL ``clock_timestamp()`` at the
+    moment of the DB mutation so callers can use it as the outbound webhook
+    timestamp without relying on application-layer wall-clock state
+    (contract §7).
+
+    Args:
+        session: Async SQLAlchemy session.
+        siege_id: Primary key of the siege.
+        member_id: Primary key of the member within the siege.
+        data: Partial update payload; only fields present in the request
+            body are written.
+
+    Returns:
+        A ``(SiegeMember, datetime)`` tuple.  The datetime is a UTC-aware
+        timestamp from ``clock_timestamp()`` representing the instant of
+        mutation; the SiegeMember is the updated and refreshed ORM row.
+
+    Raises:
+        HTTPException 400: Siege is complete, or ``attack_day`` is invalid.
+        HTTPException 404: SiegeMember record not found.
+    """
     siege = await get_siege(session, siege_id)
     if siege.status == SiegeStatus.complete:
         raise HTTPException(
@@ -103,6 +131,12 @@ async def update_siege_member(
     for field, value in updates.items():
         setattr(siege_member, field, value)
 
+    # Source assigned_at from PostgreSQL clock_timestamp() at the moment of
+    # mutation.  This aligns with contract §7 (monotonic clock source) and
+    # eliminates module-level state from the API layer.
+    raw_ts: datetime = (await session.execute(select(func.clock_timestamp()))).scalar_one()
+    assigned_at = raw_ts.astimezone(UTC)
+
     await session.commit()
     await session.refresh(siege_member, attribute_names=["member"])
-    return siege_member
+    return siege_member, assigned_at

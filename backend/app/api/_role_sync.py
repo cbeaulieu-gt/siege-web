@@ -9,28 +9,29 @@ the caller-side concerns:
 
 - Feature gate (``DAY_ROLE_SYNC_ENABLED``) checked before scheduling.
 - ``discord_id=None`` filter with an INFO log.
-- ``assigned_at`` generation with strict monotonicity across fan-out
-  calls: each call to ``next_assigned_at()`` returns a value strictly
-  greater than the previous one, even when two calls fall within the
-  same millisecond.
 - ``correlation_id`` is generated once per user action by the caller;
   this module never generates it.
 
+``assigned_at`` is sourced from PostgreSQL ``clock_timestamp()`` inside
+the service layer (``apply_attack_day`` / ``update_siege_member``) and
+passed through as a parameter.  This satisfies contract §7 (monotonic
+clock source) without module-level state.
+
 Usage::
 
-    from app.api._role_sync import next_assigned_at, schedule_role_sync
+    from app.api._role_sync import schedule_role_sync
     import uuid
 
     correlation_id = str(uuid.uuid4())
 
-    for member in affected_members:
+    for entry in result.applied_members:
         schedule_role_sync(
             background_tasks,
-            discord_id=member.discord_id,
+            discord_id=entry.discord_id,
             siege_id=siege_id,
-            day_number=member.attack_day,
+            day_number=entry.attack_day,
             action="assign",
-            assigned_at=next_assigned_at(),
+            assigned_at=entry.assigned_at,
             correlation_id=correlation_id,
         )
 """
@@ -38,8 +39,7 @@ Usage::
 from __future__ import annotations
 
 import logging
-import time
-from datetime import UTC, datetime, timedelta
+from datetime import datetime
 from typing import Literal
 
 from fastapi import BackgroundTasks
@@ -48,46 +48,6 @@ from app.config import settings
 from app.services.bot_client import bot_client
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Module-level monotonic state — tracks the last timestamp emitted so that
-# successive calls within the same millisecond still produce strictly
-# increasing values.
-# ---------------------------------------------------------------------------
-_ONE_MS = timedelta(milliseconds=1)
-_last_assigned_at: datetime | None = None
-
-
-def next_assigned_at() -> datetime:
-    """Return a UTC-aware datetime, strictly greater than the previous call.
-
-    Provides millisecond precision (contract §2).  When two calls happen
-    within the same millisecond, the second call increments by 1 ms so
-    the strict-monotonicity invariant (contract §7) is preserved across
-    a fan-out batch.
-
-    Thread safety: this function is intentionally single-threaded (FastAPI
-    runs route handlers in the same event loop thread).  If concurrent
-    access becomes a requirement, wrap the state update in a lock.
-
-    Returns:
-        A UTC-aware ``datetime`` with sub-millisecond precision zeroed,
-        strictly greater than the value returned by the previous call.
-    """
-    global _last_assigned_at  # noqa: PLW0603
-
-    wall_ns = time.time_ns()
-    # Truncate to millisecond boundary.
-    wall_ms = wall_ns // 1_000_000
-    wall_us = wall_ms * 1_000  # microseconds, sub-ms zeroed
-    candidate = datetime.fromtimestamp(wall_us / 1_000_000, tz=UTC)
-
-    if _last_assigned_at is not None and candidate <= _last_assigned_at:
-        # Same millisecond (or rare clock regression): bump by 1 ms.
-        candidate = _last_assigned_at + _ONE_MS
-
-    _last_assigned_at = candidate
-    return candidate
 
 
 def schedule_role_sync(
@@ -119,8 +79,9 @@ def schedule_role_sync(
             ``"unassign"`` — member removed from a day.
         assigned_at: UTC-aware datetime for the assignment change.  Must be
             strictly greater than the previous call's value for the same
-            ``discord_id`` within a fan-out batch.  Use ``next_assigned_at()``
-            to satisfy the monotonicity invariant automatically.
+            ``discord_id`` within a fan-out batch.  Source this from
+            PostgreSQL ``clock_timestamp()`` inside the service layer so
+            the monotonicity invariant is met without module-level state.
         correlation_id: UUID v4 generated once per user action.  Shared
             across all calls in a fan-out batch (contract §8).
 

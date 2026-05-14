@@ -16,7 +16,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api._role_sync import next_assigned_at, schedule_role_sync
+from app.api._role_sync import schedule_role_sync
 from app.db.session import get_db
 from app.schemas.siege_member import (
     MemberPreferenceSummary,
@@ -88,15 +88,17 @@ async def update_siege_member(
     - ``DAY_ROLE_SYNC_ENABLED`` is ``false`` (feature gate).
     - The member has no linked Discord account (``discord_id`` is ``None``).
     """
-    siege_member = await siege_members_service.update_siege_member(db, siege_id, member_id, data)
+    siege_member, assigned_at = await siege_members_service.update_siege_member(
+        db, siege_id, member_id, data
+    )
 
     # Schedule webhook only when attack_day was part of the update payload.
     # If the caller patched only ``has_reserve_set`` or ``attack_day_override``,
     # there is no day-assignment change to propagate.
     if "attack_day" in data.model_fields_set:
         correlation_id = str(uuid.uuid4())
-        assigned_at = next_assigned_at()
-
+        # assigned_at is sourced from PostgreSQL clock_timestamp() inside
+        # the service layer — no API-layer timestamp generation needed.
         new_day = siege_member.attack_day
         if new_day is not None:
             action = "assign"

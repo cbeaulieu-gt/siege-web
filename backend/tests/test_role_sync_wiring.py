@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -133,6 +133,7 @@ async def test_update_siege_member_assign_emits_one_webhook(monkeypatch, http_cl
     _enable_sync(monkeypatch)
 
     sm_after = _make_siege_member(attack_day=1)
+    _assigned_at = datetime(2026, 5, 14, 12, 0, 0, 123456, tzinfo=UTC)
 
     with (
         patch(
@@ -142,7 +143,7 @@ async def test_update_siege_member_assign_emits_one_webhook(monkeypatch, http_cl
         respx.mock() as transport,
     ):
         route = transport.post(_SYNC_URL).mock(return_value=httpx.Response(200, json=_APPLIED_BODY))
-        mock_update.return_value = sm_after
+        mock_update.return_value = (sm_after, _assigned_at)
 
         async with http_client as c:
             response = await c.put(
@@ -176,6 +177,7 @@ async def test_update_siege_member_unassign_emits_one_webhook(monkeypatch, http_
     _enable_sync(monkeypatch)
 
     sm_after = _make_siege_member(attack_day=None)
+    _assigned_at = datetime(2026, 5, 14, 12, 0, 0, 123456, tzinfo=UTC)
 
     with (
         patch(
@@ -187,7 +189,7 @@ async def test_update_siege_member_unassign_emits_one_webhook(monkeypatch, http_
         route = transport.post(_SYNC_URL).mock(
             return_value=httpx.Response(200, json=_UNASSIGN_APPLIED_BODY)
         )
-        mock_update.return_value = sm_after
+        mock_update.return_value = (sm_after, _assigned_at)
 
         async with http_client as c:
             response = await c.put(
@@ -219,6 +221,7 @@ async def test_apply_attack_day_fanout_shared_correlation_id(monkeypatch, http_c
 
     from app.schemas.attack_day import AppliedMemberEntry, AttackDayApplyResult
 
+    _base_ts = datetime(2026, 5, 14, 12, 0, 0, 0, tzinfo=UTC)
     apply_result = AttackDayApplyResult(
         applied_count=3,
         applied_members=[
@@ -226,16 +229,19 @@ async def test_apply_attack_day_fanout_shared_correlation_id(monkeypatch, http_c
                 member_id=1,
                 attack_day=1,
                 discord_id=_DISCORD_ID_A,
+                assigned_at=_base_ts,
             ),
             AppliedMemberEntry(
                 member_id=2,
                 attack_day=2,
                 discord_id=_DISCORD_ID_B,
+                assigned_at=_base_ts + timedelta(microseconds=100),
             ),
             AppliedMemberEntry(
                 member_id=3,
                 attack_day=1,
                 discord_id=_DISCORD_ID_C,
+                assigned_at=_base_ts + timedelta(microseconds=200),
             ),
         ],
     )
@@ -278,6 +284,7 @@ async def test_apply_attack_day_skips_member_with_no_discord_id(monkeypatch, htt
 
     from app.schemas.attack_day import AppliedMemberEntry, AttackDayApplyResult
 
+    _base_ts = datetime(2026, 5, 14, 12, 0, 0, 0, tzinfo=UTC)
     apply_result = AttackDayApplyResult(
         applied_count=2,
         applied_members=[
@@ -285,11 +292,13 @@ async def test_apply_attack_day_skips_member_with_no_discord_id(monkeypatch, htt
                 member_id=10,
                 attack_day=1,
                 discord_id=None,  # must be skipped
+                assigned_at=_base_ts,
             ),
             AppliedMemberEntry(
                 member_id=11,
                 attack_day=2,
                 discord_id=_DISCORD_ID_B,  # must get a call
+                assigned_at=_base_ts + timedelta(microseconds=100),
             ),
         ],
     )
@@ -325,6 +334,7 @@ async def test_feature_gate_off_update_emits_no_webhook(monkeypatch, http_client
     monkeypatch.setattr("app.config.settings.day_role_sync_url", _SYNC_URL)
 
     sm_after = _make_siege_member(attack_day=1)
+    _assigned_at = datetime(2026, 5, 14, 12, 0, 0, 0, tzinfo=UTC)
 
     with (
         patch(
@@ -333,7 +343,7 @@ async def test_feature_gate_off_update_emits_no_webhook(monkeypatch, http_client
         ) as mock_update,
         respx.mock(assert_all_called=False) as transport,
     ):
-        mock_update.return_value = sm_after
+        mock_update.return_value = (sm_after, _assigned_at)
 
         async with http_client as c:
             response = await c.put(
@@ -360,6 +370,7 @@ async def test_feature_gate_off_apply_emits_no_webhook(monkeypatch, http_client)
                 member_id=1,
                 attack_day=1,
                 discord_id=_DISCORD_ID_A,
+                assigned_at=datetime(2026, 5, 14, 12, 0, 0, 0, tzinfo=UTC),
             ),
         ],
     )
@@ -433,6 +444,7 @@ async def test_apply_attack_day_fanout_assigned_at_strictly_increasing(monkeypat
 
     from app.schemas.attack_day import AppliedMemberEntry, AttackDayApplyResult
 
+    _base_ts = datetime(2026, 5, 14, 12, 0, 0, 0, tzinfo=UTC)
     apply_result = AttackDayApplyResult(
         applied_count=3,
         applied_members=[
@@ -440,6 +452,10 @@ async def test_apply_attack_day_fanout_assigned_at_strictly_increasing(monkeypat
                 member_id=i,
                 attack_day=1,
                 discord_id=str(100_000_000_000_000_000 + i),
+                # Each entry is 1 ms later than the previous so the
+                # millisecond-precision serialization preserves strict
+                # monotonicity in the captured payloads (contract §7).
+                assigned_at=_base_ts + timedelta(milliseconds=i - 1),
             )
             for i in range(1, 4)
         ],
@@ -489,6 +505,10 @@ async def test_update_siege_member_assigned_at_millisecond_precision(monkeypatch
     _enable_sync(monkeypatch)
 
     sm_after = _make_siege_member(attack_day=1)
+    # Use a datetime with microsecond precision (as returned by clock_timestamp()).
+    # BotClient serializes with timespec="milliseconds", so exactly 3 fractional
+    # digits appear in the wire format regardless of source precision.
+    _assigned_at = datetime(2026, 5, 14, 12, 0, 0, 123456, tzinfo=UTC)
 
     with (
         patch(
@@ -498,7 +518,7 @@ async def test_update_siege_member_assigned_at_millisecond_precision(monkeypatch
         respx.mock() as transport,
     ):
         route = transport.post(_SYNC_URL).mock(return_value=httpx.Response(200, json=_APPLIED_BODY))
-        mock_update.return_value = sm_after
+        mock_update.return_value = (sm_after, _assigned_at)
 
         async with http_client as c:
             await c.put(

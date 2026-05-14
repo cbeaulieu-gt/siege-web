@@ -6,8 +6,10 @@ temporarily.  ``apply_attack_day`` commits the stored preview to
 call per affected member via FastAPI ``BackgroundTasks``.
 
 All fan-out calls share a single ``correlation_id`` generated here (one
-per user action, per contract §8).  ``assigned_at`` timestamps are
-generated monotonically so the receiver can order them correctly (§7).
+per user action, per contract §8).  ``assigned_at`` timestamps are sourced
+from PostgreSQL ``clock_timestamp()`` inside the service layer — each
+``AppliedMemberEntry`` carries its own timestamp captured at mutation time
+so the receiver can apply monotonic ordering (§7).
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ import uuid
 from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api._role_sync import next_assigned_at, schedule_role_sync
+from app.api._role_sync import schedule_role_sync
 from app.db.session import get_db
 from app.schemas.attack_day import AttackDayApplyResult, AttackDayPreviewResult
 from app.services import attack_day as attack_day_service
@@ -67,15 +69,9 @@ async def apply_attack_day(
     correlation_id = str(uuid.uuid4())
 
     for entry in result.applied_members:
-        # Each member in the fan-out gets a fresh monotonic timestamp.
-        # Successive calls to monotonic_utc_ms() within this loop are
-        # guaranteed to be non-decreasing; in practice they will be
-        # strictly increasing because the clock resolution exceeds the
-        # loop iteration time.  If resolution were a concern we would
-        # add an explicit 1 ms sleep or counter-based offset, but that
-        # is not required for this batch size.
-        assigned_at = next_assigned_at()
-
+        # assigned_at is sourced from PostgreSQL clock_timestamp() per
+        # member inside the service layer — each entry carries its own
+        # timestamp captured at the moment of mutation (contract §7).
         action = "assign" if entry.attack_day is not None else "unassign"
 
         schedule_role_sync(
@@ -84,7 +80,7 @@ async def apply_attack_day(
             siege_id=siege_id,
             day_number=entry.attack_day,
             action=action,
-            assigned_at=assigned_at,
+            assigned_at=entry.assigned_at,
             correlation_id=correlation_id,
         )
 
