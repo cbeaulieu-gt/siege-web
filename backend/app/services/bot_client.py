@@ -99,7 +99,7 @@ class BotClient:
         discord_id: int | None,
         siege_id: int,
         day_number: int | None,
-        action: Literal["set", "clear"],
+        action: Literal["assign", "unassign"],
         assigned_at: datetime,
         correlation_id: str,
     ) -> bool:
@@ -131,10 +131,10 @@ class BotClient:
             siege_id: Primary key of the siege record.  Included in the
                 payload for receiver-side correlation and audit.
             day_number: Attack-day number (``1`` or ``2``).  Required when
-                ``action="set"``; must be ``None`` when ``action="clear"``.
-            action: ``"set"`` — member assigned to the day.
-                ``"clear"`` — member removed from the day.  Serialized to
-                ``"assign"`` / ``"unassign"`` on the wire per §2.
+                ``action="assign"``; must be ``None`` when
+                ``action="unassign"``.
+            action: ``"assign"`` — member assigned to the day.
+                ``"unassign"`` — member removed from the day.
             assigned_at: Tz-aware UTC datetime of the assignment change.
                 Serialized with millisecond precision per §2.
             correlation_id: UUID v4 supplied by the caller.  Preserved
@@ -183,7 +183,6 @@ class BotClient:
         # ------------------------------------------------------------------ #
         # Build §2 payload                                                    #
         # ------------------------------------------------------------------ #
-        wire_action = "assign" if action == "set" else "unassign"
 
         # assigned_at must be UTC with millisecond precision (§2 / §7).
         # isoformat(timespec="milliseconds") on a UTC datetime yields the form
@@ -194,13 +193,13 @@ class BotClient:
         payload: dict = {
             "discord_id": str(discord_id),
             "siege_id": siege_id,
-            "action": wire_action,
+            "action": action,
             "assigned_at": assigned_at_str,
             "correlation_id": correlation_id,
         }
 
-        # Include day_number only for "assign" (set) actions per issue #323 AC.
-        if action == "set" and day_number is not None:
+        # Include day_number only for "assign" actions per issue #323 AC.
+        if action == "assign" and day_number is not None:
             payload["day_number"] = day_number
 
         # ------------------------------------------------------------------ #
@@ -269,7 +268,7 @@ class BotClient:
             correlation_id,
             discord_id,
             siege_id,
-            wire_action,
+            action,
             last_status,
             last_body,
         )

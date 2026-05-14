@@ -11,7 +11,7 @@ Covers all 12 acceptance criteria from issue #323:
 8.  4xx → False, NO retry (exactly 1 call)
 9.  5xx → 5xx → False, exactly 2 calls, retry-exhaustion WARN log
 10. 5xx → 200 applied → True, exactly 2 calls, same correlation_id
-11. action="set" includes day_number; action="clear" omits day_number
+11. action="assign" includes day_number; action="unassign" omits day_number
 12. assigned_at serializes with millisecond precision
 """
 
@@ -54,24 +54,24 @@ def _make_bot_client() -> BotClient:
 
 
 async def _call_set(client: BotClient) -> bool:
-    """Invoke sync_day_role with action='set' and standard test fixtures."""
+    """Invoke sync_day_role with action='assign' and standard test fixtures."""
     return await client.sync_day_role(
         discord_id=_DISCORD_ID,
         siege_id=_SIEGE_ID,
         day_number=_DAY_NUMBER,
-        action="set",
+        action="assign",
         assigned_at=_ASSIGNED_AT,
         correlation_id=_CORRELATION_ID,
     )
 
 
 async def _call_clear(client: BotClient) -> bool:
-    """Invoke sync_day_role with action='clear' and standard test fixtures."""
+    """Invoke sync_day_role with action='unassign' and standard test fixtures."""
     return await client.sync_day_role(
         discord_id=_DISCORD_ID,
         siege_id=_SIEGE_ID,
         day_number=None,
-        action="clear",
+        action="unassign",
         assigned_at=_ASSIGNED_AT,
         correlation_id=_CORRELATION_ID,
     )
@@ -115,7 +115,7 @@ async def test_sync_day_role_none_discord_id_returns_true_no_http(monkeypatch, c
                 discord_id=None,
                 siege_id=_SIEGE_ID,
                 day_number=_DAY_NUMBER,
-                action="set",
+                action="assign",
                 assigned_at=_ASSIGNED_AT,
                 correlation_id=_CORRELATION_ID,
             )
@@ -359,7 +359,7 @@ async def test_sync_day_role_5xx_then_200_returns_true(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# AC11 — action="set" includes day_number; action="clear" omits day_number
+# AC11 — action="assign" includes day_number; action="unassign" omits day_number
 # ---------------------------------------------------------------------------
 
 
