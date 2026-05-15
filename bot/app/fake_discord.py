@@ -4,6 +4,14 @@ Used when ``BOT_TEST_MODE=fake`` is set.  Replaces the real ``SiegeBot``
 (discord.py) with a deterministic, zero-network implementation that the
 HTTP sidecar can call through its normal seams.
 
+A second mode ``BOT_TEST_MODE=fake_broken_shape`` activates the same client
+but overrides ``get_members()`` to return intentionally-wrong element shapes
+(Option A breakage).  The HTTP handlers in ``http_api.py`` also check this
+mode to inject broken envelopes for endpoints whose response is built in the
+handler itself (Option B breakage, applied to ``/api/health`` and
+``POST /api/notify``).  This supports the engineered-break meta-tests in
+``backend/tests/integration/sidecar/test_meta_shape_assertions.py``.
+
 Design goals:
 - No real Discord token or network connection required.
 - All seam methods (``send_dm``, ``post_message``, ``post_image``,
@@ -43,10 +51,34 @@ Any other username / channel that is not a magic trigger raises
 
 from __future__ import annotations
 
+import os
 from typing import Any
 from unittest.mock import MagicMock
 
 import discord
+
+# ---------------------------------------------------------------------------
+# Test-mode helpers
+# ---------------------------------------------------------------------------
+
+
+def is_broken_shape_mode() -> bool:
+    """Return ``True`` when running in ``BOT_TEST_MODE=fake_broken_shape``.
+
+    Reads the environment variable at call time (not at module-import time)
+    so that in-process tests can toggle the mode via ``monkeypatch.setenv``
+    or ``os.environ`` assignment without needing a subprocess restart.
+
+    Used by ``FakeDiscordClient.get_members()`` (Option A breakage) and by
+    the HTTP handlers in ``http_api.py`` (Option B breakage) to inject
+    intentionally-wrong response shapes for the engineered-break meta-tests.
+
+    Returns:
+        ``True`` if ``BOT_TEST_MODE`` is ``"fake_broken_shape"``,
+        ``False`` for all other values including ``"fake"``.
+    """
+    return os.environ.get("BOT_TEST_MODE", "").lower() == "fake_broken_shape"
+
 
 # ---------------------------------------------------------------------------
 # Constants — known fixtures that integration tests build on
@@ -276,10 +308,23 @@ class FakeDiscordClient:
     async def get_members(self) -> list[dict]:
         """Return a one-element member list for the known member.
 
+        In ``fake_broken_shape`` mode (Option A breakage) each element
+        contains only ``id`` — ``username`` and ``display_name`` are
+        intentionally omitted.  This propagates the broken shape to the
+        wire via ``GET /api/members`` so the engineered-break meta-tests
+        can confirm that the regular shape assertion would catch this.
+
         Returns:
-            A list containing a single dict with ``id``, ``username``,
-            and ``display_name`` keys.
+            In normal fake mode: a list with a single dict containing
+            ``id``, ``username``, and ``display_name``.
+
+            In broken-shape mode: a list with a single dict containing
+            only ``id`` (missing the two required keys).
         """
+        if is_broken_shape_mode():
+            # Option A: return only ``id``; drop ``username`` and
+            # ``display_name`` so the existing shape assertion fails.
+            return [{"id": KNOWN_MEMBER_ID}]
         return [
             {
                 "id": KNOWN_MEMBER_ID,
