@@ -65,7 +65,10 @@ jobs:
         run: ruff check app/ tests/
 
       - name: Run tests with coverage
-        run: pytest tests/ --cov=app
+        # Integration suite at tests/integration/ runs in the dedicated
+        # `Sidecar Integration Tests` job (which sets up bot/.venv). Excluding
+        # here prevents this job from trying to spawn the bot subprocess.
+        run: pytest tests/ --cov=app --ignore=tests/integration
 
 
   frontend-ci:
