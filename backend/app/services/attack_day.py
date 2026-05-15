@@ -179,18 +179,21 @@ async def apply_attack_day(session: AsyncSession, siege_id: int) -> AttackDayApp
 
     applied_count = 0
     applied_members: list[AppliedMemberEntry] = []
-    for entry in raw_assignments:
+
+    # Capture a single PostgreSQL wall-clock timestamp before the loop.
+    # clock_timestamp() is wall-clock (not statement-scoped), so this is
+    # anchored to PG time at the start of the apply operation.  Each member
+    # gets base_ts + timedelta(microseconds=i) which is monotonically
+    # increasing within the batch — contract §7 only requires per-discord_id
+    # monotonicity, and every member in a batch is a distinct discord_id.
+    raw_base: datetime = (await session.execute(select(func.clock_timestamp()))).scalar_one()
+    base_ts: datetime = raw_base.astimezone(UTC)
+
+    for i, entry in enumerate(raw_assignments):
         sm = sm_by_member.get(entry["member_id"])
         if sm is not None:
             sm.attack_day = entry["attack_day"]
             applied_count += 1
-            # Source assigned_at from PostgreSQL clock_timestamp() at the
-            # moment of mutation.  clock_timestamp() returns a fresh wall-clock
-            # reading per call (unlike now()/current_timestamp which are
-            # statement-scoped), giving each member a unique, strictly
-            # increasing timestamp within the same transaction (contract §7).
-            raw_ts: datetime = (await session.execute(select(func.clock_timestamp()))).scalar_one()
-            assigned_at = raw_ts.astimezone(UTC)
             # Collect per-member data for the API layer's webhook fan-out.
             discord_id: str | None = sm.member.discord_id if sm.member is not None else None
             applied_members.append(
@@ -198,7 +201,7 @@ async def apply_attack_day(session: AsyncSession, siege_id: int) -> AttackDayApp
                     member_id=sm.member_id,
                     attack_day=entry["attack_day"],
                     discord_id=discord_id,
-                    assigned_at=assigned_at,
+                    assigned_at=base_ts + timedelta(microseconds=i),
                 )
             )
 

@@ -490,6 +490,46 @@ async def test_apply_attack_day_fanout_assigned_at_strictly_increasing(monkeypat
 
 
 # ---------------------------------------------------------------------------
+# AC5c — no attack_day in payload → no webhook (service returns None timestamp)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_update_siege_member_no_attack_day_emits_no_webhook(monkeypatch, http_client):
+    """AC5c: Patching non-day fields must not trigger any webhook call.
+
+    When the update payload does not include ``attack_day``, the service
+    returns ``(sm, None)`` for ``assigned_at``.  The API handler must detect
+    this and skip ``schedule_role_sync`` entirely — zero HTTP calls even when
+    the feature gate is on.
+    """
+    _enable_sync(monkeypatch)
+
+    sm_after = _make_siege_member(attack_day=1)  # day already set on the record
+
+    with (
+        patch(
+            "app.api.siege_members.siege_members_service.update_siege_member",
+            new_callable=AsyncMock,
+        ) as mock_update,
+        respx.mock(assert_all_called=False) as transport,
+    ):
+        # Service returns None for assigned_at — attack_day was not in the patch.
+        mock_update.return_value = (sm_after, None)
+
+        async with http_client as c:
+            response = await c.put(
+                f"/api/sieges/{_SIEGE_ID}/members/{_MEMBER_ID}",
+                json={"has_reserve_set": True},  # no attack_day field
+            )
+
+    assert response.status_code == 200
+    assert transport.calls.call_count == 0, (
+        "Patching non-day fields must not emit a webhook — no day-role-sync needed"
+    )
+
+
+# ---------------------------------------------------------------------------
 # AC8 — assigned_at millisecond precision
 # ---------------------------------------------------------------------------
 
