@@ -37,6 +37,7 @@ from pydantic import BaseModel
 
 from app.config import settings
 from app.discord_client import SiegeBot
+from app.fake_discord import is_broken_shape_mode
 
 _VERSION_FILE = Path(__file__).parent.parent / "VERSION"
 
@@ -49,7 +50,9 @@ app = FastAPI(title="Siege Bot HTTP API", version="0.1.0")
 
 
 @app.exception_handler(discord.Forbidden)
-async def _handle_discord_forbidden(request: Request, exc: discord.Forbidden) -> JSONResponse:
+async def _handle_discord_forbidden(
+    request: Request, exc: discord.Forbidden
+) -> JSONResponse:
     """Translate discord.Forbidden to HTTP 403.
 
     Raised when the bot lacks channel permissions or a user's DMs are
@@ -69,7 +72,9 @@ async def _handle_discord_forbidden(request: Request, exc: discord.Forbidden) ->
 
 
 @app.exception_handler(discord.NotFound)
-async def _handle_discord_not_found(request: Request, exc: discord.NotFound) -> JSONResponse:
+async def _handle_discord_not_found(
+    request: Request, exc: discord.NotFound
+) -> JSONResponse:
     """Translate discord.NotFound to HTTP 404.
 
     Raised when the target channel, message, or user does not exist.
@@ -158,7 +163,9 @@ def _get_bot() -> SiegeBot:
     return _bot
 
 
-def verify_api_key(credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme)) -> None:
+def verify_api_key(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+) -> None:
     """Validate the Bearer token against the configured bot API key."""
     if not secrets.compare_digest(credentials.credentials, settings.bot_api_key):
         raise HTTPException(
@@ -200,7 +207,16 @@ async def version() -> dict[str, str]:
 
 @app.get("/api/health")
 async def health() -> dict:
-    """Health check — no authentication required."""
+    """Health check — no authentication required.
+
+    In ``fake_broken_shape`` mode (Option B breakage) returns only
+    ``{"status": "healthy"}`` — ``bot_connected`` is intentionally omitted
+    so the engineered-break meta-tests can confirm the shape assertion would
+    fail against a missing/renamed key.
+    """
+    if is_broken_shape_mode():
+        # Option B: drop ``bot_connected`` entirely.
+        return {"status": "healthy"}
     return {"status": "healthy", "bot_connected": _bot is not None and _bot.is_ready()}
 
 
@@ -209,12 +225,21 @@ async def notify(
     body: NotifyRequest,
     _: None = Depends(verify_api_key),
 ) -> dict[str, str]:
-    """Send a DM notification to a guild member."""
+    """Send a DM notification to a guild member.
+
+    In ``fake_broken_shape`` mode (Option B breakage) returns
+    ``{"status": "ok"}`` instead of ``{"status": "sent"}`` so the
+    engineered-break meta-test can confirm the exact-equality assertion
+    would fail.
+    """
     bot = _get_bot()
     try:
         await bot.send_dm(body.username, body.message)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+    if is_broken_shape_mode():
+        # Option B: return wrong status value to break the shape assertion.
+        return {"status": "ok"}
     return {"status": "sent"}
 
 
@@ -242,7 +267,9 @@ async def post_image(
     bot = _get_bot()
     image_bytes = await file.read()
     try:
-        url = await bot.post_image(channel_name, image_bytes, file.filename or "image.png")
+        url = await bot.post_image(
+            channel_name, image_bytes, file.filename or "image.png"
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     return {"status": "sent", "url": url}
