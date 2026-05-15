@@ -50,7 +50,7 @@ HTTP/1.1 403 Forbidden
 ```
 
 No `WWW-Authenticate` header is returned. This is the FastAPI `HTTPBearer` default
-when no header is present (`bot/app/http_api.py:17`).
+when no header is present.
 
 **401 Unauthorized — header present but scheme is not `Bearer`, or token is wrong.**
 
@@ -62,13 +62,13 @@ WWW-Authenticate: Bearer
 ```
 
 The `WWW-Authenticate: Bearer` header is set by `verify_api_key`
-(`bot/app/http_api.py:36-43`), which only runs when the header is present.
+(`bot/app/http_api.py:161-168`), which only runs when the header is present.
 
 > **Conformance note.** Alternative sidecars MUST return 401 on a wrong token and
 > MAY return either 401 or 403 on a missing header. The backend's `BotClient` does
 > not inspect the specific auth-failure code — it treats any 4xx as an auth failure.
 
-Source: `bot/app/http_api.py:17`, `bot/app/http_api.py:36-43`
+Source: `bot/app/http_api.py:142`, `bot/app/http_api.py:161-168`
 
 ---
 
@@ -132,10 +132,11 @@ the string shape.
 | Status | Common trigger | Backend (`BotClient`) behaviour |
 |---|---|---|
 | 401 | Wrong or malformed Bearer token | `httpx.HTTPStatusError` propagates; most methods return `False` or `[]`; `get_member` re-raises |
-| 403 | `Authorization` header absent | Same as 401 |
+| 403 | `Authorization` header absent; OR Discord-side permission denied (DM blocked, channel send permission missing) | Same as 401 |
 | 404 | Channel or member not found in guild (see per-endpoint notes) | Same as 401 |
 | 422 | Missing required field, wrong type, malformed JSON or form data | Same as 401 |
-| 503 | Bot not connected (`is_ready()` false), guild unavailable, Discord API error | Same as 401 |
+| 502 | Discord API returned a 4xx error other than Forbidden or NotFound | Same as 401 |
+| 503 | Bot not connected (`is_ready()` false), guild unavailable, Discord API 5xx error or timeout | Same as 401 |
 
 `BotClient` swallows `httpx.HTTPError` in `notify`, `post_message`, `post_image`, and
 `get_members`, returning `False`, `False`, `None`, and `[]` respectively on any HTTP
@@ -227,25 +228,34 @@ Send a direct message (DM) to a guild member by username. Requires authenticatio
 |---|---|
 | 200 | DM delivered successfully |
 | 401 | Wrong or malformed Bearer token |
-| 403 | `Authorization` header absent |
+| 403 | `Authorization` header absent (`{"detail": "Not authenticated"}`); OR Discord-side permission denied — DM closed, bot lacks permissions (`{"detail": "Discord permission denied: <reason>"}`) — see body to distinguish |
 | 404 | See below |
 | 422 | Missing required field, wrong type, or malformed JSON |
-| 503 | Bot is not connected to Discord |
+| 502 | Discord API returned a 4xx error other than Forbidden or NotFound |
+| 503 | Bot is not connected to Discord; OR Discord API returned a 5xx error or timed out |
 
 **404 causes.** The bundled sidecar raises 404 for any `ValueError` from `bot.send_dm`
-(`bot/app/http_api.py:91-92`). The only `ValueError` that `send_dm` raises is:
+(`bot/app/http_api.py:216-217`). The only `ValueError` that `send_dm` raises is:
 
 - **Username not found in guild cache.** The member's `name` (exact, case-insensitive)
   does not match any member in the locally cached guild member list
   (`bot/app/discord_client.py:25-29`).
 
-There is exactly one 404 cause. Delivery failures after the member is found (e.g.
-the member has DMs closed or blocked) are not caught at the sidecar layer — they
-surface as unhandled discord.py exceptions producing a 500, not a 404. The consumer
-cannot distinguish "member found, DM blocked" from other 5xx conditions via status
-code alone.
+There is exactly one 404 cause. Delivery failures after the member is found are
+translated by global exception handlers (`bot/app/http_api.py:51-139`):
 
-Source: `bot/app/http_api.py:82-93`, `bot/app/discord_client.py:22-31`
+- **DM blocked / member has DMs closed:** `discord.Forbidden` → **403** with
+  `{"detail": "Discord permission denied: <reason>"}`.
+- **Other Discord 4xx:** `discord.HTTPException` (status < 500) → **502** with
+  `{"detail": "Upstream Discord error: <status>"}`.
+- **Discord 5xx or timeout:** `discord.HTTPException` (status >= 500) or
+  `asyncio.TimeoutError` → **503** with `{"detail": "Discord temporarily unavailable"}`.
+
+Consumers CAN now distinguish DM-blocked / permission-denied (403) from name-not-in-cache
+(404): the 403 is a send-time failure after the member was resolved; the 404 is a
+name-resolution failure before any send attempt.
+
+Source: `bot/app/http_api.py:207-218`, `bot/app/http_api.py:51-139`, `bot/app/discord_client.py:22-31`
 
 ---
 
@@ -276,26 +286,37 @@ Post a text message to a guild channel by name. Requires authentication.
 |---|---|
 | 200 | Message posted successfully |
 | 401 | Wrong or malformed Bearer token |
-| 403 | `Authorization` header absent |
+| 403 | `Authorization` header absent (`{"detail": "Not authenticated"}`); OR Discord-side permission denied — bot lacks channel send permission (`{"detail": "Discord permission denied: <reason>"}`) — see body to distinguish |
 | 404 | See below |
 | 422 | Missing required field, wrong type, or malformed JSON |
-| 503 | Bot is not connected to Discord |
+| 502 | Discord API returned a 4xx error other than Forbidden or NotFound |
+| 503 | Bot is not connected to Discord; OR Discord API returned a 5xx error or timed out |
 
 **404 causes.** The bundled sidecar raises 404 for any `ValueError` from `bot.post_message`
-(`bot/app/http_api.py:105-106`). The only `ValueError` that `post_message` raises is:
+(`bot/app/http_api.py:230-231`). The only `ValueError` that `post_message` raises is:
 
 - **Channel not found by name.** No `TextChannel` in the guild's channel list has a
   name exactly matching `channel_name` (`bot/app/discord_client.py:36-41`).
 
-**Channel-resolution failures collapse to 404.** A channel that exists but for which
-the bot lacks send permission does not match the name-lookup path — the 404 fires on
-name resolution, before any send attempt. A permission error on `channel.send()` would
-be an unhandled discord.py exception (500), not a 404. Consumers cannot distinguish
-"channel name not in guild" from other resolution failures via status code alone.
-Alternative sidecars MUST also collapse all channel-resolution-class failures to 404
-and MUST NOT split them into separate 403/404 codes.
+**Channel-resolution failures collapse to 404.** The 404 fires on name resolution,
+before any send attempt. Alternative sidecars MUST also collapse all
+channel-resolution-class failures to 404 and MUST NOT split them into separate 403/404
+codes. However, send-time failures (after the channel is resolved) are translated by
+global exception handlers (`bot/app/http_api.py:51-139`):
 
-Source: `bot/app/http_api.py:96-107`, `bot/app/discord_client.py:33-42`
+- **Channel found but bot lacks send permission:** `discord.Forbidden` → **403** with
+  `{"detail": "Discord permission denied: <reason>"}`. This is a send-time failure,
+  not a name-resolution failure.
+- **Other Discord 4xx:** `discord.HTTPException` (status < 500) → **502** with
+  `{"detail": "Upstream Discord error: <status>"}`.
+- **Discord 5xx or timeout:** `discord.HTTPException` (status >= 500) or
+  `asyncio.TimeoutError` → **503** with `{"detail": "Discord temporarily unavailable"}`.
+
+Consumers CAN now distinguish send-time permission denial (403) from name-not-in-guild
+(404): the 403 is a send-time failure after the channel was resolved; the 404 is a
+name-resolution failure before any send attempt.
+
+Source: `bot/app/http_api.py:221-232`, `bot/app/http_api.py:51-139`, `bot/app/discord_client.py:33-42`
 
 ---
 
@@ -340,23 +361,35 @@ client.post(
 |---|---|
 | 200 | Image posted; `url` is the Discord CDN link |
 | 401 | Wrong or malformed Bearer token |
-| 403 | `Authorization` header absent |
+| 403 | `Authorization` header absent (`{"detail": "Not authenticated"}`); OR Discord-side permission denied — bot lacks channel send permission (`{"detail": "Discord permission denied: <reason>"}`) — see body to distinguish |
 | 404 | See below |
 | 422 | Missing `channel_name` form field, missing `file` part, or malformed multipart data |
-| 503 | Bot is not connected to Discord |
+| 502 | Discord API returned a 4xx error other than Forbidden or NotFound |
+| 503 | Bot is not connected to Discord; OR Discord API returned a 5xx error or timed out |
 
 **404 causes.** The bundled sidecar raises 404 for any `ValueError` from `bot.post_image`
-(`bot/app/http_api.py:121-122`). The only `ValueError` that `post_image` raises is:
+(`bot/app/http_api.py:246-247`). The only `ValueError` that `post_image` raises is:
 
 - **Channel not found by name.** No `TextChannel` in the guild's channel list has a
   name exactly matching `channel_name` (`bot/app/discord_client.py:52-57`).
 
 The same collapse rule applies as for `POST /api/post-message`: all channel-resolution-class
 failures (name not found, and any other pre-send resolution failure) collapse to 404.
-Alternative sidecars MUST conform to this collapse; consumers cannot distinguish channel
-absence from other resolution failures via status code alone.
+Alternative sidecars MUST conform to this collapse. However, send-time failures (after
+the channel is resolved) are translated by global exception handlers
+(`bot/app/http_api.py:51-139`):
 
-Source: `bot/app/http_api.py:110-123`, `bot/app/discord_client.py:44-59`
+- **Channel found but bot lacks send permission:** `discord.Forbidden` → **403** with
+  `{"detail": "Discord permission denied: <reason>"}`.
+- **Other Discord 4xx:** `discord.HTTPException` (status < 500) → **502** with
+  `{"detail": "Upstream Discord error: <status>"}`.
+- **Discord 5xx or timeout:** `discord.HTTPException` (status >= 500) or
+  `asyncio.TimeoutError` → **503** with `{"detail": "Discord temporarily unavailable"}`.
+
+Consumers CAN now distinguish send-time permission denial (403) from name-not-in-guild
+(404).
+
+Source: `bot/app/http_api.py:235-248`, `bot/app/http_api.py:51-139`, `bot/app/discord_client.py:44-59`
 
 ---
 
@@ -508,6 +541,9 @@ observable response. A conformance test can implement this table mechanically.
 | Valid auth, body missing `username` field | 422 | `{"detail": [{"loc": [...], "msg": "...", "type": "..."}]}` | — |
 | Valid auth, body missing `message` field | 422 | `{"detail": [{"loc": [...], "msg": "...", "type": "..."}]}` | — |
 | Valid auth, bot not connected | 503 | `{"detail": "<string>"}` | — |
+| Valid auth, body valid, member found but DMs blocked | 403 | `{"detail": "Discord permission denied: <reason>"}` | — |
+| Valid auth, body valid, Discord API returns 4xx other than 403/404 | 502 | `{"detail": "Upstream Discord error: <status>"}` | — |
+| Valid auth, body valid, Discord API returns 5xx or times out | 503 | `{"detail": "Discord temporarily unavailable"}` | — |
 
 ### `POST /api/post-message`
 
@@ -517,6 +553,9 @@ observable response. A conformance test can implement this table mechanically.
 | Valid auth, body `{"channel_name": "<non-existent-channel>", "message": "x"}` | 404 | `{"detail": "<string>"}` | — |
 | Valid auth, body missing `channel_name` field | 422 | `{"detail": [{"loc": [...], "msg": "...", "type": "..."}]}` | — |
 | Valid auth, bot not connected | 503 | `{"detail": "<string>"}` | — |
+| Valid auth, body valid, channel found but bot lacks send permission | 403 | `{"detail": "Discord permission denied: <reason>"}` | — |
+| Valid auth, body valid, Discord API returns 4xx other than 403/404 | 502 | `{"detail": "Upstream Discord error: <status>"}` | — |
+| Valid auth, body valid, Discord API returns 5xx or times out | 503 | `{"detail": "Discord temporarily unavailable"}` | — |
 
 ### `POST /api/post-image`
 
@@ -527,6 +566,9 @@ observable response. A conformance test can implement this table mechanically.
 | Valid auth, `channel_name` form field missing | 422 | `{"detail": [{"loc": [...], "msg": "...", "type": "..."}]}` | — |
 | Valid auth, `channel_name` sent as query parameter instead of form field | 422 | `{"detail": [{"loc": [...], "msg": "...", "type": "..."}]}` | — |
 | Valid auth, bot not connected | 503 | `{"detail": "<string>"}` | — |
+| Valid auth, multipart valid, channel found but bot lacks send permission | 403 | `{"detail": "Discord permission denied: <reason>"}` | — |
+| Valid auth, multipart valid, Discord API returns 4xx other than 403/404 | 502 | `{"detail": "Upstream Discord error: <status>"}` | — |
+| Valid auth, multipart valid, Discord API returns 5xx or times out | 503 | `{"detail": "Discord temporarily unavailable"}` | — |
 
 ### `GET /api/members`
 
@@ -575,6 +617,12 @@ Per Step 2 of #347: `INTERFACE.md` is updated in the same PR as any change to th
 seam. No deprecation window is provided for breaking changes because the only consumers
 are within this repository and the interface is internal (not public/versioned).
 
+The 403/502/503 paths added in PR #421 are additive over the pre-#421 contract. Any
+client built against the old contract — where discord.py exceptions collapsed to 500 —
+continues to work correctly: it will receive more-precise status codes (403, 502, or
+503) instead of 500, which are still non-200 and are already treated as failures by
+`BotClient`.
+
 ---
 
 ## Cross-references
@@ -584,6 +632,8 @@ are within this repository and the interface is internal (not public/versioned).
 - **Step 1 cleanup PR:** [#415](https://github.com/glitchwerks/rsl-siege-manager/pull/415)
   — moved `/version` → `/api/version`, moved `channel_name` to multipart form body,
   added `is_member` discriminator with full nullable key set
+- **Exception-translation PR:** [#421](https://github.com/glitchwerks/rsl-siege-manager/pull/421)
+  — translated discord.py exceptions to 403/502/503; documented here
 - **Step 3:** `backend/tests/integration/sidecar/` (integration tests, normative source
   of truth for this contract)
 - **Backend consumer:** `backend/app/services/bot_client.py`
