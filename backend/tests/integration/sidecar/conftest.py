@@ -79,8 +79,7 @@ def _wait_for_health(base_url: str, timeout: float) -> None:
             last_exc = exc
         time.sleep(_HEALTH_POLL_INTERVAL)
     raise RuntimeError(
-        f"Bot sidecar did not become healthy within {timeout}s. "
-        f"Last error: {last_exc}"
+        f"Bot sidecar did not become healthy within {timeout}s. " f"Last error: {last_exc}"
     )
 
 
@@ -130,9 +129,7 @@ def bot_url() -> Generator[str, None, None]:
         proc.terminate()
         stdout = proc.stdout.read().decode(errors="replace") if proc.stdout else ""
         stderr = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
-        raise RuntimeError(
-            f"Bot subprocess failed to start.\nstdout:\n{stdout}\nstderr:\n{stderr}"
-        )
+        raise RuntimeError(f"Bot subprocess failed to start.\nstdout:\n{stdout}\nstderr:\n{stderr}")
 
     yield BOT_BASE_URL
 
