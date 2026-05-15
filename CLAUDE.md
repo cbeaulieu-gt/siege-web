@@ -140,6 +140,8 @@ Copy `.env.example` to `.env`. Required:
 | `ALLOWED_ORIGINS` | backend (comma-separated CORS allowlist; required for non-localhost deployments) |
 | `VITE_PUBLIC_URL` | frontend (canonical URL used in `<link rel="canonical">` and `og:url` meta tags) |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | backend, bot (optional; telemetry no-op when unset) |
+| `DAY_ROLE_SYNC_ENABLED` | backend (kill switch for day-role sync webhook; default `false` — set `true` only after a conforming receiver is deployed) |
+| `DAY_ROLE_SYNC_URL` | backend (receiver endpoint URL for day-role sync webhook; required when feature is enabled) |
 
 ## Domain Reference
 
