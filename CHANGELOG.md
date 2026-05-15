@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Sidecar integration test suite** (`backend/tests/integration/sidecar/`) — 45
+  tests covering all seven bot HTTP endpoints over a live TCP socket. The bot runs
+  in a new fake mode (`BOT_TEST_MODE=fake`) via an in-memory `FakeDiscordClient`
+  that requires no Discord token, injects magic trigger values for every
+  exception-translation path (403/502/503), and always reports `bot_connected: true`.
+  Every success-path assertion validates both status code and body shape. Auth
+  coverage exercises both the 403 (missing header) and 401 (wrong token) failure
+  modes across three distinct endpoints. A dedicated `Sidecar Integration Tests` CI
+  job surfaces as an independent status check on every PR. This suite is the
+  normative source of truth for `bot/INTERFACE.md` (Step 3 of #347). (#424)
+
 ### Fixed
 
 - Bot HTTP sidecar (`bot/app/http_api.py`) now translates discord.py exceptions
