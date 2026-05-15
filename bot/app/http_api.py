@@ -109,8 +109,8 @@ async def post_message(
 
 @app.post("/api/post-image")
 async def post_image(
+    file: UploadFile,
     channel_name: str = Form(...),
-    file: UploadFile = None,
     _: None = Depends(verify_api_key),
 ) -> dict[str, str]:
     """Post an image to a guild channel."""
