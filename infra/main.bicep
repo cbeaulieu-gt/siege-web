@@ -135,6 +135,12 @@ param frontendMinReplicas int = 1
 @description('Public-facing URL for canonical/og tags (e.g. https://rslsiege.com). Leave empty for dev.')
 param publicUrl string = ''
 
+@description('When true, the bundled bot Container App is not provisioned. Operators running an alternate Discord sidecar (e.g. mom-bot) must set this to true to avoid the Discord singleton-token conflict. Default false preserves existing behavior.')
+param useExternalSidecar bool = false
+
+@description('HTTP API URL of the external Discord sidecar. Required when useExternalSidecar is true (e.g. https://my-bot.example.com). Ignored when useExternalSidecar is false.')
+param externalBotApiUrl string = ''
+
 @description('Custom hostname to bind to the frontend (e.g. rslsiege.com). Leave empty to skip custom domain binding.')
 param customDomainHostname string = ''
 
@@ -172,6 +178,10 @@ assert kvCertSecretUrlProvided = !enableCustomDomain || !empty(kvCertSecretUrl)
 assert kvCertSecretUrlFormat = !enableCustomDomain || contains(kvCertSecretUrl, '.vault.azure.net/secrets/')
 
 assert customDomainHostnameProvided = !enableCustomDomain || !empty(customDomainHostname)
+
+// When useExternalSidecar = true, an explicit external URL must be supplied so
+// the backend's DISCORD_BOT_API_URL is not left as an empty string.
+assert externalBotApiUrlProvided = !useExternalSidecar || !empty(externalBotApiUrl)
 
 // ── Monitoring ────────────────────────────────────────────────────────────────
 
@@ -331,6 +341,8 @@ module containerApps 'modules/container-apps.bicep' = {
     enableCustomDomain: enableCustomDomain
     certIdentityId: certIdentity.outputs.identityId
     kvCertSecretUrl: kvCertSecretUrl
+    useExternalSidecar: useExternalSidecar
+    externalBotApiUrl: externalBotApiUrl
   }
 }
 
@@ -351,6 +363,7 @@ module kvRoleAssignments 'modules/kv-role-assignments.bicep' = {
     apiPrincipalId: containerApps.outputs.apiAppPrincipalId
     frontendPrincipalId: containerApps.outputs.frontendAppPrincipalId
     botPrincipalId: containerApps.outputs.botAppPrincipalId
+    useExternalSidecar: useExternalSidecar
   }
 }
 

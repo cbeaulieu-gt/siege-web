@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **External sidecar support** — operators running an alternate Discord bot (e.g. `mom-bot`) can now exclude the bundled bot at the infrastructure layer. Bicep: `useExternalSidecar bool = false` param in `infra/modules/container-apps.bicep`; when `true`, the bundled bot Container App is not provisioned and `DISCORD_BOT_API_URL` is sourced from the new `externalBotApiUrl` param instead. The `infra-deploy.yml` workflow accepts `useExternalSidecar` as a `workflow_dispatch` boolean input. Local dev: new `sidecar-external` docker-compose profile starts postgres + backend + frontend without the bot; full-stack (bundled bot) is now `docker-compose --profile bundled-bot up`. The Discord singleton-token constraint (only one bot process per token) is enforced at the infrastructure layer, not just documentation. See `bot/INTERFACE.md` for the sidecar HTTP contract. (#426, closes #347)
+
 - **Sidecar integration test suite** (`backend/tests/integration/sidecar/`) — 45
   tests covering all seven bot HTTP endpoints over a live TCP socket. The bot runs
   in a new fake mode (`BOT_TEST_MODE=fake`) via an in-memory `FakeDiscordClient`

@@ -7,8 +7,11 @@ param apiPrincipalId string
 @description('Principal ID of the Frontend Container App managed identity')
 param frontendPrincipalId string
 
-@description('Principal ID of the Bot Container App managed identity')
+@description('Principal ID of the Bot Container App managed identity. Pass empty string when useExternalSidecar = true — the bot role assignment is skipped.')
 param botPrincipalId string
+
+@description('When true, the bot Key Vault role assignment is skipped (bot Container App is not provisioned). Must match the useExternalSidecar flag passed to container-apps.bicep.')
+param useExternalSidecar bool = false
 
 // Built-in "Key Vault Secrets User" role definition ID (read-only secret access)
 var kvSecretsUserRoleId = '4633458b-17de-408a-b874-0445c86b69e6'
@@ -40,7 +43,9 @@ resource kvRoleFrontend 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
-resource kvRoleBot 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+// Bot KV role assignment is skipped when useExternalSidecar = true because the
+// bundled bot Container App (and its managed identity) are not provisioned.
+resource kvRoleBot 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (!useExternalSidecar) {
   name: guid(keyVault.id, botPrincipalId, kvSecretsUserRoleId)
   scope: keyVault
   properties: {

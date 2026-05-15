@@ -36,6 +36,11 @@ on:
         options:
           - dev
           - prod
+      useExternalSidecar:
+        description: 'Exclude the bundled bot Container App (use when substituting an external Discord sidecar). Requires externalBotApiUrl to be set in the parameter file.'
+        required: false
+        type: boolean
+        default: false
 
 # ── Concurrency ─────────────────────────────────────────────────────────────
 #
@@ -122,7 +127,8 @@ jobs:
             --parameters discordClientId="${{ secrets.DISCORD_CLIENT_ID }}" \
             --parameters discordClientSecret="${{ secrets.DISCORD_CLIENT_SECRET }}" \
             --parameters discordRedirectUri="${{ vars.DISCORD_REDIRECT_URI }}" \
-            --parameters imageTag="${{ env.IMAGE_TAG }}"
+            --parameters imageTag="${{ env.IMAGE_TAG }}" \
+            --parameters useExternalSidecar=${{ inputs.useExternalSidecar }}
 
 # ── Deploy (prod) ────────────────────────────────────────────────────────────
 #
@@ -177,4 +183,5 @@ jobs:
             --parameters discordClientId="${{ secrets.DISCORD_CLIENT_ID }}" \
             --parameters discordClientSecret="${{ secrets.DISCORD_CLIENT_SECRET }}" \
             --parameters discordRedirectUri="${{ vars.DISCORD_REDIRECT_URI }}" \
-            --parameters imageTag="${{ env.IMAGE_TAG }}"
+            --parameters imageTag="${{ env.IMAGE_TAG }}" \
+            --parameters useExternalSidecar=${{ inputs.useExternalSidecar }}
