@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Bot HTTP sidecar (`bot/app/http_api.py`) now translates discord.py exceptions
+  to structured HTTP error responses via FastAPI global exception handlers:
+  `discord.Forbidden` → 403, `discord.NotFound` → 404,
+  `discord.HTTPException` (4xx) → 502, `discord.HTTPException` (5xx) /
+  `asyncio.TimeoutError` → 503.  Previously these surfaced as unhandled 500s.
+  (#419)
+
 ## [1.2.0] - 2026-05-11
 
 ### Added
