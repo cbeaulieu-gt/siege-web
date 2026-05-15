@@ -41,7 +41,7 @@ def _read_backend_version() -> str:
 
 async def _fetch_bot_version() -> str | None:
     """Call the bot sidecar's /version endpoint. Returns None if unreachable."""
-    url = f"{settings.discord_bot_api_url.rstrip('/')}/version"
+    url = f"{settings.discord_bot_api_url.rstrip('/')}/api/version"
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
             resp = await client.get(url)

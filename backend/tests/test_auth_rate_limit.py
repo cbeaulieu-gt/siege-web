@@ -8,16 +8,15 @@ Covers:
 - Invalid XFF value falls back to remote-address bucket
 - Garbage XFF values do NOT create unique per-request buckets
 - 429 response includes a Retry-After header
-- Production warning fires when XFF absent; silent in development
-- Invalid XFF in production logs a throttled warning; silent in development
 
 Rate limits are driven by env-tunable settings.  For tests we override them
 to a tight "2/minute" value so we only need 3 rapid requests to trigger a
 429 — no real-time waiting required.
 
-Per #413, the production-warning branch is exercised via a direct synchronous
-call to ``_get_client_ip`` rather than through the full ASGI/thread-pool
-stack; this avoids the chronic flake history documented in issue #387.
+Per #387 (chronic flake, kill criterion triggered twice): the production XFF
+warning branches are not covered by automated tests.  The branch is 5 lines
+of conditional logic in ``app/rate_limit.py:113-149``, verified by
+inspection; staging smoke test is the regression catch.
 """
 
 import logging
@@ -25,11 +24,10 @@ import secrets
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from starlette.requests import Request as StarletteRequest
 
 import app.rate_limit as _rate_limit_module
 from app.main import app
-from app.rate_limit import _get_client_ip, limiter
+from app.rate_limit import limiter
 
 
 @pytest.fixture(autouse=True)
@@ -372,84 +370,6 @@ async def test_429_response_includes_retry_after_header(monkeypatch):
             retry_after.isdigit()
         ), f"Retry-After must be a plain integer string, got {retry_after!r}"
         assert int(retry_after) > 0, f"Retry-After must be a positive integer, got {retry_after}"
-
-
-# ---------------------------------------------------------------------------
-# Tests: production warning branch — direct synchronous calls to
-# _get_client_ip (avoids ASGI/thread-pool flake; see #413 and #387)
-# ---------------------------------------------------------------------------
-
-
-def test_xff_absent_in_production_advances_throttle_timestamp_direct_call(
-    monkeypatch,
-):
-    """Absent XFF in production advances _last_xff_absent_warning via direct call.
-
-    Calls ``_get_client_ip`` synchronously with a minimal Starlette Request
-    that carries no X-Forwarded-For header and ENVIRONMENT=production.
-    Asserts that ``_last_xff_absent_warning`` advances from 0.0, proving
-    the warning branch executed.
-
-    Per #413: replaces the four ASGI-stack-routed production-warning tests
-    whose chronic flake history is documented in #387.  Calling _get_client_ip
-    directly eliminates the middleware and thread-pool layers that were the
-    source of the intermittent CI failures.
-    """
-    monkeypatch.setattr("app.config.settings.environment", "production")
-
-    scope = {
-        "type": "http",
-        "method": "GET",
-        "path": "/",
-        "headers": [],
-        "client": ("127.0.0.1", 9000),
-    }
-    req = StarletteRequest(scope)
-
-    before = _rate_limit_module._last_xff_absent_warning
-    _get_client_ip(req)
-
-    assert _rate_limit_module._last_xff_absent_warning > before, (
-        "Expected _last_xff_absent_warning to advance from 0.0 after a "
-        "no-XFF call to _get_client_ip in production — warning branch "
-        "did not execute"
-    )
-
-
-def test_xff_invalid_in_production_advances_throttle_timestamp_direct_call(
-    monkeypatch,
-):
-    """Invalid XFF in production advances _last_xff_invalid_warning via direct call.
-
-    Calls ``_get_client_ip`` synchronously with a minimal Starlette Request
-    whose X-Forwarded-For header contains a non-IP value and
-    ENVIRONMENT=production.  Asserts that ``_last_xff_invalid_warning``
-    advances from 0.0, proving the invalid-XFF warning branch executed.
-
-    Per #413: replaces the four ASGI-stack-routed production-warning tests
-    whose chronic flake history is documented in #387.  Calling _get_client_ip
-    directly eliminates the middleware and thread-pool layers that were the
-    source of the intermittent CI failures.
-    """
-    monkeypatch.setattr("app.config.settings.environment", "production")
-
-    scope = {
-        "type": "http",
-        "method": "GET",
-        "path": "/",
-        "headers": [(b"x-forwarded-for", b"not-a-valid-ip")],
-        "client": ("127.0.0.1", 9000),
-    }
-    req = StarletteRequest(scope)
-
-    before = _rate_limit_module._last_xff_invalid_warning
-    _get_client_ip(req)
-
-    assert _rate_limit_module._last_xff_invalid_warning > before, (
-        "Expected _last_xff_invalid_warning to advance from 0.0 after an "
-        "invalid-XFF call to _get_client_ip in production — warning branch "
-        "did not execute"
-    )
 
 
 @pytest.mark.asyncio

@@ -3,7 +3,7 @@ import secrets
 from pathlib import Path
 
 import discord
-from fastapi import Depends, FastAPI, HTTPException, UploadFile, status
+from fastapi import Depends, FastAPI, Form, HTTPException, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -53,7 +53,7 @@ class PostMessageRequest(BaseModel):
     message: str
 
 
-@app.get("/version")
+@app.get("/api/version")
 async def version() -> dict[str, str]:
     """Return the bot version — no authentication required.
 
@@ -109,8 +109,8 @@ async def post_message(
 
 @app.post("/api/post-image")
 async def post_image(
-    channel_name: str,
     file: UploadFile,
+    channel_name: str = Form(...),
     _: None = Depends(verify_api_key),
 ) -> dict[str, str]:
     """Post an image to a guild channel."""
@@ -139,9 +139,12 @@ async def get_guild_member(
 ) -> dict:
     """Look up a single guild member by Discord user ID.
 
-    Returns ``{"is_member": false}`` if the user is not in the guild (Discord
-    404), a 503 if the guild object is not available or Discord returns an
-    unexpected error, and a full member payload on success.
+    Returns a dict with ``is_member: bool`` as the discriminator.  When
+    ``is_member`` is ``False``, all other fields are ``None``.  When
+    ``is_member`` is ``True``, all other fields are populated.
+
+    Raises 503 if the guild object is not available or Discord returns an
+    unexpected error.
     """
     guild = _bot.get_guild(int(settings.discord_guild_id)) if _bot is not None else None
     if guild is None:
@@ -149,7 +152,14 @@ async def get_guild_member(
     try:
         member = await guild.fetch_member(int(discord_user_id))
     except discord.NotFound:
-        return {"is_member": False}
+        return {
+            "is_member": False,
+            "discord_id": None,
+            "username": None,
+            "display_name": None,
+            "roles": None,
+            "role_names": None,
+        }
     except discord.HTTPException as e:
         raise HTTPException(status_code=503, detail=f"Discord API error: {e}")
     return {
