@@ -524,9 +524,9 @@ async def test_update_siege_member_no_attack_day_emits_no_webhook(monkeypatch, h
             )
 
     assert response.status_code == 200
-    assert transport.calls.call_count == 0, (
-        "Patching non-day fields must not emit a webhook — no day-role-sync needed"
-    )
+    assert (
+        transport.calls.call_count == 0
+    ), "Patching non-day fields must not emit a webhook — no day-role-sync needed"
 
 
 # ---------------------------------------------------------------------------
