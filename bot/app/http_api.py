@@ -1,9 +1,37 @@
+"""HTTP API sidecar for the Siege Bot.
+
+Exposes internal endpoints consumed by the backend service to send Discord
+DMs, post channel messages, and post images.  Authentication is via a shared
+Bearer token (BOT_API_KEY).
+
+Discord exception translation
+------------------------------
+Any discord.py exception that escapes a route handler is caught by the
+global exception handlers registered below.  The mapping is:
+
+  discord.Forbidden (403 from Discord)          → HTTP 403
+  discord.NotFound  (404 from Discord)          → HTTP 404
+  discord.HTTPException with status < 500       → HTTP 502 (upstream error)
+  discord.HTTPException with status >= 500      → HTTP 503 (unavailable)
+  asyncio.TimeoutError                          → HTTP 503 (unavailable)
+
+``discord.Forbidden`` and ``discord.NotFound`` are subclasses of
+``discord.HTTPException``, so they are registered with separate, more-specific
+handlers and FastAPI resolves them in MRO order.
+
+Note: per-endpoint ``ValueError → 404`` handling is retained in each route
+handler rather than promoted to a global handler, because ``ValueError`` is a
+broad built-in that could mask programming errors if caught globally.
+"""
+
+import asyncio
 import os
 import secrets
 from pathlib import Path
 
 import discord
-from fastapi import Depends, FastAPI, Form, HTTPException, UploadFile, status
+from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile, status
+from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -13,6 +41,103 @@ from app.discord_client import SiegeBot
 _VERSION_FILE = Path(__file__).parent.parent / "VERSION"
 
 app = FastAPI(title="Siege Bot HTTP API", version="0.1.0")
+
+
+# ---------------------------------------------------------------------------
+# Discord exception → HTTP translation (global handlers)
+# ---------------------------------------------------------------------------
+
+
+@app.exception_handler(discord.Forbidden)
+async def _handle_discord_forbidden(request: Request, exc: discord.Forbidden) -> JSONResponse:
+    """Translate discord.Forbidden to HTTP 403.
+
+    Raised when the bot lacks channel permissions or a user's DMs are
+    closed.
+
+    Args:
+        request: The incoming FastAPI request (unused, required by signature).
+        exc: The discord.Forbidden exception instance.
+
+    Returns:
+        JSONResponse with status 403 and a detail message.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_403_FORBIDDEN,
+        content={"detail": f"Discord permission denied: {exc.text}"},
+    )
+
+
+@app.exception_handler(discord.NotFound)
+async def _handle_discord_not_found(request: Request, exc: discord.NotFound) -> JSONResponse:
+    """Translate discord.NotFound to HTTP 404.
+
+    Raised when the target channel, message, or user does not exist.
+    Shares the 404 response shape with the existing ValueError path.
+
+    Args:
+        request: The incoming FastAPI request (unused, required by signature).
+        exc: The discord.NotFound exception instance.
+
+    Returns:
+        JSONResponse with status 404 and a fixed detail message.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"detail": "Discord resource not found"},
+    )
+
+
+@app.exception_handler(discord.HTTPException)
+async def _handle_discord_http_exception(
+    request: Request, exc: discord.HTTPException
+) -> JSONResponse:
+    """Translate discord.HTTPException to 502 or 503.
+
+    discord.Forbidden and discord.NotFound are subclasses of this class;
+    they are handled by their own more-specific handlers above and will
+    NOT reach this handler.
+
+    Status mapping:
+      - exc.status < 500  → 502 Bad Gateway (upstream Discord 4xx)
+      - exc.status >= 500 → 503 Service Unavailable (upstream Discord 5xx)
+
+    Args:
+        request: The incoming FastAPI request (unused, required by signature).
+        exc: The discord.HTTPException instance.
+
+    Returns:
+        JSONResponse with status 502 or 503.
+    """
+    if exc.status < 500:
+        return JSONResponse(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            content={"detail": f"Upstream Discord error: {exc.status}"},
+        )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "Discord temporarily unavailable"},
+    )
+
+
+@app.exception_handler(asyncio.TimeoutError)
+async def _handle_timeout(request: Request, exc: asyncio.TimeoutError) -> JSONResponse:
+    """Translate asyncio.TimeoutError to HTTP 503.
+
+    Raised when a Discord API call exceeds its configured timeout.
+
+    Args:
+        request: The incoming FastAPI request (unused, required by signature).
+        exc: The asyncio.TimeoutError instance.
+
+    Returns:
+        JSONResponse with status 503.
+    """
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "Discord temporarily unavailable"},
+    )
+
 
 _bearer_scheme = HTTPBearer()
 

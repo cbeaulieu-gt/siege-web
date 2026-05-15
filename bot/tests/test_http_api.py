@@ -1,9 +1,11 @@
 """Tests for the bot HTTP API endpoints."""
 
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import discord
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -329,3 +331,148 @@ async def test_get_members_bot_not_ready_returns_503(client):
     async with client as c:
         response = await c.get("/api/members", headers=AUTH_HEADER)
     assert response.status_code == 503
+
+
+# ---------------------------------------------------------------------------
+# Discord exception translation — global handler (#419)
+# ---------------------------------------------------------------------------
+#
+# Each block below covers one row of the translation table.  We vary the
+# endpoint under test so the suite demonstrates the handler fires globally
+# (not just for one call site).
+#
+# discord.Forbidden and discord.NotFound are subclasses of
+# discord.HTTPException, so they must be caught before the generic
+# HTTPException branch.
+#
+# Helper: build a minimal discord.HTTPException-like object.  The real
+# constructors require a aiohttp.ClientResponse, so we mock the .status
+# attribute directly.
+# ---------------------------------------------------------------------------
+
+
+def _discord_http_exc(status: int, text: str = "") -> discord.HTTPException:
+    """Return a discord.HTTPException instance with a given HTTP status.
+
+    Constructs via MagicMock to avoid requiring a live aiohttp response.
+    The .status attribute is the one inspected by the exception handler.
+
+    Args:
+        status: Integer HTTP status code to attach to the exception.
+        text: Optional response body text (maps to exc.text in discord.py).
+
+    Returns:
+        A discord.HTTPException (or subclass) instance with .status set.
+    """
+    response = MagicMock()
+    response.status = status
+    response.reason = "test"
+    exc = discord.HTTPException(response, text)
+    return exc
+
+
+# -- discord.Forbidden → 403 -------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_notify_discord_forbidden_returns_403(client):
+    """discord.Forbidden from send_dm must translate to HTTP 403."""
+    bot = _make_mock_bot()
+    response = MagicMock()
+    response.status = 403
+    response.reason = "Forbidden"
+    bot.send_dm.side_effect = discord.Forbidden(response, "Missing Permissions")
+    http_api_module._bot = bot
+    async with client as c:
+        resp = await c.post(
+            "/api/notify",
+            json={"username": "alice", "message": "hi"},
+            headers=AUTH_HEADER,
+        )
+    http_api_module._bot = None
+    assert resp.status_code == 403
+    assert "permission denied" in resp.json()["detail"].lower()
+
+
+# -- discord.NotFound → 404 --------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_post_message_discord_not_found_returns_404(client):
+    """discord.NotFound from post_message must translate to HTTP 404."""
+    bot = _make_mock_bot()
+    response = MagicMock()
+    response.status = 404
+    response.reason = "Not Found"
+    bot.post_message.side_effect = discord.NotFound(response, "Unknown Channel")
+    http_api_module._bot = bot
+    async with client as c:
+        resp = await c.post(
+            "/api/post-message",
+            json={"channel_name": "no-such-channel", "message": "hi"},
+            headers=AUTH_HEADER,
+        )
+    http_api_module._bot = None
+    assert resp.status_code == 404
+    assert "not found" in resp.json()["detail"].lower()
+
+
+# -- discord.HTTPException (status < 500) → 502 ------------------------------
+
+
+@pytest.mark.asyncio
+async def test_post_image_discord_http_4xx_returns_502(client):
+    """discord.HTTPException with status 429 (rate limit) must translate to 502."""
+    bot = _make_mock_bot()
+    bot.post_image.side_effect = _discord_http_exc(429, "You are being rate limited")
+    http_api_module._bot = bot
+    async with client as c:
+        resp = await c.post(
+            "/api/post-image",
+            data={"channel_name": "siege-images"},
+            files={"file": ("board.png", b"fake-png", "image/png")},
+            headers=AUTH_HEADER,
+        )
+    http_api_module._bot = None
+    assert resp.status_code == 502
+    assert "429" in resp.json()["detail"]
+
+
+# -- discord.HTTPException (status >= 500) → 503 -----------------------------
+
+
+@pytest.mark.asyncio
+async def test_notify_discord_http_5xx_returns_503(client):
+    """discord.HTTPException with status 500 must translate to HTTP 503."""
+    bot = _make_mock_bot()
+    bot.send_dm.side_effect = _discord_http_exc(500, "Internal Server Error")
+    http_api_module._bot = bot
+    async with client as c:
+        resp = await c.post(
+            "/api/notify",
+            json={"username": "alice", "message": "hi"},
+            headers=AUTH_HEADER,
+        )
+    http_api_module._bot = None
+    assert resp.status_code == 503
+    assert "unavailable" in resp.json()["detail"].lower()
+
+
+# -- asyncio.TimeoutError → 503 ----------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_post_message_timeout_returns_503(client):
+    """asyncio.TimeoutError from post_message must translate to HTTP 503."""
+    bot = _make_mock_bot()
+    bot.post_message.side_effect = asyncio.TimeoutError()
+    http_api_module._bot = bot
+    async with client as c:
+        resp = await c.post(
+            "/api/post-message",
+            json={"channel_name": "general", "message": "hi"},
+            headers=AUTH_HEADER,
+        )
+    http_api_module._bot = None
+    assert resp.status_code == 503
+    assert "unavailable" in resp.json()["detail"].lower()

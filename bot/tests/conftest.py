@@ -26,21 +26,38 @@ if "discord" not in sys.modules:
     class _FakeTextChannel:
         pass
 
-    # discord.NotFound and discord.HTTPException must be real exception classes
-    # so that ``except discord.NotFound`` and ``except discord.HTTPException``
-    # clauses in http_api.py work correctly during tests.
+    # discord.NotFound, discord.Forbidden, and discord.HTTPException must be
+    # real exception classes so that ``except discord.NotFound`` /
+    # ``except discord.Forbidden`` / ``except discord.HTTPException`` clauses
+    # in http_api.py work correctly during tests, AND so that FastAPI's
+    # ``@app.exception_handler(discord.Forbidden)`` decorator passes
+    # Starlette's ``issubclass(exc_class, Exception)`` assertion at
+    # module-import time.
+    #
+    # The constructors accept ``(response, text)`` to mirror the real discord.py
+    # API; the exception handler reads ``exc.status`` (from response.status) and
+    # ``exc.text`` so both must be preserved on the instance.
     class _FakeHTTPException(Exception):
-        pass
+        def __init__(self, response=None, text=""):
+            self.response = response
+            self.status = getattr(response, "status", 0)
+            self.text = text
+            super().__init__(text)
 
     class _FakeNotFound(_FakeHTTPException):
+        pass
+
+    class _FakeForbidden(_FakeHTTPException):
         pass
 
     discord_mock.Client = _FakeClient
     discord_mock.TextChannel = _FakeTextChannel
     discord_mock.HTTPException = _FakeHTTPException
     discord_mock.NotFound = _FakeNotFound
+    discord_mock.Forbidden = _FakeForbidden
     discord_mock.Intents = MagicMock()
     discord_mock.File = MagicMock()
+
     # Provide a real find() so SiegeBot methods work with mock guilds
     def _find(predicate, iterable):
         for item in iterable:
