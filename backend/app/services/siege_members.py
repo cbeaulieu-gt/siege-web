@@ -1,5 +1,7 @@
+from datetime import UTC, datetime
+
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -78,8 +80,35 @@ async def add_siege_member(session: AsyncSession, siege_id: int, member_id: int)
 
 
 async def update_siege_member(
-    session: AsyncSession, siege_id: int, member_id: int, data: SiegeMemberUpdate
-) -> SiegeMember:
+    session: AsyncSession,
+    siege_id: int,
+    member_id: int,
+    data: SiegeMemberUpdate,
+) -> tuple[SiegeMember, datetime | None]:
+    """Apply a partial update to a SiegeMember row.
+
+    When ``attack_day`` is present in the update payload, sources
+    ``assigned_at`` from PostgreSQL ``clock_timestamp()`` at the moment of
+    the DB mutation (contract §7).  When ``attack_day`` is absent, the
+    timestamp query is skipped entirely — no round-trip wasted on fields
+    that don't affect day-role-sync.
+
+    Args:
+        session: Async SQLAlchemy session.
+        siege_id: Primary key of the siege.
+        member_id: Primary key of the member within the siege.
+        data: Partial update payload; only fields present in the request
+            body are written.
+
+    Returns:
+        A ``(SiegeMember, datetime | None)`` tuple.  The datetime is a
+        UTC-aware ``clock_timestamp()`` value when ``attack_day`` was
+        updated, or ``None`` when it was not part of the payload.
+
+    Raises:
+        HTTPException 400: Siege is complete, or ``attack_day`` is invalid.
+        HTTPException 404: SiegeMember record not found.
+    """
     siege = await get_siege(session, siege_id)
     if siege.status == SiegeStatus.complete:
         raise HTTPException(
@@ -103,6 +132,14 @@ async def update_siege_member(
     for field, value in updates.items():
         setattr(siege_member, field, value)
 
+    # Only query clock_timestamp() when attack_day is changing — that is the
+    # only field that triggers a day-role-sync webhook.  Patching other fields
+    # (has_reserve_set, attack_day_override, etc.) does not need a timestamp.
+    assigned_at: datetime | None = None
+    if "attack_day" in updates:
+        raw_ts: datetime = (await session.execute(select(func.clock_timestamp()))).scalar_one()
+        assigned_at = raw_ts.astimezone(UTC)
+
     await session.commit()
     await session.refresh(siege_member, attribute_names=["member"])
-    return siege_member
+    return siege_member, assigned_at

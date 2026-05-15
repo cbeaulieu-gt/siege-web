@@ -1,14 +1,19 @@
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.enums import MemberRole
 from app.models.siege import Siege
 from app.models.siege_member import SiegeMember
-from app.schemas.attack_day import AttackDayApplyResult, AttackDayAssignment, AttackDayPreviewResult
+from app.schemas.attack_day import (
+    AppliedMemberEntry,
+    AttackDayApplyResult,
+    AttackDayAssignment,
+    AttackDayPreviewResult,
+)
 
 PREVIEW_TTL_MINUTES = 30
 DAY2_TARGET = 10
@@ -128,8 +133,32 @@ async def _build_preview(
 
 
 async def apply_attack_day(session: AsyncSession, siege_id: int) -> AttackDayApplyResult:
+    """Apply the stored attack-day preview to siege_member records.
+
+    Reads the preview stored by ``preview_attack_day``, writes each
+    assignment to the corresponding ``SiegeMember.attack_day`` column,
+    clears the preview, and commits.
+
+    Also returns per-member ``AppliedMemberEntry`` records so the API
+    layer can schedule outbound day-role-sync webhook calls without a
+    second round-trip to the database.
+
+    Args:
+        session: Async SQLAlchemy session.
+        siege_id: Primary key of the target siege.
+
+    Returns:
+        ``AttackDayApplyResult`` with ``applied_count`` and internal
+        ``applied_members`` list for webhook fan-out.
+
+    Raises:
+        HTTPException 404: Siege not found.
+        HTTPException 409: No valid (non-expired) preview exists.
+    """
     siege_result = await session.execute(
-        select(Siege).where(Siege.id == siege_id).options(selectinload(Siege.siege_members))
+        select(Siege)
+        .where(Siege.id == siege_id)
+        .options(selectinload(Siege.siege_members).selectinload(SiegeMember.member))
     )
     siege = siege_result.scalar_one_or_none()
     if siege is None:
@@ -149,15 +178,39 @@ async def apply_attack_day(session: AsyncSession, siege_id: int) -> AttackDayApp
     sm_by_member = {sm.member_id: sm for sm in siege.siege_members}
 
     applied_count = 0
-    for entry in raw_assignments:
+    applied_members: list[AppliedMemberEntry] = []
+
+    # Capture a single PostgreSQL wall-clock timestamp before the loop.
+    # clock_timestamp() is wall-clock (not statement-scoped), so this is
+    # anchored to PG time at the start of the apply operation.  Each member
+    # gets base_ts + timedelta(microseconds=i) which is monotonically
+    # increasing within the batch — contract §7 only requires per-discord_id
+    # monotonicity, and every member in a batch is a distinct discord_id.
+    raw_base: datetime = (await session.execute(select(func.clock_timestamp()))).scalar_one()
+    base_ts: datetime = raw_base.astimezone(UTC)
+
+    for i, entry in enumerate(raw_assignments):
         sm = sm_by_member.get(entry["member_id"])
         if sm is not None:
             sm.attack_day = entry["attack_day"]
             applied_count += 1
+            # Collect per-member data for the API layer's webhook fan-out.
+            discord_id: str | None = sm.member.discord_id if sm.member is not None else None
+            applied_members.append(
+                AppliedMemberEntry(
+                    member_id=sm.member_id,
+                    attack_day=entry["attack_day"],
+                    discord_id=discord_id,
+                    assigned_at=base_ts + timedelta(microseconds=i),
+                )
+            )
 
     siege.attack_day_preview = None
     siege.attack_day_preview_expires_at = None
 
     await session.commit()
 
-    return AttackDayApplyResult(applied_count=applied_count)
+    return AttackDayApplyResult(
+        applied_count=applied_count,
+        applied_members=applied_members,
+    )
