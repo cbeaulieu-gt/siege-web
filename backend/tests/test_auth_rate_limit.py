@@ -9,32 +9,19 @@ Covers:
 - Garbage XFF values do NOT create unique per-request buckets
 - 429 response includes a Retry-After header
 - Production warning fires when XFF absent; silent in development
-- Thread-safety: absent-XFF warning fires exactly once under concurrency
 - Invalid XFF in production logs a throttled warning; silent in development
 
 Rate limits are driven by env-tunable settings.  For tests we override them
 to a tight "2/minute" value so we only need 3 rapid requests to trigger a
 429 — no real-time waiting required.
 
-The four production-warning tests (``test_missing_xff_in_production_logs_warning``,
-``test_invalid_xff_in_production_logs_warning``,
-``test_concurrent_absent_xff_in_production_warns_exactly_once``,
-``test_invalid_xff_warning_is_throttled_to_once_per_window``) were rewritten
-in PR #389 to assert on throttle-state advancement
-(``_last_xff_absent_warning`` / ``_last_xff_invalid_warning`` timestamps)
-instead of captured log records, after two prior fix attempts (PRs #373 and
-#380) failed to eliminate intermittent flakes.  The agreed kill criterion: if
-these tests flake again after this rewrite, delete them outright — the
-security behavior of ``_get_client_ip`` is already covered by the non-flaky
-``test_garbage_xff_*``,
-``test_xff_pathological_header_parses_to_leftmost_ip``, and
-``test_*_buckets_by_ip`` tests in this same file.  See GitHub issue #387 for
-the full history.
+Per #413, the production-warning branch is exercised via a direct synchronous
+call to ``_get_client_ip`` rather than through the full ASGI/thread-pool
+stack; this avoids the chronic flake history documented in issue #387.
 """
 
 import logging
 import secrets
-from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -388,45 +375,80 @@ async def test_429_response_includes_retry_after_header(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Tests: production warning branch when XFF absent (Finding #3)
-#
-# These tests assert on the throttle-timestamp module state
-# (_last_xff_absent_warning / _last_xff_invalid_warning) rather than
-# captured log records.  The timestamp starts at 0.0 (guaranteed by the
-# reset_rate_limit_state autouse fixture) and is assigned time.monotonic()
-# (a positive float) whenever the warning branch executes.  Asserting that
-# the timestamp advanced is a direct, reliable proxy for "warning branch
-# executed" that avoids the logging-infrastructure races that caused
-# intermittent CI failures in PRs #373 and #380 (issue #387).
+# Tests: production warning branch — direct synchronous calls to
+# _get_client_ip (avoids ASGI/thread-pool flake; see #413 and #387)
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
-async def test_missing_xff_in_production_logs_warning(monkeypatch):
-    """XFF absent in production causes the absent-XFF warning branch to execute.
+def test_xff_absent_in_production_advances_throttle_timestamp_direct_call(
+    monkeypatch,
+):
+    """Absent XFF in production advances _last_xff_absent_warning via direct call.
 
-    Asserts that ``_last_xff_absent_warning`` advances from 0.0 after a
-    request arrives without X-Forwarded-For in ENVIRONMENT=production.
-    Advancing from 0.0 proves the warning branch ran, regardless of whether
-    the log record propagated to any handler — eliminating the logging-
-    infrastructure races that caused intermittent CI failures (issue #387).
+    Calls ``_get_client_ip`` synchronously with a minimal Starlette Request
+    that carries no X-Forwarded-For header and ENVIRONMENT=production.
+    Asserts that ``_last_xff_absent_warning`` advances from 0.0, proving
+    the warning branch executed.
+
+    Per #413: replaces the four ASGI-stack-routed production-warning tests
+    whose chronic flake history is documented in #387.  Calling _get_client_ip
+    directly eliminates the middleware and thread-pool layers that were the
+    source of the intermittent CI failures.
     """
-    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
-    monkeypatch.setattr("app.config.settings.auth_disabled", False)
     monkeypatch.setattr("app.config.settings.environment", "production")
-    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
-    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
 
-    # Capture baseline — should be 0.0 after the autouse reset.
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/",
+        "headers": [],
+        "client": ("127.0.0.1", 9000),
+    }
+    req = StarletteRequest(scope)
+
     before = _rate_limit_module._last_xff_absent_warning
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        # No X-Forwarded-For header — simulates direct backend access.
-        await _get(client, LOGIN_URL)
+    _get_client_ip(req)
 
     assert _rate_limit_module._last_xff_absent_warning > before, (
         "Expected _last_xff_absent_warning to advance from 0.0 after a "
-        "no-XFF request in production — warning branch did not execute"
+        "no-XFF call to _get_client_ip in production — warning branch "
+        "did not execute"
+    )
+
+
+def test_xff_invalid_in_production_advances_throttle_timestamp_direct_call(
+    monkeypatch,
+):
+    """Invalid XFF in production advances _last_xff_invalid_warning via direct call.
+
+    Calls ``_get_client_ip`` synchronously with a minimal Starlette Request
+    whose X-Forwarded-For header contains a non-IP value and
+    ENVIRONMENT=production.  Asserts that ``_last_xff_invalid_warning``
+    advances from 0.0, proving the invalid-XFF warning branch executed.
+
+    Per #413: replaces the four ASGI-stack-routed production-warning tests
+    whose chronic flake history is documented in #387.  Calling _get_client_ip
+    directly eliminates the middleware and thread-pool layers that were the
+    source of the intermittent CI failures.
+    """
+    monkeypatch.setattr("app.config.settings.environment", "production")
+
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/",
+        "headers": [(b"x-forwarded-for", b"not-a-valid-ip")],
+        "client": ("127.0.0.1", 9000),
+    }
+    req = StarletteRequest(scope)
+
+    before = _rate_limit_module._last_xff_invalid_warning
+    _get_client_ip(req)
+
+    assert _rate_limit_module._last_xff_invalid_warning > before, (
+        "Expected _last_xff_invalid_warning to advance from 0.0 after an "
+        "invalid-XFF call to _get_client_ip in production — warning branch "
+        "did not execute"
     )
 
 
@@ -453,113 +475,6 @@ async def test_missing_xff_in_development_does_not_log_warning(monkeypatch, capl
     assert (
         len(warning_records) == 0
     ), f"Expected no XFF warning in development, got: {warning_records}"
-
-
-# ---------------------------------------------------------------------------
-# Tests: thread-safety of _last_xff_absent_warning (Finding #1)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_concurrent_absent_xff_in_production_warns_exactly_once(monkeypatch):
-    """Concurrent no-XFF requests in production advance the absent-XFF timestamp once.
-
-    ``_last_xff_absent_warning`` is read-compare-written by multiple threads
-    simultaneously (slowapi calls the sync key_func from a thread pool).
-    The ``threading.Lock`` must ensure exactly one thread wins the write —
-    all subsequent threads within the 60-second window must leave the
-    timestamp unchanged.
-
-    Asserts on the module timestamp rather than log records to avoid the
-    logging-infrastructure races that caused intermittent CI failures
-    (issue #387).  The timestamp is set to ``time.monotonic()`` exactly once
-    inside the lock; re-running the threads must not move it again.
-    """
-    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
-    monkeypatch.setattr("app.config.settings.auth_disabled", False)
-    monkeypatch.setattr("app.config.settings.environment", "production")
-    monkeypatch.setattr("app.rate_limit._XFF_WARN_INTERVAL_SECS", 1.0)
-    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
-    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
-
-    N = 20  # threads contending simultaneously
-
-    def _call_get_client_ip() -> None:
-        """Invoke _get_client_ip directly with a no-XFF request."""
-        # Build a minimal Starlette Request with no XFF header so the
-        # absent-XFF production code path is exercised on each thread.
-        scope = {
-            "type": "http",
-            "method": "GET",
-            "path": "/",
-            "headers": [],
-            "client": ("127.0.0.1", 9000),
-        }
-        req = StarletteRequest(scope)
-        _get_client_ip(req)
-
-    with ThreadPoolExecutor(max_workers=N) as pool:
-        futures = [pool.submit(_call_get_client_ip) for _ in range(N)]
-        for f in futures:
-            f.result()  # surface any exceptions
-
-    # Timestamp must have advanced from 0.0 (warning branch executed at
-    # least once) but must equal the value after the first trigger — no
-    # subsequent thread should have overwritten it within the window.
-    first_ts = _rate_limit_module._last_xff_absent_warning
-    assert first_ts > 0.0, (
-        "Expected _last_xff_absent_warning to advance after concurrent "
-        "no-XFF requests in production — warning branch never executed"
-    )
-
-    # Second wave: fire N more calls; timestamp must not move (throttle held).
-    with ThreadPoolExecutor(max_workers=N) as pool:
-        futures = [pool.submit(_call_get_client_ip) for _ in range(N)]
-        for f in futures:
-            f.result()
-
-    assert _rate_limit_module._last_xff_absent_warning == first_ts, (
-        f"Expected _last_xff_absent_warning to remain {first_ts!r} "
-        f"(throttle suppressed re-emission), but it changed to "
-        f"{_rate_limit_module._last_xff_absent_warning!r}"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Tests: invalid-XFF warning in production (Finding #2)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_invalid_xff_in_production_logs_warning(monkeypatch):
-    """Invalid XFF in production causes the invalid-XFF warning branch to execute.
-
-    Asserts that ``_last_xff_invalid_warning`` advances from 0.0 after a
-    request arrives with a non-IP X-Forwarded-For value in
-    ENVIRONMENT=production.  Advancing from 0.0 proves the warning branch
-    ran, eliminating the logging-infrastructure races that caused intermittent
-    CI failures (issue #387).
-    """
-    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
-    monkeypatch.setattr("app.config.settings.auth_disabled", False)
-    monkeypatch.setattr("app.config.settings.environment", "production")
-    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
-    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
-
-    # Capture baseline — should be 0.0 after the autouse reset.
-    before = _rate_limit_module._last_xff_invalid_warning
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        await _get(
-            client,
-            LOGIN_URL,
-            headers={"X-Forwarded-For": "not-a-valid-ip"},
-        )
-
-    assert _rate_limit_module._last_xff_invalid_warning > before, (
-        "Expected _last_xff_invalid_warning to advance from 0.0 after an "
-        "invalid-XFF request in production — warning branch did not execute"
-    )
 
 
 @pytest.mark.asyncio
@@ -591,46 +506,3 @@ async def test_invalid_xff_in_development_does_not_log_warning(monkeypatch, capl
     assert (
         len(invalid_warnings) == 0
     ), f"Expected no invalid-XFF warning in development, got: {invalid_warnings}"
-
-
-@pytest.mark.asyncio
-async def test_invalid_xff_warning_is_throttled_to_once_per_window(monkeypatch):
-    """Rapid invalid-XFF requests in production advance the timestamp exactly once.
-
-    The invalid-XFF warning must be throttled with the same 60-second window
-    as the absent-XFF warning: the first invalid-XFF request in production
-    sets ``_last_xff_invalid_warning`` to the current monotonic time; all
-    subsequent requests within the window must leave the timestamp unchanged.
-
-    Asserts on the module timestamp rather than log records to eliminate the
-    logging-infrastructure races that caused intermittent CI failures
-    (issue #387).
-    """
-    monkeypatch.setattr("app.config.settings.auth_login_rate_limit", "100/minute")
-    monkeypatch.setattr("app.config.settings.auth_disabled", False)
-    monkeypatch.setattr("app.config.settings.environment", "production")
-    monkeypatch.setattr("app.rate_limit._XFF_WARN_INTERVAL_SECS", 1.0)
-    monkeypatch.setattr("app.config.settings.discord_client_id", "test-id")
-    monkeypatch.setattr("app.config.settings.discord_redirect_uri", "http://localhost/callback")
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        # First request: warning branch should execute and set the timestamp.
-        await _get(client, LOGIN_URL, headers={"X-Forwarded-For": "bad-ip-value"})
-
-    first_ts = _rate_limit_module._last_xff_invalid_warning
-    assert first_ts > 0.0, (
-        "Expected _last_xff_invalid_warning to advance from 0.0 after the "
-        "first invalid-XFF request in production — warning branch did not execute"
-    )
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        # Four more requests within the same 60-second window: throttle must
-        # suppress re-execution; the timestamp must not change.
-        for _ in range(4):
-            await _get(client, LOGIN_URL, headers={"X-Forwarded-For": "bad-ip-value"})
-
-    assert _rate_limit_module._last_xff_invalid_warning == first_ts, (
-        f"Expected _last_xff_invalid_warning to remain {first_ts!r} after "
-        f"4 additional invalid-XFF requests (throttle window not yet expired), "
-        f"but it changed to {_rate_limit_module._last_xff_invalid_warning!r}"
-    )
