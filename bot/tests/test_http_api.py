@@ -42,12 +42,20 @@ def _make_mock_bot(ready: bool = True) -> MagicMock:
 
 @pytest.mark.asyncio
 async def test_version_returns_200(client):
-    """GET /version responds 200 with a 'version' key."""
+    """GET /api/version responds 200 with a 'version' key."""
     async with client as c:
-        response = await c.get("/version")
+        response = await c.get("/api/version")
     assert response.status_code == 200
     data = response.json()
     assert "version" in data
+
+
+@pytest.mark.asyncio
+async def test_version_old_path_returns_404(client):
+    """GET /version (old path) must return 404 — route was moved to /api/version."""
+    async with client as c:
+        response = await c.get("/version")
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -62,7 +70,7 @@ async def test_version_bare_semver_in_local_dev(client, monkeypatch, tmp_path):
     http_api_module._VERSION_FILE = version_file
     try:
         async with client as c:
-            response = await c.get("/version")
+            response = await c.get("/api/version")
     finally:
         http_api_module._VERSION_FILE = original
 
@@ -82,7 +90,7 @@ async def test_version_includes_build_suffix_when_env_vars_set(client, monkeypat
     http_api_module._VERSION_FILE = version_file
     try:
         async with client as c:
-            response = await c.get("/version")
+            response = await c.get("/api/version")
     finally:
         http_api_module._VERSION_FILE = original
 
@@ -100,7 +108,7 @@ async def test_version_unknown_when_version_file_missing(client, monkeypatch, tm
     http_api_module._VERSION_FILE = tmp_path / "NONEXISTENT"
     try:
         async with client as c:
-            response = await c.get("/version")
+            response = await c.get("/api/version")
     finally:
         http_api_module._VERSION_FILE = original
 
@@ -120,7 +128,7 @@ async def test_version_bare_semver_when_env_vars_are_unknown_literal(client, mon
     http_api_module._VERSION_FILE = version_file
     try:
         async with client as c:
-            response = await c.get("/version")
+            response = await c.get("/api/version")
     finally:
         http_api_module._VERSION_FILE = original
 
@@ -243,12 +251,14 @@ async def test_post_message_bot_not_ready_returns_503(client):
 
 @pytest.mark.asyncio
 async def test_post_image_success(client):
+    """POST /api/post-image accepts channel_name as a multipart form field."""
     bot = _make_mock_bot()
     bot.post_image.return_value = "https://cdn.discordapp.com/attachments/123/board.png"
     http_api_module._bot = bot
     async with client as c:
         response = await c.post(
-            "/api/post-image?channel_name=siege-images",
+            "/api/post-image",
+            data={"channel_name": "siege-images"},
             files={"file": ("board.png", b"fake-png-bytes", "image/png")},
             headers=AUTH_HEADER,
         )
@@ -261,11 +271,29 @@ async def test_post_image_success(client):
 
 
 @pytest.mark.asyncio
+async def test_post_image_channel_name_as_query_param_is_rejected(client):
+    """POST /api/post-image with channel_name as query param must fail (422)."""
+    bot = _make_mock_bot()
+    bot.post_image.return_value = "https://cdn.discordapp.com/attachments/123/board.png"
+    http_api_module._bot = bot
+    async with client as c:
+        response = await c.post(
+            "/api/post-image?channel_name=siege-images",
+            files={"file": ("board.png", b"fake-png-bytes", "image/png")},
+            headers=AUTH_HEADER,
+        )
+    # FastAPI will return 422 because channel_name is not in form body
+    assert response.status_code == 422
+    http_api_module._bot = None
+
+
+@pytest.mark.asyncio
 async def test_post_image_bot_not_ready_returns_503(client):
     http_api_module._bot = None
     async with client as c:
         response = await c.post(
-            "/api/post-image?channel_name=siege-images",
+            "/api/post-image",
+            data={"channel_name": "siege-images"},
             files={"file": ("board.png", b"fake-png-bytes", "image/png")},
             headers=AUTH_HEADER,
         )

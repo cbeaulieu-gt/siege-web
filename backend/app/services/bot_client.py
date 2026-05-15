@@ -67,7 +67,11 @@ class BotClient:
             return False
 
     async def post_image(self, channel_name: str, image_bytes: bytes, filename: str) -> str | None:
-        """Post image to channel. Returns the CDN URL on success, None on error."""
+        """Post image to channel. Returns the CDN URL on success, None on error.
+
+        ``channel_name`` is sent as a multipart form field alongside the file
+        upload so the bot sidecar can parse both from the same request body.
+        """
         try:
             async with httpx.AsyncClient(
                 base_url=settings.discord_bot_api_url,
@@ -75,7 +79,8 @@ class BotClient:
                 timeout=30.0,
             ) as client:
                 response = await client.post(
-                    f"/api/post-image?channel_name={channel_name}",
+                    "/api/post-image",
+                    data={"channel_name": channel_name},
                     files={"file": (filename, image_bytes, "image/png")},
                 )
                 response.raise_for_status()
@@ -94,16 +99,37 @@ class BotClient:
             return []
 
     async def get_member(self, discord_user_id: str) -> dict:
-        """
-        Check guild membership via bot sidecar.
-        Returns the member dict (including ``is_member`` boolean).
-        Raises ``httpx.HTTPError`` if the sidecar is unreachable or returns
-        a non-2xx status.
+        """Check guild membership via bot sidecar.
+
+        Returns the member dict with ``is_member: bool`` as the discriminator
+        and ``discord_id``, ``username``, ``display_name``, ``roles``,
+        ``role_names`` always present (``None`` when ``is_member`` is
+        ``False``).
+
+        Raises:
+            httpx.HTTPError: If the sidecar is unreachable or returns a
+                non-2xx status.
+            AssertionError: If the sidecar response violates the expected
+                discriminated shape — ``is_member`` key absent, not a bool,
+                or any of the required keys missing.
         """
         async with self._make_client() as client:
             response = await client.get(f"/api/members/{discord_user_id}")
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            assert (
+                "is_member" in data
+            ), f"sidecar response missing 'is_member' discriminator: {data!r}"
+            assert isinstance(data["is_member"], bool), f"sidecar 'is_member' is not bool: {data!r}"
+            for key in (
+                "discord_id",
+                "username",
+                "display_name",
+                "roles",
+                "role_names",
+            ):
+                assert key in data, f"sidecar response missing key {key!r}: {data!r}"
+            return data
 
     async def sync_day_role(
         self,

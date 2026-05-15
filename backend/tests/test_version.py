@@ -1,7 +1,7 @@
 """Tests for GET /api/version endpoint and _read_backend_version helper."""
 
 import importlib
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -183,3 +183,34 @@ async def test_get_version_bot_unreachable_returns_none(monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["bot_version"] is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_bot_version_calls_api_version_path(monkeypatch):
+    """_fetch_bot_version must call /api/version on the sidecar, not /version."""
+    import app.api.version as mod
+
+    captured_urls = []
+
+    class _FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def get(self, url):
+            captured_urls.append(url)
+            resp = MagicMock()
+            resp.raise_for_status = MagicMock()
+            resp.json = MagicMock(return_value={"version": "1.0.1"})
+            return resp
+
+    with patch("app.api.version.httpx.AsyncClient", return_value=_FakeClient()):
+        result = await mod._fetch_bot_version()
+
+    assert result == "1.0.1"
+    assert len(captured_urls) == 1
+    assert captured_urls[0].endswith(
+        "/api/version"
+    ), f"expected URL ending with /api/version, got: {captured_urls[0]!r}"

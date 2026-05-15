@@ -142,7 +142,8 @@ async def test_get_guild_member_roles_exclude_everyone(client):
 
 @pytest.mark.asyncio
 async def test_get_guild_member_not_found_returns_200_is_member_false(client):
-    """When Discord returns NotFound, respond 200 with is_member=false."""
+    """Non-member response must carry the full key set with is_member=False
+    and all other fields as None (discriminated union contract)."""
     guild = MagicMock()
     guild.fetch_member = AsyncMock(side_effect=_discord.NotFound())
 
@@ -154,7 +155,14 @@ async def test_get_guild_member_not_found_returns_200_is_member_false(client):
         http_api_module._bot = None
 
     assert response.status_code == 200
-    assert response.json() == {"is_member": False}
+    data = response.json()
+    assert data["is_member"] is False
+    # All other fields must be present and None — not absent
+    for key in ("discord_id", "username", "display_name", "roles", "role_names"):
+        assert key in data, f"expected key {key!r} in non-member response"
+        assert data[key] is None, (
+            f"expected {key!r} to be None for non-member, got {data[key]!r}"
+        )
 
 
 # ---------------------------------------------------------------------------
