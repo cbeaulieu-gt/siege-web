@@ -22,6 +22,10 @@ same process via `asyncio.TaskGroup` (`bot/app/main.py:43-45`). The HTTP server
 listens on `0.0.0.0:8001` (uvicorn). Backend communicates with the sidecar exclusively
 over HTTP — it never imports or calls discord.py directly.
 
+If either task in the TaskGroup crashes, its sibling is cancelled and the process
+exits; the orchestrator (systemd, Container Apps, docker-compose) is responsible for
+restart.
+
 ---
 
 ## Authentication
@@ -77,7 +81,7 @@ Source: `bot/app/http_api.py:142`, `bot/app/http_api.py:161-168`
 The sidecar operates against a single Discord guild identified by the `DISCORD_GUILD_ID`
 environment variable. Callers should be aware of the following coupling:
 
-- `discord_id` values are Discord snowflake strings (e.g. `"123456789012345678"`).
+- `discord_id` values are Discord snowflakes (numeric strings, e.g. `"123456789012345678"`).
 - `channel_name` and `username` are resolved within the configured guild only.
 - Image CDN URLs returned by `POST /api/post-image` are Discord CDN URLs; their
   lifetime and access policy are governed by Discord, not siege-web.
@@ -90,7 +94,8 @@ environment variable. Callers should be aware of the following coupling:
 
 ## Error semantics
 
-The sidecar produces two distinct error body shapes depending on where the error originates.
+The sidecar produces two distinct error body shapes depending on where the error
+originates.
 
 **Handler-raised errors (401, 403, 404, 503).** These are raised explicitly by route
 handlers or FastAPI dependencies via `HTTPException`. The body is:
@@ -105,10 +110,10 @@ Example:
 {"detail": "Member 'SomeMember' not found in guild"}
 ```
 
-**Framework-raised validation errors (422).** When a request body or form field is
-missing, the wrong type, or malformed JSON/form data, FastAPI's request-validation layer
-raises `RequestValidationError` before the handler runs. The body is a **list of
-objects**, not a string:
+**FastAPI request-validation errors (422).** When a request body, form field, or path
+parameter is missing, the wrong type, or malformed JSON/form data, FastAPI's
+request-validation layer raises `RequestValidationError` before the handler runs. The
+body is a **list of objects**, not a string:
 
 ```json
 {
@@ -134,7 +139,7 @@ the string shape.
 | 401 | Wrong or malformed Bearer token | `httpx.HTTPStatusError` propagates; most methods return `False` or `[]`; `get_member` re-raises |
 | 403 | `Authorization` header absent; OR Discord-side permission denied (DM blocked, channel send permission missing) | Same as 401 |
 | 404 | Channel or member not found in guild (see per-endpoint notes) | Same as 401 |
-| 422 | Missing required field, wrong type, malformed JSON or form data | Same as 401 |
+| 422 | Missing required field, wrong type, malformed JSON or form data, or invalid path parameter | Same as 401 |
 | 502 | Discord API returned a 4xx error other than Forbidden or NotFound | Same as 401 |
 | 503 | Bot not connected (`is_ready()` false), guild unavailable, Discord API 5xx error or timeout | Same as 401 |
 
@@ -188,8 +193,28 @@ Health probe. No authentication required.
 {"status": "healthy", "bot_connected": true}
 ```
 
-`bot_connected` is `true` when the discord.py client is connected and ready;
-`false` otherwise (during startup or after a disconnect).
+**Semantic.** `bot_connected` reflects the result of `is_ready()` on the discord.py
+client at the moment the health handler runs (see `bot/app/http_api.py`'s health
+handler). `is_ready()` returns `true` when the gateway WebSocket has completed the
+identify handshake and the bot has received the initial guild state from Discord. It
+returns `false` during startup and during any gateway reconnect or resume sequence.
+
+**Advisory-only SLA.** `/api/health` is not a TOCTOU-free probe. `is_ready()` can
+transition from `true` to `false` between the health check and the next call —
+reconnects, gateway resumes, and transient network drops all cause this transition.
+Container Apps liveness and readiness probes MAY use this endpoint as a coarse signal,
+but consumers MUST still handle 503 on any subsequent protected-endpoint call.
+
+**Consumer guidance when `bot_connected` is `false`.**
+
+- Treat the value as a hint that the next authenticated call is likely to fail, not
+  as a hard gate.
+- Do not block the call — attempt it and apply the same retry-with-backoff strategy
+  you would use on any 503 response.
+- The `_get_bot()` dependency returns 503 with `{"detail": "Bot is not connected"}` on
+  any protected endpoint when the bot is not ready. The global Discord exception handler
+  returns 503 with `{"detail": "Discord temporarily unavailable"}` on Discord-side
+  outages.
 
 **Status codes.**
 
@@ -228,7 +253,7 @@ Send a direct message (DM) to a guild member by username. Requires authenticatio
 |---|---|
 | 200 | DM delivered successfully |
 | 401 | Wrong or malformed Bearer token |
-| 403 | `Authorization` header absent (`{"detail": "Not authenticated"}`); OR Discord-side permission denied — DM closed, bot lacks permissions (`{"detail": "Discord permission denied: <reason>"}`) — see body to distinguish |
+| 403 | `Authorization` header absent (`{"detail": "Not authenticated"}`); OR Discord-side permission denied — DM closed, bot lacks permissions (`{"detail": "Discord permission denied"}`) — see body to distinguish |
 | 404 | See below |
 | 422 | Missing required field, wrong type, or malformed JSON |
 | 502 | Discord API returned a 4xx error other than Forbidden or NotFound |
@@ -245,9 +270,9 @@ There is exactly one 404 cause. Delivery failures after the member is found are
 translated by global exception handlers (`bot/app/http_api.py:51-139`):
 
 - **DM blocked / member has DMs closed:** `discord.Forbidden` → **403** with
-  `{"detail": "Discord permission denied: <reason>"}`.
+  `{"detail": "Discord permission denied"}`.
 - **Other Discord 4xx:** `discord.HTTPException` (status < 500) → **502** with
-  `{"detail": "Upstream Discord error: <status>"}`.
+  `{"detail": "Upstream Discord error"}`.
 - **Discord 5xx or timeout:** `discord.HTTPException` (status >= 500) or
   `asyncio.TimeoutError` → **503** with `{"detail": "Discord temporarily unavailable"}`.
 
@@ -286,7 +311,7 @@ Post a text message to a guild channel by name. Requires authentication.
 |---|---|
 | 200 | Message posted successfully |
 | 401 | Wrong or malformed Bearer token |
-| 403 | `Authorization` header absent (`{"detail": "Not authenticated"}`); OR Discord-side permission denied — bot lacks channel send permission (`{"detail": "Discord permission denied: <reason>"}`) — see body to distinguish |
+| 403 | `Authorization` header absent (`{"detail": "Not authenticated"}`); OR Discord-side permission denied — bot lacks channel send permission (`{"detail": "Discord permission denied"}`) — see body to distinguish |
 | 404 | See below |
 | 422 | Missing required field, wrong type, or malformed JSON |
 | 502 | Discord API returned a 4xx error other than Forbidden or NotFound |
@@ -305,10 +330,10 @@ codes. However, send-time failures (after the channel is resolved) are translate
 global exception handlers (`bot/app/http_api.py:51-139`):
 
 - **Channel found but bot lacks send permission:** `discord.Forbidden` → **403** with
-  `{"detail": "Discord permission denied: <reason>"}`. This is a send-time failure,
+  `{"detail": "Discord permission denied"}`. This is a send-time failure,
   not a name-resolution failure.
 - **Other Discord 4xx:** `discord.HTTPException` (status < 500) → **502** with
-  `{"detail": "Upstream Discord error: <status>"}`.
+  `{"detail": "Upstream Discord error"}`.
 - **Discord 5xx or timeout:** `discord.HTTPException` (status >= 500) or
   `asyncio.TimeoutError` → **503** with `{"detail": "Discord temporarily unavailable"}`.
 
@@ -361,7 +386,7 @@ client.post(
 |---|---|
 | 200 | Image posted; `url` is the Discord CDN link |
 | 401 | Wrong or malformed Bearer token |
-| 403 | `Authorization` header absent (`{"detail": "Not authenticated"}`); OR Discord-side permission denied — bot lacks channel send permission (`{"detail": "Discord permission denied: <reason>"}`) — see body to distinguish |
+| 403 | `Authorization` header absent (`{"detail": "Not authenticated"}`); OR Discord-side permission denied — bot lacks channel send permission (`{"detail": "Discord permission denied"}`) — see body to distinguish |
 | 404 | See below |
 | 422 | Missing `channel_name` form field, missing `file` part, or malformed multipart data |
 | 502 | Discord API returned a 4xx error other than Forbidden or NotFound |
@@ -380,9 +405,9 @@ the channel is resolved) are translated by global exception handlers
 (`bot/app/http_api.py:51-139`):
 
 - **Channel found but bot lacks send permission:** `discord.Forbidden` → **403** with
-  `{"detail": "Discord permission denied: <reason>"}`.
+  `{"detail": "Discord permission denied"}`.
 - **Other Discord 4xx:** `discord.HTTPException` (status < 500) → **502** with
-  `{"detail": "Upstream Discord error: <status>"}`.
+  `{"detail": "Upstream Discord error"}`.
 - **Discord 5xx or timeout:** `discord.HTTPException` (status >= 500) or
   `asyncio.TimeoutError` → **503** with `{"detail": "Discord temporarily unavailable"}`.
 
@@ -418,7 +443,7 @@ A JSON array. Each element has exactly three keys as returned by `SiegeBot.get_m
 
 | Key | Type | Description |
 |---|---|---|
-| `id` | `string` | Discord snowflake ID (numeric string) |
+| `id` | `string` | Discord snowflake (numeric string) |
 | `username` | `string` | Discord username (`member.name`) |
 | `display_name` | `string` | Guild display name (`member.display_name`) |
 
@@ -427,8 +452,21 @@ guild has no cached members. Roles are not included in this endpoint's response 
 `GET /api/members/{discord_user_id}` for role data.
 
 > **Note.** The key for the Discord ID in this response is `id`, not `discord_id`.
-> The `GET /api/members/{discord_user_id}` endpoint uses `discord_id`. Alternative
-> sidecars MUST use `id` here to match the bundled implementation.
+> The `GET /api/members/{discord_user_id}` endpoint uses `discord_id`. This
+> inconsistency is load-bearing: `GET /api/members` returns a lightweight roster
+> (no roles) whose `id` field follows the generic "primary identifier" naming
+> convention from the original schema, while `GET /api/members/{discord_user_id}`
+> returns the full member envelope introduced when the discriminated shape was added
+> (PR #415 / Step 1 of #347), where `discord_id` is the explicit, self-documenting
+> form. Renaming either field would break existing consumers. Alternative sidecars
+> MUST use `id` here and `discord_id` in the single-member endpoint, exactly as
+> documented.
+
+**Response size.** The bundled sidecar returns the full guild member list in one
+response with no pagination. Guilds with thousands of members produce responses
+several MB in size; consumers MUST size their HTTP client timeout and memory
+accordingly. An alternate sidecar MAY implement pagination, but the bundled bot does
+not, and `BotClient.get_members()` assumes one-shot delivery.
 
 **Status codes.**
 
@@ -451,7 +489,11 @@ Look up a single guild member by Discord user ID. Requires authentication.
 
 | Parameter | Type | Description |
 |---|---|---|
-| `discord_user_id` | `string` | Discord snowflake ID (numeric string, e.g. `"123456789012345678"`) |
+| `discord_user_id` | `string` | Discord snowflake (numeric string, e.g. `"123456789012345678"`) |
+
+The path parameter is validated against the pattern `^\d+$` by FastAPI before the
+handler runs. A non-numeric value (e.g. `"abc"`) returns 422 with the standard
+validation envelope — it is never passed to `int()` in the handler.
 
 **Response — 200 OK (member found).**
 
@@ -501,9 +543,46 @@ fields are `null`. The `@everyone` role is excluded from `roles` and `role_names
 | 200 | Always when the Discord API responds (including "not a member") |
 | 401 | Wrong or malformed Bearer token |
 | 403 | `Authorization` header absent |
+| 422 | Non-numeric `discord_user_id` path parameter (e.g. `"abc"`) |
 | 503 | Bot is not connected, guild is unavailable, or Discord API returns an unexpected error |
 
 Source: `bot/app/http_api.py:135-172`
+
+---
+
+## Concurrency and idempotency
+
+The bundled sidecar provides no ordering, deduplication, or idempotency guarantees.
+Consumers are responsible for deduplication, retry-on-failure, and post-mortem
+reconciliation. Rate-limit information is not surfaced through the contract —
+consumers MUST treat 502s as opaque upstream failures.
+
+**`POST /api/post-image` — ordering.** No ordering guarantee. Two simultaneous calls
+targeting the same channel may be posted in any order. If message ordering matters,
+consumers MUST serialize calls at the call site.
+
+**`POST /api/notify` — deduplication.** No deduplication. Two identical calls arriving
+within milliseconds result in two DMs being sent. The bundled bot does not track
+recently-dispatched notifications; consumers that require deduplication MUST track
+sent IDs themselves.
+
+**`GET /api/members` — coherence.** Best-effort snapshot of the local guild member
+cache. Reading during a member-cache resync may return a partial or stale result.
+Consumers MUST treat a single response as a point-in-time snapshot, not a
+transactionally consistent view.
+
+**`/api/health` and the call it predicts.** The advisory-only SLA described in the
+`GET /api/health` section above covers this case. See that section for consumer
+guidance.
+
+**Discord rate-limit pass-through.** When Discord returns HTTP 429 (rate-limited),
+the global `_handle_discord_http_exception` handler in `bot/app/http_api.py`
+translates it to **502** with `{"detail": "Upstream Discord error"}`. The
+`Retry-After` header that Discord includes in its 429 response is **not propagated** —
+the sidecar returns a generic 502 with no timing information. Consumers MUST treat 502
+as an opaque upstream failure and apply their own backoff. If surfacing rate-limit
+timing to callers becomes necessary, that is a follow-up enhancement outside this
+contract version.
 
 ---
 
@@ -524,6 +603,7 @@ observable response. A conformance test can implement this table mechanically.
 | Stimulus | Expected status | Expected body | Expected headers |
 |---|---|---|---|
 | `GET /api/health` (no auth header) | 200 | `{"status": "healthy", "bot_connected": <bool>}` | — |
+| Consumer calls `/api/health` immediately followed by a protected endpoint | No guarantee | `bot_connected: true` in the health response does not imply the next call returns 2xx | — |
 
 ### Authentication (all protected endpoints)
 
@@ -541,8 +621,8 @@ observable response. A conformance test can implement this table mechanically.
 | Valid auth, body missing `username` field | 422 | `{"detail": [{"loc": [...], "msg": "...", "type": "..."}]}` | — |
 | Valid auth, body missing `message` field | 422 | `{"detail": [{"loc": [...], "msg": "...", "type": "..."}]}` | — |
 | Valid auth, bot not connected | 503 | `{"detail": "<string>"}` | — |
-| Valid auth, body valid, member found but DMs blocked | 403 | `{"detail": "Discord permission denied: <reason>"}` | — |
-| Valid auth, body valid, Discord API returns 4xx other than 403/404 | 502 | `{"detail": "Upstream Discord error: <status>"}` | — |
+| Valid auth, body valid, member found but DMs blocked | 403 | `{"detail": "Discord permission denied"}` | — |
+| Valid auth, body valid, Discord API returns 4xx other than 403/404 | 502 | `{"detail": "Upstream Discord error"}` | — |
 | Valid auth, body valid, Discord API returns 5xx or times out | 503 | `{"detail": "Discord temporarily unavailable"}` | — |
 
 ### `POST /api/post-message`
@@ -553,8 +633,8 @@ observable response. A conformance test can implement this table mechanically.
 | Valid auth, body `{"channel_name": "<non-existent-channel>", "message": "x"}` | 404 | `{"detail": "<string>"}` | — |
 | Valid auth, body missing `channel_name` field | 422 | `{"detail": [{"loc": [...], "msg": "...", "type": "..."}]}` | — |
 | Valid auth, bot not connected | 503 | `{"detail": "<string>"}` | — |
-| Valid auth, body valid, channel found but bot lacks send permission | 403 | `{"detail": "Discord permission denied: <reason>"}` | — |
-| Valid auth, body valid, Discord API returns 4xx other than 403/404 | 502 | `{"detail": "Upstream Discord error: <status>"}` | — |
+| Valid auth, body valid, channel found but bot lacks send permission | 403 | `{"detail": "Discord permission denied"}` | — |
+| Valid auth, body valid, Discord API returns 4xx other than 403/404 | 502 | `{"detail": "Upstream Discord error"}` | — |
 | Valid auth, body valid, Discord API returns 5xx or times out | 503 | `{"detail": "Discord temporarily unavailable"}` | — |
 
 ### `POST /api/post-image`
@@ -566,8 +646,8 @@ observable response. A conformance test can implement this table mechanically.
 | Valid auth, `channel_name` form field missing | 422 | `{"detail": [{"loc": [...], "msg": "...", "type": "..."}]}` | — |
 | Valid auth, `channel_name` sent as query parameter instead of form field | 422 | `{"detail": [{"loc": [...], "msg": "...", "type": "..."}]}` | — |
 | Valid auth, bot not connected | 503 | `{"detail": "<string>"}` | — |
-| Valid auth, multipart valid, channel found but bot lacks send permission | 403 | `{"detail": "Discord permission denied: <reason>"}` | — |
-| Valid auth, multipart valid, Discord API returns 4xx other than 403/404 | 502 | `{"detail": "Upstream Discord error: <status>"}` | — |
+| Valid auth, multipart valid, channel found but bot lacks send permission | 403 | `{"detail": "Discord permission denied"}` | — |
+| Valid auth, multipart valid, Discord API returns 4xx other than 403/404 | 502 | `{"detail": "Upstream Discord error"}` | — |
 | Valid auth, multipart valid, Discord API returns 5xx or times out | 503 | `{"detail": "Discord temporarily unavailable"}` | — |
 
 ### `GET /api/members`
@@ -581,9 +661,10 @@ observable response. A conformance test can implement this table mechanically.
 
 | Stimulus | Expected status | Expected body | Expected headers |
 |---|---|---|---|
-| Valid auth, ID of guild member | 200 | All six keys present; `is_member: true`; non-null string fields | — |
-| Valid auth, ID of non-member (or unknown ID) | 200 | All six keys present; `is_member: false`; remaining five keys `null` | — |
+| Valid auth, Discord snowflake (numeric string) of guild member | 200 | All six keys present; `is_member: true`; non-null string fields | — |
+| Valid auth, Discord snowflake (numeric string) of non-member or unknown ID | 200 | All six keys present; `is_member: false`; remaining five keys `null` | — |
 | Valid auth, bot not connected or guild unavailable | 503 | `{"detail": "<string>"}` | — |
+| Valid auth, non-numeric `discord_user_id` (e.g. `"abc123"`) | 422 | `{"detail": [{"loc": [...], "msg": "...", "type": "..."}]}` | — |
 
 **Additional shape constraints (all member endpoints):**
 
@@ -612,6 +693,14 @@ endpoints. The string is informational only.
 | Changing a path, method, or status code | Breaking — same |
 | Changing `channel_name` from form field back to query param | Breaking |
 | Changing `is_member` semantics or key set | Breaking |
+| Tightening an existing value's format (e.g. adding a regex constraint to `username`) | Breaking — previously-valid values are now rejected with 422; existing callers fail without warning. Example: constraining `username` to match the Discord username regex rejects any caller that sent display names. |
+| Changing the status code for the same logical condition (e.g. "username cache miss" was 404, becomes 503) | Breaking — consumers branch on status codes; reassigning a code silently changes their error-handling path. Example: `BotClient.notify` treats 4xx as user error and 5xx as transient; flipping the code flips the retry strategy. |
+| Adding a required request field | Breaking — older callers omit the field and hit 422 instead of the previous success response. Example: adding a required `idempotency_key` to `POST /api/notify` breaks every existing caller until they update. |
+| Tightening a 200-response field's type (e.g. `roles: string[]` → `roles: NonEmptyArray<Snowflake>`) | Breaking — consumers that don't already conform fail at parse time. Example: a sidecar that returned `[]` for guild-less members would need to change. |
+| Splitting one endpoint into two | Additive if the original endpoint is preserved with identical behavior; breaking if the original endpoint is removed. The split itself is harmless — the removal is what breaks callers. Example: splitting `GET /api/members` into a filtered variant is additive; removing the original after some callers migrate is breaking. |
+
+Cases not covered by the table above should be treated as breaking by default unless
+explicitly classified as additive in the change PR.
 
 Per Step 2 of #347: `INTERFACE.md` is updated in the same PR as any change to the
 seam. No deprecation window is provided for breaking changes because the only consumers
@@ -622,6 +711,28 @@ client built against the old contract — where discord.py exceptions collapsed 
 continues to work correctly: it will receive more-precise status codes (403, 502, or
 503) instead of 500, which are still non-200 and are already treated as failures by
 `BotClient`.
+
+---
+
+## Glossary
+
+**Discord snowflake.** A 64-bit unsigned integer assigned by Discord to every entity
+(user, channel, guild, message). Represented in this API as a numeric string (e.g.
+`"123456789012345678"`) because JSON cannot represent 64-bit integers without precision
+loss. Alternative sidecars MUST return snowflakes as strings, not integers.
+
+**`bot_connected`.** The boolean field returned by `GET /api/health`. Its value
+reflects `is_ready()` on the discord.py client at the moment the handler runs:
+`true` means the gateway WebSocket has completed the identify handshake and the bot
+has received initial guild state; `false` means the bot is starting up, reconnecting,
+or resuming after a gateway drop. See the `GET /api/health` section for the
+advisory-only SLA and consumer guidance. Alternative sidecars MUST include this key
+in every health response.
+
+**`is_member`.** The boolean discriminator in `GET /api/members/{discord_user_id}`
+responses. `true` means the queried Discord user ID belongs to the configured guild
+at the time of the request; `false` means the user is not in the guild or the ID is
+unknown. All six response keys are always present regardless of this value.
 
 ---
 
