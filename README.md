@@ -45,7 +45,7 @@ cd rsl-siege-manager
 # 2. Copy the example env (auth is disabled by default for local dev)
 cp .env.example .env
 
-# 3. Start everything
+# 3. Start everything (including the bundled Discord bot sidecar)
 docker-compose up --build
 ```
 
@@ -143,6 +143,57 @@ cd frontend && npm run lint
 ## Changelog
 
 The in-app changelog dropdown reads from `CHANGELOG.md` at the repo root. Parsing happens at build time via a Vite plugin (`frontend/src/build/changelog-plugin.ts`), so any edits to `CHANGELOG.md` require a frontend rebuild (`npm run build` or `npm run dev` restart) before they appear in the UI. The `[Unreleased]` section is included during `npm run dev` so you can preview work-in-progress entries locally, but it is stripped from production builds. If `CHANGELOG.md` is malformed — missing version headings or unparseable dates — the build fails with an error rather than silently producing an empty dropdown.
+
+## Deployment Modes
+
+Siege Manager supports two deployment topologies: **bundled bot** (default) and **external sidecar**.
+
+### Singleton-token constraint
+
+Discord allows only one active WebSocket session per bot token. The bundled bot and any alternate sidecar (e.g. `mom-bot`) **cannot share the same `DISCORD_TOKEN`** — the second connection attempt will disconnect the first. When substituting an external sidecar, you must exclude the bundled bot at the infrastructure layer, not just in documentation. Both the Bicep parameter and the docker-compose profile enforce this.
+
+The alternate sidecar must implement the HTTP API contract described in [`bot/INTERFACE.md`](bot/INTERFACE.md).
+
+### Local dev (docker-compose)
+
+| Mode | Command | Services started |
+|---|---|---|
+| Bundled bot (default) | `docker-compose up` | postgres, backend, frontend, bot |
+| External sidecar | `docker-compose -f docker-compose.yml -f docker-compose.sidecar-external.yml up` | postgres, backend, frontend (bot excluded) |
+
+When running in external sidecar mode, start your alternate sidecar separately and set `DISCORD_BOT_API_URL` in `.env` to point at its HTTP API (e.g. `http://localhost:8001`).
+
+### Azure (Bicep / infra-deploy workflow)
+
+| Mode | Parameter | Effect |
+|---|---|---|
+| Bundled bot (default) | `useExternalSidecar=false` | Bot Container App is provisioned alongside backend and frontend |
+| External sidecar | `useExternalSidecar=true` | Bot Container App is **not** provisioned; backend points at `externalBotApiUrl` |
+
+Deploy with the bundled bot (default — no change needed):
+
+```bash
+az deployment group create \
+  --resource-group <rg> \
+  --template-file infra/main.bicep \
+  --parameters infra/main.prod.bicepparam \
+  --parameters useExternalSidecar=false \
+  ... # other required params
+```
+
+Deploy with an external sidecar (bot excluded):
+
+```bash
+az deployment group create \
+  --resource-group <rg> \
+  --template-file infra/main.bicep \
+  --parameters infra/main.prod.bicepparam \
+  --parameters useExternalSidecar=true \
+  --parameters externalBotApiUrl="https://my-bot.example.com" \
+  ... # other required params
+```
+
+Via the **Infra Deploy** workflow (`workflow_dispatch`): set the `useExternalSidecar` input to `true` and ensure `externalBotApiUrl` is set in the relevant `.bicepparam` file before triggering.
 
 ## Run it yourself
 

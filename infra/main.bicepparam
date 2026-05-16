@@ -26,6 +26,12 @@ param botApiKey = ''
 
 param postgresGeoRedundantBackup = false
 
+// ── External sidecar ──────────────────────────────────────────────────────────
+// Default false: bundled bot Container App is provisioned as normal.
+// Set true only when substituting an alternate Discord sidecar and also supply
+// externalBotApiUrl pointing at its HTTP API.
+param useExternalSidecar = false
+
 // ── ACR image retention ───────────────────────────────────────────────────────
 // Release tags (v*) are never purged. SHA/commit tags beyond the keep count
 // are deleted weekly. Untagged manifests older than 7 days are also removed.

@@ -120,6 +120,12 @@ param frontendMinReplicas = 0
 // Confirmed by user: cmb_dev@outlook.com (2026-04-29, Issue #246).
 param alertEmail = 'cmb_dev@outlook.com'
 
+// ── External sidecar ──────────────────────────────────────────────────────────
+// Default false: bundled bot Container App is provisioned as normal.
+// Set true only when substituting an alternate Discord sidecar and also supply
+// externalBotApiUrl pointing at its HTTP API.
+param useExternalSidecar = false
+
 // ── ACR image retention ───────────────────────────────────────────────────────
 // Dev currently has ~364 manifests (127/126/111 across api/bot/frontend).
 // Release tags (v*) are preserved forever. SHA/commit tags beyond the last 10

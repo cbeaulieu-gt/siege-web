@@ -1,0 +1,18 @@
+# Compose override — external sidecar mode.
+#
+# Use with:
+#   docker-compose -f docker-compose.yml -f docker-compose.sidecar-external.yml up
+#
+# This override excludes the bundled bot from the stack. The operator must run
+# their alternate Discord sidecar separately and point DISCORD_BOT_API_URL in
+# .env at its HTTP API (e.g. http://localhost:8001).
+#
+# Singleton-token constraint: the bundled bot and an alternate sidecar cannot
+# share the same DISCORD_TOKEN — only one bot process may hold the token at a
+# time. This override enforces that at the compose layer so the conflict cannot
+# occur accidentally. See bot/INTERFACE.md for the sidecar HTTP contract.
+
+services:
+  bot:
+    profiles:
+      - "do-not-start"

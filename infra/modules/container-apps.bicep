@@ -93,6 +93,12 @@ param botCpu string = '0.25'
 @description('Memory for the bot app (e.g. "0.5Gi")')
 param botMemory string = '0.5Gi'
 
+@description('When true, the bundled bot Container App is not provisioned. Use when substituting an external Discord sidecar (e.g. mom-bot). Default false preserves existing behavior.')
+param useExternalSidecar bool = false
+
+@description('URL of the alternate sidecar HTTP API. Required when useExternalSidecar is true (e.g. https://my-bot.example.com). Ignored when useExternalSidecar is false.')
+param externalBotApiUrl string = ''
+
 var apiAppName = '${appPrefix}-api-${environment}'
 var frontendAppName = '${appPrefix}-frontend-${environment}'
 var botAppName = '${appPrefix}-bot-${environment}'
@@ -189,7 +195,9 @@ resource apiApp 'Microsoft.App/containerApps@2025-07-01' = {
             [
               { name: 'DATABASE_URL', secretRef: 'database-url' }
               { name: 'DISCORD_BOT_API_KEY', secretRef: 'discord-bot-api-key' }
-              { name: 'DISCORD_BOT_API_URL', value: 'http://${botAppName}' }
+              // When useExternalSidecar is true, point at the operator-supplied URL;
+              // otherwise use the bundled bot's internal Container Apps service name.
+              { name: 'DISCORD_BOT_API_URL', value: useExternalSidecar ? externalBotApiUrl : 'http://${botAppName}' }
               { name: 'DISCORD_GUILD_ID', value: discordGuildId }
               { name: 'ENVIRONMENT', value: environment }
               { name: 'SESSION_SECRET', secretRef: 'session-secret' }
@@ -397,8 +405,13 @@ resource frontendApp 'Microsoft.App/containerApps@2025-07-01' = {
 }
 
 // ── siege-bot ─────────────────────────────────────────────────────────────────
+//
+// Conditionally provisioned: skipped when useExternalSidecar = true so the
+// operator can run their own Discord sidecar without the bundled bot racing for
+// the same DISCORD_TOKEN. The Discord singleton-token constraint means both
+// cannot coexist — enforcement is at the infrastructure layer, not documentation.
 
-resource botApp 'Microsoft.App/containerApps@2025-07-01' = {
+resource botApp 'Microsoft.App/containerApps@2025-07-01' = if (!useExternalSidecar) {
   name: botAppName
   location: location
   tags: { project: appPrefix, environment: environment }
@@ -499,5 +512,9 @@ output apiAppPrincipalId string = apiApp.identity.principalId
 output frontendAppName string = frontendApp.name
 output frontendAppFqdn string = frontendApp.properties.configuration.ingress.fqdn
 output frontendAppPrincipalId string = frontendApp.identity.principalId
-output botAppName string = botApp.name
-output botAppPrincipalId string = botApp.identity.principalId
+// When useExternalSidecar = true the bot resource is not provisioned; safe-
+// navigation (?.) returns null for the absent resource, and ?? '' coerces to
+// an empty string so callers can detect the conditional case gracefully.
+output botAppName string = botApp.?name ?? ''
+output botAppPrincipalId string = botApp.?identity.?principalId ?? ''
+output useExternalSidecar bool = useExternalSidecar
