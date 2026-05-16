@@ -91,6 +91,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Validate external sidecar configuration
+        if: inputs.useExternalSidecar == true
+        run: |
+          PARAM_FILE="infra/main.dev.bicepparam"
+          if ! grep -qE "^[[:space:]]*param[[:space:]]+externalBotApiUrl[[:space:]]*=[[:space:]]*'https://" "$PARAM_FILE"; then
+            echo "::error::useExternalSidecar=true but externalBotApiUrl is not set to an https:// URL in $PARAM_FILE"
+            echo "::error::Edit $PARAM_FILE and set: param externalBotApiUrl = 'https://your-sidecar.example.com'"
+            exit 1
+          fi
+
       - name: Log in to Azure
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
         with:
@@ -146,6 +156,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Validate external sidecar configuration
+        if: inputs.useExternalSidecar == true
+        run: |
+          PARAM_FILE="infra/main.prod.bicepparam"
+          if ! grep -qE "^[[:space:]]*param[[:space:]]+externalBotApiUrl[[:space:]]*=[[:space:]]*'https://" "$PARAM_FILE"; then
+            echo "::error::useExternalSidecar=true but externalBotApiUrl is not set to an https:// URL in $PARAM_FILE"
+            echo "::error::Edit $PARAM_FILE and set: param externalBotApiUrl = 'https://your-sidecar.example.com'"
+            exit 1
+          fi
 
       - name: Log in to Azure
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3

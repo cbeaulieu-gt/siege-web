@@ -183,6 +183,11 @@ assert customDomainHostnameProvided = !enableCustomDomain || !empty(customDomain
 // the backend's DISCORD_BOT_API_URL is not left as an empty string.
 assert externalBotApiUrlProvided = !useExternalSidecar || !empty(externalBotApiUrl)
 
+// When useExternalSidecar = true in non-dev environments, the external URL must
+// use HTTPS to prevent the BOT_API_KEY Bearer token from being sent in plaintext.
+// Dev is exempt to allow http://localhost URLs during local development.
+assert externalBotApiUrlIsHttps = !useExternalSidecar || environment == 'dev' || startsWith(externalBotApiUrl, 'https://')
+
 // ── Monitoring ────────────────────────────────────────────────────────────────
 
 @description('Email address that receives alert notifications from the monitoring action group (dev and prod use the same address in v1).')
