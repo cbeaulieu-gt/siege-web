@@ -125,6 +125,7 @@ param alertEmail = 'cmb_dev@outlook.com'
 // Set true only when substituting an alternate Discord sidecar and also supply
 // externalBotApiUrl pointing at its HTTP API.
 param useExternalSidecar = false
+// param externalBotApiUrl = 'https://your-sidecar.example.com'  // uncomment + set when useExternalSidecar = true
 
 // ── ACR image retention ───────────────────────────────────────────────────────
 // Dev currently has ~364 manifests (127/126/111 across api/bot/frontend).

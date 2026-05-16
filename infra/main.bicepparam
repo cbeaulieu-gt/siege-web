@@ -31,6 +31,7 @@ param postgresGeoRedundantBackup = false
 // Set true only when substituting an alternate Discord sidecar and also supply
 // externalBotApiUrl pointing at its HTTP API.
 param useExternalSidecar = false
+// param externalBotApiUrl = 'https://your-sidecar.example.com'  // uncomment + set when useExternalSidecar = true
 
 // ── ACR image retention ───────────────────────────────────────────────────────
 // Release tags (v*) are never purged. SHA/commit tags beyond the keep count
