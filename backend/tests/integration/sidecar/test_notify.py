@@ -118,12 +118,13 @@ def test_notify_dms_blocked_returns_403_with_permission_denied(bot_url: str) -> 
     assert "permission denied" in data["detail"].lower()
 
 
-def test_notify_discord_4xx_returns_502_with_upstream_error(bot_url: str) -> None:
+def test_notify_discord_4xx_returns_502(bot_url: str) -> None:
     """POST /api/notify on Discord 4xx (rate-limit) returns 502.
 
     ``FakeDiscordClient.send_dm("dm-http4xx", ...)`` raises
     ``discord.HTTPException(status=429)``.  The global handler translates
-    this to 502 with ``{"detail": "Upstream Discord error: 429"}``.
+    this to 502 with ``{"detail": "Upstream Discord error"}`` — the upstream
+    status code is logged server-side and not exposed to callers.
 
     Args:
         bot_url: Base URL of the running bot sidecar (session fixture).
@@ -136,7 +137,8 @@ def test_notify_discord_4xx_returns_502_with_upstream_error(bot_url: str) -> Non
     assert response.status_code == 502
     data = response.json()
     assert "detail" in data
-    assert "429" in data["detail"]
+    assert data["detail"] == "Upstream Discord error"
+    assert "429" not in data["detail"]
 
 
 def test_notify_discord_5xx_returns_503_unavailable(bot_url: str) -> None:

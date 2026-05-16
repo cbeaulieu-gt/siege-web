@@ -116,6 +116,10 @@ def test_post_message_discord_forbidden_returns_403(bot_url: str) -> None:
 def test_post_message_discord_4xx_returns_502(bot_url: str) -> None:
     """POST /api/post-message on Discord 4xx returns 502.
 
+    ``FakeDiscordClient`` raises ``discord.HTTPException(status=429)`` for
+    ``"chan-http4xx"``.  The global handler returns a generic detail message —
+    the upstream status code is logged server-side, not exposed to callers.
+
     Args:
         bot_url: Base URL of the running bot sidecar (session fixture).
     """
@@ -126,8 +130,8 @@ def test_post_message_discord_4xx_returns_502(bot_url: str) -> None:
     )
     assert response.status_code == 502
     data = response.json()
-    assert "detail" in data
-    assert "429" in data["detail"]
+    assert data["detail"] == "Upstream Discord error"
+    assert "429" not in data["detail"]
 
 
 def test_post_message_discord_5xx_returns_503(bot_url: str) -> None:
