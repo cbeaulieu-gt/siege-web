@@ -95,9 +95,21 @@ jobs:
         if: inputs.useExternalSidecar == true
         run: |
           PARAM_FILE="infra/main.dev.bicepparam"
-          if ! grep -qE "^[[:space:]]*param[[:space:]]+externalBotApiUrl[[:space:]]*=[[:space:]]*'https://" "$PARAM_FILE"; then
-            echo "::error::useExternalSidecar=true but externalBotApiUrl is not set to an https:// URL in $PARAM_FILE"
-            echo "::error::Edit $PARAM_FILE and set: param externalBotApiUrl = 'https://your-sidecar.example.com'"
+          # Extract the externalBotApiUrl value, stripping leading/trailing
+          # whitespace and surrounding quotes (single or double — Bicep only
+          # accepts single, but the validator is lenient by design so a typo
+          # produces a clear error rather than a regex miss).
+          PARAM_VALUE=$(grep -E "^[[:space:]]*param[[:space:]]+externalBotApiUrl[[:space:]]*=" "$PARAM_FILE" \
+            | sed -E "s/^[[:space:]]*param[[:space:]]+externalBotApiUrl[[:space:]]*=[[:space:]]*['\"]?([^'\"[:space:]]*)['\"]?[[:space:]]*$/\1/" \
+            || true)
+          if [ -z "$PARAM_VALUE" ]; then
+            echo "::error::useExternalSidecar=true but externalBotApiUrl is not set in $PARAM_FILE"
+            echo "::error::Add: param externalBotApiUrl = 'https://your-sidecar.example.com'"
+            exit 1
+          fi
+          if ! [[ "$PARAM_VALUE" =~ ^https:// ]]; then
+            echo "::error::externalBotApiUrl in $PARAM_FILE must start with https:// (got: $PARAM_VALUE)"
+            echo "::error::Bearer-token traffic must not flow over plaintext http"
             exit 1
           fi
 
@@ -161,9 +173,18 @@ jobs:
         if: inputs.useExternalSidecar == true
         run: |
           PARAM_FILE="infra/main.prod.bicepparam"
-          if ! grep -qE "^[[:space:]]*param[[:space:]]+externalBotApiUrl[[:space:]]*=[[:space:]]*'https://" "$PARAM_FILE"; then
-            echo "::error::useExternalSidecar=true but externalBotApiUrl is not set to an https:// URL in $PARAM_FILE"
-            echo "::error::Edit $PARAM_FILE and set: param externalBotApiUrl = 'https://your-sidecar.example.com'"
+          # Same extract-and-validate as deploy-dev (see comment there).
+          PARAM_VALUE=$(grep -E "^[[:space:]]*param[[:space:]]+externalBotApiUrl[[:space:]]*=" "$PARAM_FILE" \
+            | sed -E "s/^[[:space:]]*param[[:space:]]+externalBotApiUrl[[:space:]]*=[[:space:]]*['\"]?([^'\"[:space:]]*)['\"]?[[:space:]]*$/\1/" \
+            || true)
+          if [ -z "$PARAM_VALUE" ]; then
+            echo "::error::useExternalSidecar=true but externalBotApiUrl is not set in $PARAM_FILE"
+            echo "::error::Add: param externalBotApiUrl = 'https://your-sidecar.example.com'"
+            exit 1
+          fi
+          if ! [[ "$PARAM_VALUE" =~ ^https:// ]]; then
+            echo "::error::externalBotApiUrl in $PARAM_FILE must start with https:// (got: $PARAM_VALUE)"
+            echo "::error::Bearer-token traffic must not flow over plaintext http"
             exit 1
           fi
 
