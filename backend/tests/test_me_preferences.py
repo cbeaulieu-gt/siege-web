@@ -25,7 +25,7 @@ from app.models.enums import MemberRole
 
 TEST_SESSION_SECRET = "test-session-secret"
 SERVICE_TOKEN = "test-service-token"
-MEMBER_DISCORD_ID = "discord-42"
+MEMBER_DISCORD_ID = "123456789012345678"
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +212,7 @@ async def test_service_token_with_unknown_discord_id_returns_404(
                 "/api/members/me/preferences",
                 headers={
                     **service_token_headers,
-                    "X-Acting-Discord-Id": "discord-does-not-exist",
+                    "X-Acting-Discord-Id": "999999999999999999",
                 },
             )
     finally:
@@ -607,3 +607,119 @@ async def test_existing_bot_list_members_works_without_acting_header(monkeypatch
         app.dependency_overrides.pop(get_db, None)
 
     assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Test 12: malformed X-Acting-Discord-Id → 400
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_service_token_with_malformed_acting_id_returns_400(
+    monkeypatch,
+    service_token_headers,
+):
+    """X-Acting-Discord-Id with malformed format → 400 Bad Request."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    mock_db = _make_mock_db()
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    malformed_values = [
+        "",
+        "not-numeric",
+        "abc123",
+        "12345abc",
+        "'; DROP TABLE members;--",
+        "1" * 21,  # exceeds 20-char limit
+    ]
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            for malformed in malformed_values:
+                response = await client.get(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": malformed,
+                    },
+                )
+                assert (
+                    response.status_code == 400
+                ), f"Expected 400 for {malformed!r}, got {response.status_code}"
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+# ---------------------------------------------------------------------------
+# Test 13: PUT with mixed valid/invalid post_condition_ids → 404, atomic
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_put_mixed_valid_and_invalid_post_condition_ids_is_atomic(
+    monkeypatch,
+    service_token_headers,
+):
+    """PUT with mix of valid + invalid post_condition_ids → 404, no partial commit."""
+    from fastapi import HTTPException
+
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    member = _make_member()
+    existing_prefs = [_make_post_condition(id=1)]
+    mock_db = _make_mock_db(member=member)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with (
+            patch(
+                "app.api.members.members_service.set_member_preferences",
+                new_callable=AsyncMock,
+            ) as mock_set,
+            patch(
+                "app.api.members.members_service.get_member_preferences",
+                new_callable=AsyncMock,
+            ) as mock_get,
+        ):
+            # Service raises 404 when any ID is missing (atomic — no partial write)
+            mock_set.side_effect = HTTPException(
+                status_code=404,
+                detail="Post condition IDs not found: [99999]",
+            )
+            mock_get.return_value = existing_prefs
+
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                # 1. PUT with one valid ID (1), one invalid (99999), one valid (3)
+                put_response = await client.put(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": MEMBER_DISCORD_ID,
+                    },
+                    json={"post_condition_ids": [1, 99999, 3]},
+                )
+                assert put_response.status_code == 404
+
+                # 2. GET prefs back — must still return original [id=1] (unchanged)
+                get_response = await client.get(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": MEMBER_DISCORD_ID,
+                    },
+                )
+                assert get_response.status_code == 200
+                returned_ids = [pc["id"] for pc in get_response.json()]
+                assert returned_ids == [1], f"Expected prefs unchanged ([1]), got {returned_ids}"
+    finally:
+        app.dependency_overrides.pop(get_db, None)

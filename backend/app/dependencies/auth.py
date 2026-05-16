@@ -88,6 +88,11 @@ async def get_current_user(
             acting_discord_id = request.headers.get("X-Acting-Discord-Id")
             acting_member_id: int | None = None
             if acting_discord_id is not None:
+                if not acting_discord_id.isdigit() or len(acting_discord_id) > 20:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="X-Acting-Discord-Id must be a numeric Discord snowflake",
+                    )
                 result = await db.execute(
                     select(Member).where(Member.discord_id == acting_discord_id)
                 )
