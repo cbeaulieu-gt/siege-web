@@ -1,5 +1,8 @@
 """Tests for GET /api/members/{discord_user_id} — guild member lookup endpoint."""
 
+# Import the fake exception classes that conftest installed into sys.modules so
+# we can raise them in mocks without importing the real discord library.
+import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -7,10 +10,6 @@ from httpx import ASGITransport, AsyncClient
 
 import app.http_api as http_api_module
 from app.http_api import app
-
-# Import the fake exception classes that conftest installed into sys.modules so
-# we can raise them in mocks without importing the real discord library.
-import sys
 
 _discord = sys.modules["discord"]
 
@@ -62,7 +61,7 @@ def _make_mock_member(
     roles.append(everyone)
 
     # Use None as the explicit sentinel; [] means "no extra roles".
-    for rid in ([111, 222] if role_ids is None else role_ids):
+    for rid in [111, 222] if role_ids is None else role_ids:
         role = MagicMock()
         role.id = rid
         role.name = f"role-{rid}"
@@ -160,9 +159,7 @@ async def test_get_guild_member_not_found_returns_200_is_member_false(client):
     # All other fields must be present and None — not absent
     for key in ("discord_id", "username", "display_name", "roles", "role_names"):
         assert key in data, f"expected key {key!r} in non-member response"
-        assert data[key] is None, (
-            f"expected {key!r} to be None for non-member, got {data[key]!r}"
-        )
+        assert data[key] is None, f"expected {key!r} to be None for non-member, got {data[key]!r}"
 
 
 # ---------------------------------------------------------------------------

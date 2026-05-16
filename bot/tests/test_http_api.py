@@ -1,9 +1,7 @@
 """Tests for the bot HTTP API endpoints."""
 
-import asyncio
-from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+import logging
+from unittest.mock import AsyncMock, MagicMock
 
 import discord
 import pytest
@@ -435,7 +433,7 @@ async def test_post_image_discord_http_4xx_returns_502(client):
         )
     http_api_module._bot = None
     assert resp.status_code == 502
-    assert "429" in resp.json()["detail"]
+    assert "Discord" in resp.json()["detail"]
 
 
 # -- discord.HTTPException (status >= 500) → 503 -----------------------------
@@ -465,7 +463,7 @@ async def test_notify_discord_http_5xx_returns_503(client):
 async def test_post_message_timeout_returns_503(client):
     """asyncio.TimeoutError from post_message must translate to HTTP 503."""
     bot = _make_mock_bot()
-    bot.post_message.side_effect = asyncio.TimeoutError()
+    bot.post_message.side_effect = TimeoutError()
     http_api_module._bot = bot
     async with client as c:
         resp = await c.post(
@@ -476,3 +474,66 @@ async def test_post_message_timeout_returns_503(client):
     http_api_module._bot = None
     assert resp.status_code == 503
     assert "unavailable" in resp.json()["detail"].lower()
+
+
+# -- discord.Forbidden edge case: text=None → must not expose "None" ----------
+
+
+@pytest.mark.asyncio
+async def test_notify_discord_forbidden_with_text_none_returns_403(client):
+    """discord.Forbidden with text=None must return 403 without "None" in body.
+
+    Regression catch: the original handler used f"...: {exc.text}", which
+    would render as "Discord permission denied: None" when the Discord API
+    omits a text field.  The generic envelope must never include the literal
+    string "None".
+    """
+    bot = _make_mock_bot()
+    response = MagicMock()
+    response.status = 403
+    response.reason = "Forbidden"
+    bot.send_dm.side_effect = discord.Forbidden(response, None)
+    http_api_module._bot = bot
+    async with client as c:
+        resp = await c.post(
+            "/api/notify",
+            json={"username": "alice", "message": "hi"},
+            headers=AUTH_HEADER,
+        )
+    http_api_module._bot = None
+    assert resp.status_code == 403
+    assert "None" not in resp.json()["detail"]
+
+
+# -- discord.Forbidden logs raw text server-side, not in response -------------
+
+
+@pytest.mark.asyncio
+async def test_notify_discord_forbidden_logs_raw_text(client, caplog):
+    """Raw exc.text must appear in server logs, not in the response body.
+
+    Validates the info-disclosure fix: sensitive Discord context (channel
+    names, permission names, role names) is logged at WARNING level for
+    operator debugging but never returned to the caller.
+    """
+    secret = "Missing Permissions on #secret-channel"
+    bot = _make_mock_bot()
+    response = MagicMock()
+    response.status = 403
+    response.reason = "Forbidden"
+    bot.send_dm.side_effect = discord.Forbidden(response, secret)
+    http_api_module._bot = bot
+
+    caplog.set_level(logging.WARNING, logger="app.http_api")
+    async with client as c:
+        resp = await c.post(
+            "/api/notify",
+            json={"username": "alice", "message": "hi"},
+            headers=AUTH_HEADER,
+        )
+
+    http_api_module._bot = None
+    # Raw text must NOT leak into the response body.
+    assert "secret-channel" not in resp.json()["detail"]
+    # Raw text MUST appear in the warning log.
+    assert any("secret-channel" in r.message for r in caplog.records)

@@ -22,9 +22,19 @@ handlers and FastAPI resolves them in MRO order.
 Note: per-endpoint ``ValueError → 404`` handling is retained in each route
 handler rather than promoted to a global handler, because ``ValueError`` is a
 broad built-in that could mask programming errors if caught globally.
+
+Error envelope policy
+----------------------
+All translated responses use the shape ``{"detail": "<generic message>"}``.
+Raw Discord exception details (``exc.text``, ``exc.status``) are **never**
+exposed in response bodies — they may contain channel names, permission
+names, role names, or other implementation detail.  Handlers log the raw
+context at WARNING level for server-side debugging.  New handlers MUST
+conform to this shape.
 """
 
 import asyncio
+import logging
 import os
 import secrets
 from pathlib import Path
@@ -39,6 +49,8 @@ from app.config import settings
 from app.discord_client import SiegeBot
 from app.fake_discord import is_broken_shape_mode
 
+logger = logging.getLogger(__name__)
+
 _VERSION_FILE = Path(__file__).parent.parent / "VERSION"
 
 app = FastAPI(title="Siege Bot HTTP API", version="0.1.0")
@@ -50,43 +62,44 @@ app = FastAPI(title="Siege Bot HTTP API", version="0.1.0")
 
 
 @app.exception_handler(discord.Forbidden)
-async def _handle_discord_forbidden(
-    request: Request, exc: discord.Forbidden
-) -> JSONResponse:
+async def _handle_discord_forbidden(_request: Request, exc: discord.Forbidden) -> JSONResponse:
     """Translate discord.Forbidden to HTTP 403.
 
     Raised when the bot lacks channel permissions or a user's DMs are
-    closed.
+    closed.  Raw ``exc.text`` is logged server-side but excluded from
+    the response body per the module's error envelope policy.
 
     Args:
-        request: The incoming FastAPI request (unused, required by signature).
+        _request: The incoming FastAPI request (intentionally unused).
         exc: The discord.Forbidden exception instance.
 
     Returns:
-        JSONResponse with status 403 and a detail message.
+        JSONResponse with status 403 and a generic detail message.
     """
+    logger.warning("Discord Forbidden: status=%s text=%r", exc.status, exc.text)
     return JSONResponse(
         status_code=status.HTTP_403_FORBIDDEN,
-        content={"detail": f"Discord permission denied: {exc.text}"},
+        content={"detail": "Discord permission denied"},
     )
 
 
 @app.exception_handler(discord.NotFound)
-async def _handle_discord_not_found(
-    request: Request, exc: discord.NotFound
-) -> JSONResponse:
+async def _handle_discord_not_found(_request: Request, exc: discord.NotFound) -> JSONResponse:
     """Translate discord.NotFound to HTTP 404.
 
     Raised when the target channel, message, or user does not exist.
     Shares the 404 response shape with the existing ValueError path.
+    Raw ``exc.text`` is logged server-side but excluded from the
+    response body per the module's error envelope policy.
 
     Args:
-        request: The incoming FastAPI request (unused, required by signature).
+        _request: The incoming FastAPI request (intentionally unused).
         exc: The discord.NotFound exception instance.
 
     Returns:
-        JSONResponse with status 404 and a fixed detail message.
+        JSONResponse with status 404 and a generic detail message.
     """
+    logger.warning("Discord NotFound: status=%s text=%r", exc.status, exc.text)
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={"detail": "Discord resource not found"},
@@ -95,7 +108,7 @@ async def _handle_discord_not_found(
 
 @app.exception_handler(discord.HTTPException)
 async def _handle_discord_http_exception(
-    request: Request, exc: discord.HTTPException
+    _request: Request, exc: discord.HTTPException
 ) -> JSONResponse:
     """Translate discord.HTTPException to 502 or 503.
 
@@ -107,17 +120,25 @@ async def _handle_discord_http_exception(
       - exc.status < 500  → 502 Bad Gateway (upstream Discord 4xx)
       - exc.status >= 500 → 503 Service Unavailable (upstream Discord 5xx)
 
+    Raw ``exc.status`` and ``exc.text`` are logged server-side but
+    excluded from response bodies per the module's error envelope policy.
+
     Args:
-        request: The incoming FastAPI request (unused, required by signature).
+        _request: The incoming FastAPI request (intentionally unused).
         exc: The discord.HTTPException instance.
 
     Returns:
-        JSONResponse with status 502 or 503.
+        JSONResponse with status 502 or 503 and a generic detail message.
     """
+    logger.warning(
+        "Discord HTTPException: status=%s text=%r",
+        exc.status,
+        getattr(exc, "text", None),
+    )
     if exc.status < 500:
         return JSONResponse(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            content={"detail": f"Upstream Discord error: {exc.status}"},
+            content={"detail": "Upstream Discord error"},
         )
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -126,18 +147,21 @@ async def _handle_discord_http_exception(
 
 
 @app.exception_handler(asyncio.TimeoutError)
-async def _handle_timeout(request: Request, exc: asyncio.TimeoutError) -> JSONResponse:
+async def _handle_timeout(_request: Request, exc: asyncio.TimeoutError) -> JSONResponse:
     """Translate asyncio.TimeoutError to HTTP 503.
 
     Raised when a Discord API call exceeds its configured timeout.
+    The exception carries no sensitive detail; the log entry is included
+    for consistency with the module's error envelope policy.
 
     Args:
-        request: The incoming FastAPI request (unused, required by signature).
+        _request: The incoming FastAPI request (intentionally unused).
         exc: The asyncio.TimeoutError instance.
 
     Returns:
-        JSONResponse with status 503.
+        JSONResponse with status 503 and a generic detail message.
     """
+    logger.warning("Discord timeout: %r", exc)
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={"detail": "Discord temporarily unavailable"},
@@ -267,9 +291,7 @@ async def post_image(
     bot = _get_bot()
     image_bytes = await file.read()
     try:
-        url = await bot.post_image(
-            channel_name, image_bytes, file.filename or "image.png"
-        )
+        url = await bot.post_image(channel_name, image_bytes, file.filename or "image.png")
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     return {"status": "sent", "url": url}
