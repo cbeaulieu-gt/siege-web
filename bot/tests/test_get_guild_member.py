@@ -282,3 +282,17 @@ async def test_get_guild_member_wrong_api_key_returns_401(client):
         http_api_module._bot = None
 
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Path parameter validation: non-numeric discord_user_id
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_guild_member_non_numeric_id_returns_422(client):
+    """Non-numeric path parameter rejected by FastAPI validation, not 500."""
+    async with client as c:
+        resp = await c.get("/api/members/abc123", headers=AUTH_HEADER)
+    assert resp.status_code == 422
+    assert isinstance(resp.json()["detail"], list)

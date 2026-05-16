@@ -43,6 +43,7 @@ from pathlib import Path
 
 import discord
 from fastapi import Depends, FastAPI, Form, HTTPException, Request, UploadFile, status
+from fastapi import Path as FastAPIPath
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
@@ -310,17 +311,26 @@ async def get_members(
 
 @app.get("/api/members/{discord_user_id}")
 async def get_guild_member(
-    discord_user_id: str,
+    discord_user_id: str = FastAPIPath(..., pattern=r"^\d+$"),
     _: None = Depends(verify_api_key),
 ) -> dict:
     """Look up a single guild member by Discord user ID.
 
-    Returns a dict with ``is_member: bool`` as the discriminator.  When
-    ``is_member`` is ``False``, all other fields are ``None``.  When
-    ``is_member`` is ``True``, all other fields are populated.
+    Args:
+        discord_user_id: Discord snowflake ID (numeric string only).
+            FastAPI validates this against ``^\\d+$`` and returns 422
+            before the handler runs if the value contains non-digit
+            characters.
+        _: Bearer-token dependency; raises 401/403 on failure.
 
-    Raises 503 if the guild object is not available or Discord returns an
-    unexpected error.
+    Returns:
+        A dict with ``is_member: bool`` as the discriminator.  When
+        ``is_member`` is ``False``, all other fields are ``None``.
+        When ``is_member`` is ``True``, all other fields are populated.
+
+    Raises:
+        HTTPException: 503 if the guild object is not available or
+            Discord returns an unexpected error.
     """
     guild = _bot.get_guild(int(settings.discord_guild_id)) if _bot is not None else None
     if guild is None:
