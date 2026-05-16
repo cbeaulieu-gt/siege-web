@@ -550,6 +550,98 @@ Source: `bot/app/http_api.py:135-172`
 
 ---
 
+### `GET /api/members/me/preferences` and `PUT /api/members/me/preferences`
+
+Read or replace the post-condition preferences for the caller's associated
+siege-web `Member` record. These endpoints live on the backend (`backend/`),
+not the bot sidecar — they are documented here because the bot is the primary
+caller and the `X-Acting-Discord-Id` header is the mechanism by which the bot
+identifies which member's preferences to operate on.
+
+#### Auth model
+
+Two auth paths are accepted.
+
+**Service-token path (bot callers).** The request must carry both:
+
+```
+Authorization: Bearer <token>
+X-Acting-Discord-Id: <discord_snowflake>
+```
+
+The backend resolves the `Member` whose `discord_id` matches the header value.
+A service-token request **without** `X-Acting-Discord-Id` returns 401 on
+`/me/*` endpoints. Other (non-`/me`) endpoints used by the bot are unaffected —
+they do not require the header and continue to work as before.
+
+**Cookie-session path (browser callers).** The `X-Acting-Discord-Id` header is
+ignored entirely when a valid session cookie is present. The cookie's member ID
+is authoritative; the header is not consulted and does not change the subject.
+
+#### Subject resolution
+
+| Auth method | Subject used |
+|---|---|
+| Cookie session | Session member's `member_id` |
+| Service token + `X-Acting-Discord-Id` | `Member.id` whose `discord_id` matches the header |
+| Service token, no header | 401 — no unambiguous subject |
+| Cookie session + `X-Acting-Discord-Id` | Cookie wins; header ignored |
+
+#### Error codes
+
+| Code | Condition |
+|---|---|
+| 200 | Success |
+| 401 | Service-token request missing `X-Acting-Discord-Id` |
+| 404 | `X-Acting-Discord-Id` value does not match any `Member.discord_id` |
+| 404 | `PUT` includes a `post_condition_id` that does not exist |
+
+#### Replace-all semantics on `PUT`
+
+`PUT /api/members/me/preferences` replaces the member's full preference set
+with exactly the IDs submitted. There is no `PATCH` endpoint. Clients needing
+add/remove UX **should** implement a multi-select flow (e.g. Discord
+select-menu component) rather than read-modify-write, which is subject to race
+conditions.
+
+**Request body.**
+
+```json
+{"post_condition_ids": [1, 3, 7]}
+```
+
+An empty list clears all preferences:
+
+```json
+{"post_condition_ids": []}
+```
+
+**Response — 200 OK.** `list[PostConditionResponse]` — the member's updated
+preference set (may be `[]`).
+
+```json
+[
+  {"id": 1, "description": "Day 1 attacker", "stronghold_level": 8},
+  {"id": 3, "description": "Reserve only", "stronghold_level": 8}
+]
+```
+
+#### Stronghold-level filtering (client concern)
+
+The backend stores preferences with no level constraint. Clients **should**
+filter `GET /api/post-conditions?stronghold_level=N` by the clan's current
+stronghold level before populating select menus so members only see conditions
+relevant to their siege tier. Level-filtering is a client UX concern, not a
+backend constraint on stored preferences.
+
+#### Response presentation for Discord
+
+The backend returns `list[PostConditionResponse]`. Clients **should** format
+the list as a bullet list in Discord ephemeral replies (one condition per line)
+for readability.
+
+---
+
 ## Concurrency and idempotency
 
 The bundled sidecar provides no ordering, deduplication, or idempotency guarantees.
@@ -711,6 +803,13 @@ client built against the old contract — where discord.py exceptions collapsed 
 continues to work correctly: it will receive more-precise status codes (403, 502, or
 503) instead of 500, which are still non-200 and are already treated as failures by
 `BotClient`.
+
+The `GET /api/members/me/preferences` and `PUT /api/members/me/preferences`
+endpoints added in PR #322 are additive. Existing callers (including bot callers
+that use service-token auth on all other endpoints) are unaffected — the header is
+`/me/*`-specific and its absence only triggers 401 on those two routes. Any bot caller
+that does not send `X-Acting-Discord-Id` continues to reach all pre-existing endpoints
+without change.
 
 ---
 

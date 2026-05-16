@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.session import get_db
+from app.dependencies.auth import get_acting_member_id
 from app.schemas.member import (
     MemberCreate,
     MemberPreferencesUpdate,
@@ -54,6 +55,42 @@ async def delete_member(
 ):
     await members_service.deactivate_member(db, member_id)
     return Response(status_code=204)
+
+
+@router.get("/members/me/preferences", response_model=list[PostConditionResponse])
+async def get_my_preferences(
+    member_id: int = Depends(get_acting_member_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return post-condition preferences for the authenticated member.
+
+    Resolves the acting member via ``get_acting_member_id``:
+    - Cookie session → session member's preferences.
+    - Service token + ``X-Acting-Discord-Id`` → named member's preferences.
+    - Service token without header → 401.
+    """
+    return await members_service.get_member_preferences(db, member_id)
+
+
+@router.put("/members/me/preferences", response_model=list[PostConditionResponse])
+async def set_my_preferences(
+    data: MemberPreferencesUpdate,
+    member_id: int = Depends(get_acting_member_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """Replace post-condition preferences for the authenticated member.
+
+    Uses replace-all semantics: the full desired set must be submitted.
+    There is no PATCH endpoint; clients needing add/remove UX should implement
+    a multi-select flow (e.g. Discord select-menu component) rather than
+    read-modify-write, which is subject to race conditions.
+
+    Resolves the acting member via ``get_acting_member_id``:
+    - Cookie session → session member's preferences.
+    - Service token + ``X-Acting-Discord-Id`` → named member's preferences.
+    - Service token without header → 401.
+    """
+    return await members_service.set_member_preferences(db, member_id, data)
 
 
 @router.get("/members/{member_id}/preferences", response_model=list[PostConditionResponse])
