@@ -46,7 +46,7 @@ cd rsl-siege-manager
 cp .env.example .env
 
 # 3. Start everything (including the bundled Discord bot sidecar)
-docker-compose --profile bundled-bot up --build
+docker-compose up --build
 ```
 
 Open http://localhost:5173 — the app will load with 25 demo members and an active siege already populated. A thin amber banner at the top confirms you are in demo mode.
@@ -158,10 +158,10 @@ The alternate sidecar must implement the HTTP API contract described in [`bot/IN
 
 | Mode | Command | Services started |
 |---|---|---|
-| Bundled bot (default) | `docker-compose --profile bundled-bot up` | postgres, backend, frontend, bot |
-| External sidecar | `docker-compose --profile sidecar-external up` | postgres, backend, frontend (bot excluded) |
+| Bundled bot (default) | `docker-compose up` | postgres, backend, frontend, bot |
+| External sidecar | `docker-compose -f docker-compose.yml -f docker-compose.sidecar-external.yml up` | postgres, backend, frontend (bot excluded) |
 
-When using the `sidecar-external` profile, start your alternate sidecar separately and set `DISCORD_BOT_API_URL` in `.env` to point at its HTTP API (e.g. `http://localhost:8001`).
+When running in external sidecar mode, start your alternate sidecar separately and set `DISCORD_BOT_API_URL` in `.env` to point at its HTTP API (e.g. `http://localhost:8001`).
 
 ### Azure (Bicep / infra-deploy workflow)
 

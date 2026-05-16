@@ -39,14 +39,9 @@ services:
     depends_on:
       - backend
 
-  # The bundled Discord bot sidecar. Included in the `bundled-bot` profile (full
-  # stack with the bundled bot) and excluded from the `sidecar-external` profile
-  # (backend + frontend + postgres only, for operators running an alternate sidecar).
-  #
-  # Discord singleton-token constraint: the bundled bot and an external sidecar
-  # cannot share the same DISCORD_TOKEN — only one bot process may hold the token
-  # at a time. Use the `sidecar-external` profile when substituting an alternate
-  # sidecar to prevent the conflict. See bot/INTERFACE.md for the sidecar contract.
+  # The bundled Discord bot sidecar. Part of the default stack — `docker-compose up`
+  # starts all four services. To run without the bundled bot (external sidecar mode),
+  # see `docker-compose.sidecar-external.yml` and the README's Deployment Modes section.
   bot:
     build: ./bot
     env_file: .env
@@ -54,30 +49,6 @@ services:
       - "8001:8001"
     depends_on:
       - postgres
-    profiles:
-      - bundled-bot
 
 volumes:
   postgres_data:
-
-# ── Docker Compose profiles ───────────────────────────────────────────────────
-#
-# bundled-bot (default full-stack mode):
-#   docker-compose --profile bundled-bot up
-#   Starts: postgres, backend, frontend, bot
-#   Use for: local dev with the bundled Discord bot sidecar.
-#
-# sidecar-external (alternate sidecar mode):
-#   docker-compose --profile sidecar-external up
-#   Starts: postgres, backend, frontend  (bot excluded)
-#   Use for: local dev with an external Discord sidecar.
-#   The external sidecar must expose the same HTTP API contract
-#   as the bundled bot (see bot/INTERFACE.md) and must be started
-#   separately. Set DISCORD_BOT_API_URL in .env to point at it.
-#
-# No profile (profileless services only):
-#   docker-compose up
-#   Starts: postgres, backend, frontend  (same as sidecar-external)
-#   This is the default when no --profile flag is given.
-#   Note: DISCORD_BOT_API_URL in .env must point at a running sidecar
-#   for Discord features to work.
