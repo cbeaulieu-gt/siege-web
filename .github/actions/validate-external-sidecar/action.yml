@@ -1,0 +1,28 @@
+name: Validate External Sidecar Configuration
+description: >
+  Validates that externalBotApiUrl is set and starts with https:// in the
+  given Bicep parameter file. No-ops when use-external-sidecar is 'false'.
+  Emits ::error:: messages on failure so GitHub Actions surfaces them in the
+  run UI. Wraps scripts/validate-external-sidecar.sh — see that file for the
+  validation logic. Refs: issue #435, parent #429.
+
+inputs:
+  param-file:
+    description: 'Path to the Bicep parameter file to validate (e.g. infra/main.dev.bicepparam)'
+    required: true
+  use-external-sidecar:
+    description: 'Set to "true" to run validation; any other value short-circuits with a log line.'
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Validate external sidecar configuration
+      shell: bash
+      run: |
+        if [[ "${{ inputs.use-external-sidecar }}" != "true" ]]; then
+          echo "useExternalSidecar=false; skipping external sidecar validation"
+          exit 0
+        fi
+        "${{ github.workspace }}/scripts/validate-external-sidecar.sh" "${{ inputs.param-file }}"

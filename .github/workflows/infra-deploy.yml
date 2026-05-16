@@ -92,26 +92,10 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Validate external sidecar configuration
-        if: inputs.useExternalSidecar == true
-        run: |
-          PARAM_FILE="infra/main.dev.bicepparam"
-          # Extract the externalBotApiUrl value, stripping leading/trailing
-          # whitespace and surrounding quotes (single or double — Bicep only
-          # accepts single, but the validator is lenient by design so a typo
-          # produces a clear error rather than a regex miss).
-          PARAM_VALUE=$(grep -E "^[[:space:]]*param[[:space:]]+externalBotApiUrl[[:space:]]*=" "$PARAM_FILE" \
-            | sed -E "s/^[[:space:]]*param[[:space:]]+externalBotApiUrl[[:space:]]*=[[:space:]]*['\"]?([^'\"[:space:]]*)['\"]?[[:space:]]*$/\1/" \
-            || true)
-          if [ -z "$PARAM_VALUE" ]; then
-            echo "::error::useExternalSidecar=true but externalBotApiUrl is not set in $PARAM_FILE"
-            echo "::error::Add: param externalBotApiUrl = 'https://your-sidecar.example.com'"
-            exit 1
-          fi
-          if ! [[ "$PARAM_VALUE" =~ ^https:// ]]; then
-            echo "::error::externalBotApiUrl in $PARAM_FILE must start with https:// (got: $PARAM_VALUE)"
-            echo "::error::Bearer-token traffic must not flow over plaintext http"
-            exit 1
-          fi
+        uses: ./.github/actions/validate-external-sidecar
+        with:
+          param-file: infra/main.dev.bicepparam
+          use-external-sidecar: ${{ inputs.useExternalSidecar }}
 
       - name: Log in to Azure
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
@@ -170,23 +154,10 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Validate external sidecar configuration
-        if: inputs.useExternalSidecar == true
-        run: |
-          PARAM_FILE="infra/main.prod.bicepparam"
-          # Same extract-and-validate as deploy-dev (see comment there).
-          PARAM_VALUE=$(grep -E "^[[:space:]]*param[[:space:]]+externalBotApiUrl[[:space:]]*=" "$PARAM_FILE" \
-            | sed -E "s/^[[:space:]]*param[[:space:]]+externalBotApiUrl[[:space:]]*=[[:space:]]*['\"]?([^'\"[:space:]]*)['\"]?[[:space:]]*$/\1/" \
-            || true)
-          if [ -z "$PARAM_VALUE" ]; then
-            echo "::error::useExternalSidecar=true but externalBotApiUrl is not set in $PARAM_FILE"
-            echo "::error::Add: param externalBotApiUrl = 'https://your-sidecar.example.com'"
-            exit 1
-          fi
-          if ! [[ "$PARAM_VALUE" =~ ^https:// ]]; then
-            echo "::error::externalBotApiUrl in $PARAM_FILE must start with https:// (got: $PARAM_VALUE)"
-            echo "::error::Bearer-token traffic must not flow over plaintext http"
-            exit 1
-          fi
+        uses: ./.github/actions/validate-external-sidecar
+        with:
+          param-file: infra/main.prod.bicepparam
+          use-external-sidecar: ${{ inputs.useExternalSidecar }}
 
       - name: Log in to Azure
         uses: azure/login@532459ea530d8321f2fb9bb10d1e0bcf23869a43 # v3
