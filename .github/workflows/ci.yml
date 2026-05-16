@@ -202,6 +202,26 @@ jobs:
         run: pytest tests/integration/sidecar/ -v
 
 
+  validation-script-tests:
+    name: Validation Script Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install pytest
+        run: pip install pytest>=8.3
+
+      - name: Run validation script tests
+        run: pytest scripts/tests/ -v
+
+
   claude-lint-fix:
     name: Claude Lint Fix
     needs: [backend-ci, frontend-ci, bot-ci]
