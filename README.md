@@ -195,6 +195,8 @@ az deployment group create \
 
 Via the **Infra Deploy** workflow (`workflow_dispatch`): set the `useExternalSidecar` input to `true` and ensure `externalBotApiUrl` is set in the relevant `.bicepparam` file before triggering.
 
+**Dev exemption:** When `ENVIRONMENT=dev`, the HTTPS-enforcement Bicep assert is bypassed so `externalBotApiUrl` may use `http://localhost:<port>` for local-stack iteration. Production deployments enforce `https://` unconditionally.
+
 ## Run it yourself
 
 Full self-host guides live in the [project wiki](https://github.com/glitchwerks/rsl-siege-manager/wiki):

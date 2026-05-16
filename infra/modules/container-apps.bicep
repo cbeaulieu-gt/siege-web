@@ -512,9 +512,7 @@ output apiAppPrincipalId string = apiApp.identity.principalId
 output frontendAppName string = frontendApp.name
 output frontendAppFqdn string = frontendApp.properties.configuration.ingress.fqdn
 output frontendAppPrincipalId string = frontendApp.identity.principalId
-// When useExternalSidecar = true the bot resource is not provisioned; safe-
-// navigation (?.) returns null for the absent resource, and ?? '' coerces to
-// an empty string so callers can detect the conditional case gracefully.
+// Safe-nav (`?.`) returns null if botApp isn't created (useExternalSidecar=true); `?? ''` falls back to an empty string so downstream consumers don't get null.
 output botAppName string = botApp.?name ?? ''
 output botAppPrincipalId string = botApp.?identity.?principalId ?? ''
 output useExternalSidecar bool = useExternalSidecar
