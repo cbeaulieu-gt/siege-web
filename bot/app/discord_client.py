@@ -22,9 +22,7 @@ class SiegeBot(discord.Client):
     async def send_dm(self, username: str, message: str) -> None:
         """Find member by username in the guild, open DM, send message."""
         guild = self._require_guild()
-        member = discord.utils.find(
-            lambda m: m.name.lower() == username.lower(), guild.members
-        )
+        member = discord.utils.find(lambda m: m.name.lower() == username.lower(), guild.members)
         if member is None:
             raise ValueError(f"Member '{username}' not found in guild")
         dm = await member.create_dm()

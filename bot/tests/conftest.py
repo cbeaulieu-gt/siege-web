@@ -2,7 +2,6 @@
 
 import os
 import sys
-from types import ModuleType
 from unittest.mock import MagicMock
 
 # Set required env vars before Settings() runs.

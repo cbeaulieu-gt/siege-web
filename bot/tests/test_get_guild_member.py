@@ -1,5 +1,8 @@
 """Tests for GET /api/members/{discord_user_id} — guild member lookup endpoint."""
 
+# Import the fake exception classes that conftest installed into sys.modules so
+# we can raise them in mocks without importing the real discord library.
+import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -7,10 +10,6 @@ from httpx import ASGITransport, AsyncClient
 
 import app.http_api as http_api_module
 from app.http_api import app
-
-# Import the fake exception classes that conftest installed into sys.modules so
-# we can raise them in mocks without importing the real discord library.
-import sys
 
 _discord = sys.modules["discord"]
 
@@ -62,7 +61,7 @@ def _make_mock_member(
     roles.append(everyone)
 
     # Use None as the explicit sentinel; [] means "no extra roles".
-    for rid in ([111, 222] if role_ids is None else role_ids):
+    for rid in [111, 222] if role_ids is None else role_ids:
         role = MagicMock()
         role.id = rid
         role.name = f"role-{rid}"
@@ -160,21 +159,54 @@ async def test_get_guild_member_not_found_returns_200_is_member_false(client):
     # All other fields must be present and None — not absent
     for key in ("discord_id", "username", "display_name", "roles", "role_names"):
         assert key in data, f"expected key {key!r} in non-member response"
-        assert data[key] is None, (
-            f"expected {key!r} to be None for non-member, got {data[key]!r}"
-        )
+        assert data[key] is None, f"expected {key!r} to be None for non-member, got {data[key]!r}"
 
 
 # ---------------------------------------------------------------------------
-# Discord API error
+# Discord API error — global handler must translate, not expose raw detail
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_get_guild_member_discord_http_exception_returns_503(client):
-    """When Discord raises an unexpected HTTPException, respond 503."""
+async def test_get_guild_member_discord_http_exception_4xx_returns_502(client):
+    """discord.HTTPException with a 4xx status propagates to 502 via the
+    global handler.  Raw Discord error text must not appear in the response.
+    """
+    response_mock = MagicMock()
+    response_mock.status = 429  # rate-limited (4xx)
     guild = MagicMock()
-    guild.fetch_member = AsyncMock(side_effect=_discord.HTTPException("rate limited"))
+    guild.fetch_member = AsyncMock(
+        side_effect=_discord.HTTPException(response_mock, "rate limited")
+    )
+
+    http_api_module._bot = _make_mock_bot_with_guild(guild)
+    try:
+        async with client as c:
+            response = await c.get(f"/api/members/{USER_ID}", headers=AUTH_HEADER)
+    finally:
+        http_api_module._bot = None
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Upstream Discord error"
+    assert "rate limited" not in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_get_guild_member_http_exception_503(client):
+    """discord.HTTPException with a 5xx status propagates to 503 via the
+    global handler.  Raw Discord error text must not appear in the response.
+
+    Regression test for the Critical finding in PR #431: the per-endpoint
+    ``except discord.HTTPException`` block was catching this and raising
+    ``HTTPException(503, detail=f\"Discord API error: {e}\")`` — exposing raw
+    upstream text and bypassing the generic error-envelope policy (#422).
+    """
+    response_mock = MagicMock()
+    response_mock.status = 500  # upstream Discord server error
+    guild = MagicMock()
+    guild.fetch_member = AsyncMock(
+        side_effect=_discord.HTTPException(response_mock, "some upstream error")
+    )
 
     http_api_module._bot = _make_mock_bot_with_guild(guild)
     try:
@@ -184,7 +216,8 @@ async def test_get_guild_member_discord_http_exception_returns_503(client):
         http_api_module._bot = None
 
     assert response.status_code == 503
-    assert "Discord API error" in response.json()["detail"]
+    assert response.json()["detail"] == "Discord temporarily unavailable"
+    assert "some upstream error" not in response.json()["detail"]
 
 
 # ---------------------------------------------------------------------------

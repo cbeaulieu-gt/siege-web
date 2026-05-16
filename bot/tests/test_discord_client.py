@@ -1,6 +1,5 @@
 """Unit tests for SiegeBot Discord client methods using mock guild/member objects."""
 
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -131,8 +130,7 @@ async def test_post_image_returns_cdn_url():
     guild = _make_guild(channels=[channel])
     bot = _make_bot(guild=guild)
 
-    import discord
-    with patch("app.discord_client.discord.File") as mock_file:
+    with patch("app.discord_client.discord.File") as _mock_file:
         url = await bot.post_image("siege-images", b"fake-bytes", "board.png")
 
     assert url == "https://cdn.discordapp.com/attachments/123/board.png"
@@ -157,5 +155,3 @@ async def test_get_members_returns_correct_dict_format():
     bob = next(m for m in result if m["username"] == "bob")
     assert bob["id"] == "200"
     assert bob["display_name"] == "Bobby"
-
-
