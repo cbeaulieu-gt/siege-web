@@ -1,5 +1,6 @@
 """Tests for the bot HTTP API endpoints."""
 
+import asyncio
 import logging
 from unittest.mock import AsyncMock, MagicMock
 
@@ -463,7 +464,7 @@ async def test_notify_discord_http_5xx_returns_503(client):
 async def test_post_message_timeout_returns_503(client):
     """asyncio.TimeoutError from post_message must translate to HTTP 503."""
     bot = _make_mock_bot()
-    bot.post_message.side_effect = TimeoutError()
+    bot.post_message.side_effect = asyncio.TimeoutError()  # noqa: UP041
     http_api_module._bot = bot
     async with client as c:
         resp = await c.post(
@@ -502,7 +503,8 @@ async def test_notify_discord_forbidden_with_text_none_returns_403(client):
         )
     http_api_module._bot = None
     assert resp.status_code == 403
-    assert "None" not in resp.json()["detail"]
+    assert resp.json()["detail"] == "Discord permission denied"
+    assert "None" not in resp.json()["detail"]  # defense-in-depth regression catch
 
 
 # -- discord.Forbidden logs raw text server-side, not in response -------------

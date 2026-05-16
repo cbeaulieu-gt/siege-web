@@ -163,15 +163,50 @@ async def test_get_guild_member_not_found_returns_200_is_member_false(client):
 
 
 # ---------------------------------------------------------------------------
-# Discord API error
+# Discord API error — global handler must translate, not expose raw detail
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_get_guild_member_discord_http_exception_returns_503(client):
-    """When Discord raises an unexpected HTTPException, respond 503."""
+async def test_get_guild_member_discord_http_exception_4xx_returns_502(client):
+    """discord.HTTPException with a 4xx status propagates to 502 via the
+    global handler.  Raw Discord error text must not appear in the response.
+    """
+    response_mock = MagicMock()
+    response_mock.status = 429  # rate-limited (4xx)
     guild = MagicMock()
-    guild.fetch_member = AsyncMock(side_effect=_discord.HTTPException("rate limited"))
+    guild.fetch_member = AsyncMock(
+        side_effect=_discord.HTTPException(response_mock, "rate limited")
+    )
+
+    http_api_module._bot = _make_mock_bot_with_guild(guild)
+    try:
+        async with client as c:
+            response = await c.get(f"/api/members/{USER_ID}", headers=AUTH_HEADER)
+    finally:
+        http_api_module._bot = None
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == "Upstream Discord error"
+    assert "rate limited" not in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_get_guild_member_http_exception_503(client):
+    """discord.HTTPException with a 5xx status propagates to 503 via the
+    global handler.  Raw Discord error text must not appear in the response.
+
+    Regression test for the Critical finding in PR #431: the per-endpoint
+    ``except discord.HTTPException`` block was catching this and raising
+    ``HTTPException(503, detail=f\"Discord API error: {e}\")`` — exposing raw
+    upstream text and bypassing the generic error-envelope policy (#422).
+    """
+    response_mock = MagicMock()
+    response_mock.status = 500  # upstream Discord server error
+    guild = MagicMock()
+    guild.fetch_member = AsyncMock(
+        side_effect=_discord.HTTPException(response_mock, "some upstream error")
+    )
 
     http_api_module._bot = _make_mock_bot_with_guild(guild)
     try:
@@ -181,7 +216,8 @@ async def test_get_guild_member_discord_http_exception_returns_503(client):
         http_api_module._bot = None
 
     assert response.status_code == 503
-    assert "Discord API error" in response.json()["detail"]
+    assert response.json()["detail"] == "Discord temporarily unavailable"
+    assert "some upstream error" not in response.json()["detail"]
 
 
 # ---------------------------------------------------------------------------

@@ -133,7 +133,7 @@ async def _handle_discord_http_exception(
     logger.warning(
         "Discord HTTPException: status=%s text=%r",
         exc.status,
-        getattr(exc, "text", None),
+        exc.text,
     )
     if exc.status < 500:
         return JSONResponse(
@@ -334,8 +334,10 @@ async def get_guild_member(
             "roles": None,
             "role_names": None,
         }
-    except discord.HTTPException as e:
-        raise HTTPException(status_code=503, detail=f"Discord API error: {e}")
+    # discord.HTTPException is intentionally not caught here — the global handler
+    # translates it to 502/503 with a generic detail message per the error
+    # envelope policy (#422).  The NotFound branch above is per-endpoint business
+    # logic (200 with is_member=false), not error translation.
     return {
         "is_member": True,
         "discord_id": str(member.id),
