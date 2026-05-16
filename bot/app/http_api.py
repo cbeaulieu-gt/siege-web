@@ -7,7 +7,9 @@ Bearer token (BOT_API_KEY).
 Discord exception translation
 ------------------------------
 Any discord.py exception that escapes a route handler is caught by the
-global exception handlers registered below.  The mapping is:
+global exception handlers registered below.  Raw exception details
+(status, text) are logged at WARNING level for debugging but never
+exposed in response bodies.  The mapping is:
 
   discord.Forbidden (403 from Discord)          → HTTP 403
   discord.NotFound  (404 from Discord)          → HTTP 404
