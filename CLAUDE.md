@@ -143,6 +143,51 @@ Copy `.env.example` to `.env`. Required:
 | `DAY_ROLE_SYNC_ENABLED` | backend (kill switch for day-role sync webhook; default `false` — set `true` only after a conforming receiver is deployed) |
 | `DAY_ROLE_SYNC_URL` | backend (receiver endpoint URL for day-role sync webhook; required when feature is enabled) |
 
+## graphify Knowledge Graph
+
+A knowledge graph of this repo lives in `graphify-out/` (gitignored build artifact). It includes AST-extracted code structure plus semantically-extracted concepts, contracts, and acceptance-criteria → test mappings. See `docs/graphify-bookkeeping/README.md` for the integration rationale (issue #440).
+
+### When to consult the graph FIRST
+
+Run `/graphify query "<reformulated question>"` before doing any Read/Grep work when the question fits one of these shapes:
+
+- **Data flow / pipelines** — "How does X flow through the system?", "What triggers Y?", "Where does Z get scheduled?"
+- **Contract / test coverage** — "Where / how is X verified?", "What does this AC prove?", "Is there a test for Y?"
+- **Cross-cutting relationships** — "What connects A to B?", "What does X depend on?", "Which mutation seams call into Z?"
+- **Rationale lookups** — "Why is this here?", "What's the design rationale for X?" (the graph has `rationale_for` edges from docstrings/ACs back to functions)
+
+For questions like the above, the graph routinely surfaces non-obvious cross-file relationships and bridge-doc edges that grep cannot find in one pass.
+
+### When to SKIP the graph
+
+Don't pay the consult cost for:
+
+- Single-file reads ("what's in `config.py`?")
+- Syntax / how-do-I questions
+- Line-level lookups ("what does line 42 say?")
+- Anything answerable by Read + one Grep
+
+### Keeping the graph fresh
+
+- **Code-only changes** auto-pick-up via the `graphify` post-commit hook (AST-only, no LLM tokens).
+- **Doc / markdown / image changes** require a manual `/graphify --update` to re-extract semantics.
+- After any meaningful merge to `main`, consider running `/graphify --update` once.
+
+### Bookkeeping
+
+Two telemetry files live at `docs/graphify-bookkeeping/`:
+
+- **`consultations.jsonl`** — auto-appended by a `PostToolUse` hook (`.claude/hooks/graphify-consultation-log.js`) every time the `graphify` skill fires. No action required.
+- **`misfires.jsonl`** — manual log of cases where the graph misled. **When the user signals the graph was wrong** (trigger phrases: "that's wrong", "graph misfired", "the graph misled me", "graph said X but it's Y"), append a JSONL entry with:
+
+  ```json
+  {"timestamp": "<ISO-8601 UTC>", "query": "<the original question>", "graph_claim": "<what the graph reported>", "correction": "<what's actually true>", "source_file_corrected": "<path showing the truth, optional>", "category": "stale|missing_edge|wrong_direction|fabricated|other"}
+  ```
+
+  Use the Edit/Write tool to append. Do NOT prompt the user to fill in fields — extract them from the conversation context. Better an under-specified entry than a missed one.
+
+See `docs/graphify-bookkeeping/README.md` for the schema and how to analyze.
+
 ## Domain Reference
 
 Key domain docs (read before implementing business logic):

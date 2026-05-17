@@ -75,3 +75,8 @@ logs/
 
 # Claude Code local config
 frontend/.claude/
+
+# graphify build artifacts (graph.json/html, manifest, cache).
+# Bookkeeping (consultations + misfires) lives in docs/graphify-bookkeeping/
+# and IS tracked — do not move it under graphify-out/.
+graphify-out/
