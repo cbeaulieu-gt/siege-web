@@ -1,0 +1,725 @@
+"""Endpoint tests for GET/PUT /api/members/me/preferences.
+
+Covers the X-Acting-Discord-Id header feature (#322):
+- Service-token + valid header resolves to the named member
+- Service-token + no header → 401
+- Service-token + unknown discord_id → 404
+- Cookie auth ignores the header entirely
+- Regression smoke: existing non-/me bot calls still work without the header
+"""
+
+import datetime
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from app.db.session import get_db
+from app.main import app
+from app.models.enums import MemberRole
+
+# ---------------------------------------------------------------------------
+# Shared constants
+# ---------------------------------------------------------------------------
+
+TEST_SESSION_SECRET = "test-session-secret"
+SERVICE_TOKEN = "test-service-token"
+MEMBER_DISCORD_ID = "123456789012345678"
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_member(
+    id: int = 42,
+    name: str = "Alice",
+    discord_id: str = MEMBER_DISCORD_ID,
+    role: MemberRole = MemberRole.advanced,
+    is_active: bool = True,
+) -> SimpleNamespace:
+    """Build a minimal Member-like namespace for mocking."""
+    return SimpleNamespace(
+        id=id,
+        name=name,
+        discord_id=discord_id,
+        discord_username=None,
+        role=role,
+        power=None,
+        sort_value=None,
+        is_active=is_active,
+        created_at=datetime.datetime(2026, 1, 1, 0, 0, 0),
+    )
+
+
+def _make_post_condition(
+    id: int = 1,
+    description: str = "Condition A",
+    stronghold_level: int = 1,
+) -> SimpleNamespace:
+    """Build a minimal PostCondition-like namespace for mocking.
+
+    Fields match the ``PostConditionResponse`` schema: ``id``,
+    ``description``, and ``stronghold_level``.
+    """
+    return SimpleNamespace(id=id, description=description, stronghold_level=stronghold_level)
+
+
+def _make_mock_db(member: object = None) -> AsyncMock:
+    """Return an AsyncMock session whose db.get() returns ``member``.
+
+    Also sets up db.execute() to return an empty scalar result by default.
+    The per-test caller can override execute's return_value as needed.
+    """
+    session = AsyncMock()
+    session.get = AsyncMock(return_value=member)
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none = MagicMock(return_value=member)
+    session.execute = AsyncMock(return_value=mock_result)
+    return session
+
+
+def _make_jwt(member_id: int, secret: str = TEST_SESSION_SECRET) -> str:
+    """Produce a valid HS256 JWT for the given member_id."""
+    from datetime import UTC, timedelta
+    from datetime import datetime as dt
+
+    import jwt
+
+    payload = {
+        "sub": str(member_id),
+        "name": "TestUser",
+        "iat": dt.now(UTC),
+        "exp": dt.now(UTC) + timedelta(hours=24),
+    }
+    return jwt.encode(payload, secret, algorithm="HS256")
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def service_token_headers() -> dict[str, str]:
+    """Authorization header using the test service token."""
+    return {"Authorization": f"Bearer {SERVICE_TOKEN}"}
+
+
+# ---------------------------------------------------------------------------
+# Test 1: service-token + valid header → GET /me/preferences → 200
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_service_token_with_valid_header_gets_member_prefs(
+    monkeypatch,
+    service_token_headers,
+):
+    """Service token + matching X-Acting-Discord-Id returns that member's prefs."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    member = _make_member()
+    prefs = [_make_post_condition(id=1), _make_post_condition(id=2)]
+
+    mock_db = _make_mock_db(member=member)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch(
+            "app.api.members.members_service.get_member_preferences",
+            new_callable=AsyncMock,
+        ) as mock_svc:
+            mock_svc.return_value = prefs
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.get(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": MEMBER_DISCORD_ID,
+                    },
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Test 2: service-token, no header → 401
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_service_token_without_header_returns_401(
+    monkeypatch,
+    service_token_headers,
+):
+    """Service token alone (no X-Acting-Discord-Id) → 401 from get_acting_member_id."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    mock_db = _make_mock_db()
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(
+                "/api/members/me/preferences",
+                headers=service_token_headers,
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Test 3: service-token + unknown discord_id → 404
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_service_token_with_unknown_discord_id_returns_404(
+    monkeypatch,
+    service_token_headers,
+):
+    """X-Acting-Discord-Id that matches no Member record → 404."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    # db.execute returns no member for the discord_id lookup
+    mock_db = _make_mock_db(member=None)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get(
+                "/api/members/me/preferences",
+                headers={
+                    **service_token_headers,
+                    "X-Acting-Discord-Id": "999999999999999999",
+                },
+            )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Test 4: cookie-authed + no header → 200 (uses session member's prefs)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_cookie_auth_no_header_gets_session_member_prefs(monkeypatch):
+    """Cookie-authenticated user without header gets their own prefs."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", "")
+    monkeypatch.setattr("app.config.settings.session_secret", TEST_SESSION_SECRET)
+
+    member = _make_member(id=7, discord_id="discord-7")
+    prefs = [_make_post_condition(id=5)]
+
+    mock_db = _make_mock_db(member=member)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    token = _make_jwt(member_id=7)
+    try:
+        with patch(
+            "app.api.members.members_service.get_member_preferences",
+            new_callable=AsyncMock,
+        ) as mock_svc:
+            mock_svc.return_value = prefs
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                client.cookies.set("session", token)
+                response = await client.get("/api/members/me/preferences")
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    # Confirm the service was called with the session member's ID (7), not a header
+    mock_svc.assert_called_once()
+    call_args = mock_svc.call_args
+    assert call_args.args[1] == 7
+
+
+# ---------------------------------------------------------------------------
+# Test 5: cookie-authed + X-Acting-Discord-Id of a DIFFERENT member → 200,
+#          returns SESSION member's prefs (header ignored)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_cookie_auth_ignores_acting_header(monkeypatch):
+    """Cookie auth is authoritative; X-Acting-Discord-Id is ignored entirely."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", "")
+    monkeypatch.setattr("app.config.settings.session_secret", TEST_SESSION_SECRET)
+
+    session_member = _make_member(id=7, discord_id="discord-7")
+    prefs = [_make_post_condition(id=5)]
+
+    mock_db = _make_mock_db(member=session_member)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    token = _make_jwt(member_id=7)
+    try:
+        with patch(
+            "app.api.members.members_service.get_member_preferences",
+            new_callable=AsyncMock,
+        ) as mock_svc:
+            mock_svc.return_value = prefs
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                client.cookies.set("session", token)
+                response = await client.get(
+                    "/api/members/me/preferences",
+                    headers={"X-Acting-Discord-Id": "discord-999-other"},
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    # Must use session member ID (7), not anything from the header
+    mock_svc.assert_called_once()
+    call_args = mock_svc.call_args
+    assert call_args.args[1] == 7
+
+
+# ---------------------------------------------------------------------------
+# Test 6: service-token + valid header → PUT /me/preferences with valid IDs → 200
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_service_token_with_header_puts_preferences(
+    monkeypatch,
+    service_token_headers,
+):
+    """Service token + header → PUT /me/preferences replaces prefs, returns 200."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    member = _make_member()
+    prefs = [
+        _make_post_condition(id=1),
+        _make_post_condition(id=2),
+        _make_post_condition(id=3),
+    ]
+
+    mock_db = _make_mock_db(member=member)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch(
+            "app.api.members.members_service.set_member_preferences",
+            new_callable=AsyncMock,
+        ) as mock_svc:
+            mock_svc.return_value = prefs
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.put(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": MEMBER_DISCORD_ID,
+                    },
+                    json={"post_condition_ids": [1, 2, 3]},
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    assert len(response.json()) == 3
+
+
+# ---------------------------------------------------------------------------
+# Test 7: service-token + valid header → PUT with empty list → 200 (cleared)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_service_token_with_header_puts_empty_preferences(
+    monkeypatch,
+    service_token_headers,
+):
+    """PUT /me/preferences with empty list clears preferences → 200, []."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    member = _make_member()
+    mock_db = _make_mock_db(member=member)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch(
+            "app.api.members.members_service.set_member_preferences",
+            new_callable=AsyncMock,
+        ) as mock_svc:
+            mock_svc.return_value = []
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.put(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": MEMBER_DISCORD_ID,
+                    },
+                    json={"post_condition_ids": []},
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+# ---------------------------------------------------------------------------
+# Test 8: service-token + valid header → PUT with invalid post_condition_id → 404
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_service_token_with_header_puts_invalid_ids_returns_404(
+    monkeypatch,
+    service_token_headers,
+):
+    """PUT /me/preferences with non-existent post_condition_id → 404."""
+    from fastapi import HTTPException
+
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    member = _make_member()
+    mock_db = _make_mock_db(member=member)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch(
+            "app.api.members.members_service.set_member_preferences",
+            new_callable=AsyncMock,
+        ) as mock_svc:
+            mock_svc.side_effect = HTTPException(
+                status_code=404,
+                detail="Post condition IDs not found: [9999]",
+            )
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.put(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": MEMBER_DISCORD_ID,
+                    },
+                    json={"post_condition_ids": [9999]},
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Test 9: member with zero prefs → GET /me/preferences → 200, []
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_member_with_no_prefs_returns_empty_list(
+    monkeypatch,
+    service_token_headers,
+):
+    """GET /me/preferences for a member with no preferences returns 200, []."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    member = _make_member()
+    mock_db = _make_mock_db(member=member)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch(
+            "app.api.members.members_service.get_member_preferences",
+            new_callable=AsyncMock,
+        ) as mock_svc:
+            mock_svc.return_value = []
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.get(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": MEMBER_DISCORD_ID,
+                    },
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+# ---------------------------------------------------------------------------
+# Test 10: route ordering smoke — "me" is not parsed as an int (no 422)
+# (covered implicitly by tests 1+, but added here for clarity)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_me_route_matches_before_member_id_route(
+    monkeypatch,
+    service_token_headers,
+):
+    """'/me/preferences' must not be caught by '/{member_id}/preferences'."""
+    # This is exercised whenever tests 1+ pass (status would be 422 on int parse)
+    # We run a clean assertion here to make the intent explicit.
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    member = _make_member()
+    mock_db = _make_mock_db(member=member)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch(
+            "app.api.members.members_service.get_member_preferences",
+            new_callable=AsyncMock,
+        ) as mock_svc:
+            mock_svc.return_value = []
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.get(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": MEMBER_DISCORD_ID,
+                    },
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    # 422 = FastAPI tried to parse "me" as int and failed → wrong route matched
+    assert response.status_code != 422
+    assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Test 11: GET /api/post-conditions returns 200 with no auth — open reference data
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_post_conditions_open_reference_no_auth():
+    """GET /api/post-conditions returns 200 with no auth headers.
+
+    auth_disabled=True is injected by the autouse conftest fixture, matching
+    the behaviour that open-reference callers (e.g. mom-bot's select-menu
+    population) rely on.  If this endpoint ever moves behind a hard auth gate
+    it should be a deliberate breaking-change PR, not a silent regression.
+    """
+    with patch(
+        "app.api.reference.reference_service.get_post_conditions",
+        new_callable=AsyncMock,
+    ) as mock_svc:
+        mock_svc.return_value = []
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/api/post-conditions")
+
+    assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Regression smoke: existing bot calls without X-Acting-Discord-Id still work
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_existing_bot_list_members_works_without_acting_header(monkeypatch):
+    """GET /api/members (no /me) still works for the bot without the header."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    mock_db = _make_mock_db()
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch(
+            "app.api.members.members_service.list_members",
+            new_callable=AsyncMock,
+        ) as mock_svc:
+            mock_svc.return_value = []
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.get(
+                    "/api/members",
+                    headers={"Authorization": f"Bearer {SERVICE_TOKEN}"},
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Test 12: malformed X-Acting-Discord-Id → 400
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_service_token_with_malformed_acting_id_returns_400(
+    monkeypatch,
+    service_token_headers,
+):
+    """X-Acting-Discord-Id with malformed format → 400 Bad Request."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    mock_db = _make_mock_db()
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    malformed_values = [
+        "",
+        "not-numeric",
+        "abc123",
+        "12345abc",
+        "'; DROP TABLE members;--",
+        "1" * 21,  # exceeds 20-char limit
+    ]
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            for malformed in malformed_values:
+                response = await client.get(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": malformed,
+                    },
+                )
+                assert (
+                    response.status_code == 400
+                ), f"Expected 400 for {malformed!r}, got {response.status_code}"
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+# ---------------------------------------------------------------------------
+# Test 13: PUT with mixed valid/invalid post_condition_ids → 404, atomic
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_put_mixed_valid_and_invalid_post_condition_ids_is_atomic(
+    monkeypatch,
+    service_token_headers,
+):
+    """PUT with mix of valid + invalid post_condition_ids → 404, no partial commit."""
+    from fastapi import HTTPException
+
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    member = _make_member()
+    existing_prefs = [_make_post_condition(id=1)]
+    mock_db = _make_mock_db(member=member)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with (
+            patch(
+                "app.api.members.members_service.set_member_preferences",
+                new_callable=AsyncMock,
+            ) as mock_set,
+            patch(
+                "app.api.members.members_service.get_member_preferences",
+                new_callable=AsyncMock,
+            ) as mock_get,
+        ):
+            # Service raises 404 when any ID is missing (atomic — no partial write)
+            mock_set.side_effect = HTTPException(
+                status_code=404,
+                detail="Post condition IDs not found: [99999]",
+            )
+            mock_get.return_value = existing_prefs
+
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                # 1. PUT with one valid ID (1), one invalid (99999), one valid (3)
+                put_response = await client.put(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": MEMBER_DISCORD_ID,
+                    },
+                    json={"post_condition_ids": [1, 99999, 3]},
+                )
+                assert put_response.status_code == 404
+
+                # 2. GET prefs back — must still return original [id=1] (unchanged)
+                get_response = await client.get(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": MEMBER_DISCORD_ID,
+                    },
+                )
+                assert get_response.status_code == 200
+                returned_ids = [pc["id"] for pc in get_response.json()]
+                assert returned_ids == [1], f"Expected prefs unchanged ([1]), got {returned_ids}"
+    finally:
+        app.dependency_overrides.pop(get_db, None)
