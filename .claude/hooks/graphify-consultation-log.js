@@ -36,10 +36,7 @@ process.stdin.on("end", () => {
     if (payload.tool_name !== "Skill") return;
 
     // Skill name may be present at tool_input.skill (Claude Code's native shape).
-    const skillName =
-      (payload.tool_input && payload.tool_input.skill) ||
-      (payload.tool_input && payload.tool_input.name) ||
-      null;
+    const skillName = payload.tool_input?.skill ?? payload.tool_input?.name ?? null;
     if (skillName !== "graphify") return;
 
     const entry = {
@@ -49,8 +46,13 @@ process.stdin.on("end", () => {
       args: (payload.tool_input && payload.tool_input.args) || null,
     };
 
-    const cwd = payload.cwd || process.cwd();
-    const outDir = path.join(cwd, "docs", "graphify-bookkeeping");
+    // Derive log location from the hook's own filesystem position rather than
+    // payload.cwd — this is robust to worktree cwd mis-reports and isn't
+    // affected by hypothetical poisoned payloads. The hook script always lives
+    // at <repo>/.claude/hooks/graphify-consultation-log.js, so <repo> is two
+    // levels up. Addresses PR #441 review feedback.
+    const repoRoot = path.resolve(__dirname, "..", "..");
+    const outDir = path.join(repoRoot, "docs", "graphify-bookkeeping");
     const outFile = path.join(outDir, "consultations.jsonl");
     fs.mkdirSync(outDir, { recursive: true });
     fs.appendFileSync(outFile, JSON.stringify(entry) + "\n");
