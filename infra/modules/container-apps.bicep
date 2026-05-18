@@ -180,6 +180,15 @@ resource apiApp 'Microsoft.App/containerApps@2025-07-01' = {
           keyVaultUrl: '${keyVaultUri}secrets/discord-client-secret'
           identity: 'system'
         }
+        {
+          // Separate KV secret for the inbound bot→backend trust boundary.
+          // bot-service-token backs BOT_SERVICE_TOKEN (verifies requests FROM the
+          // bot TO the backend). Splitting it off discord-bot-api-key gives each
+          // direction its own rotation surface — see issue #443.
+          name: 'bot-service-token'
+          keyVaultUrl: '${keyVaultUri}secrets/bot-service-token'
+          identity: 'system'
+        }
       ]
     }
     template: {
@@ -204,7 +213,7 @@ resource apiApp 'Microsoft.App/containerApps@2025-07-01' = {
               { name: 'DISCORD_CLIENT_ID', secretRef: 'discord-client-id' }
               { name: 'DISCORD_CLIENT_SECRET', secretRef: 'discord-client-secret' }
               { name: 'DISCORD_REDIRECT_URI', value: discordRedirectUri }
-              { name: 'BOT_SERVICE_TOKEN', secretRef: 'discord-bot-api-key' }
+              { name: 'BOT_SERVICE_TOKEN', secretRef: 'bot-service-token' }
               // When a custom domain is configured, allow CORS from that origin so
               // the browser can reach /api/* from the custom domain frontend.
               // Falls back to localhost:5173 for dev deployments without a custom domain.
