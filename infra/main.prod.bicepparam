@@ -5,7 +5,7 @@ using 'main.bicep'
 // Deploy command (Infra Deploy workflow handles this automatically):
 //
 //   az deployment group create \
-//     --resource-group siege-rg-prod \
+//     --resource-group siege-web-prod \
 //     --template-file infra/main.bicep \
 //     --parameters infra/main.prod.bicepparam \
 //     --parameters postgresAdminPassword="$PG_ADMIN_PASSWORD" \
@@ -22,8 +22,8 @@ using 'main.bicep'
 // deploy time via environment variables or a CI/CD secret store.
 //
 // Resource group convention:
-//   dev  → siege-rg-dev
-//   prod → siege-rg-prod
+//   dev  → siege-web-dev
+//   prod → siege-web-prod
 // ─────────────────────────────────────────────────────────────────────────────
 
 param environment = 'prod'
