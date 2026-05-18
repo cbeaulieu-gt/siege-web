@@ -58,13 +58,19 @@ def _make_post_condition(
     id: int = 1,
     description: str = "Condition A",
     stronghold_level: int = 1,
+    condition_type: str = "role",
 ) -> SimpleNamespace:
     """Build a minimal PostCondition-like namespace for mocking.
 
     Fields match the ``PostConditionResponse`` schema: ``id``,
-    ``description``, and ``stronghold_level``.
+    ``description``, ``stronghold_level``, and ``condition_type``.
     """
-    return SimpleNamespace(id=id, description=description, stronghold_level=stronghold_level)
+    return SimpleNamespace(
+        id=id,
+        description=description,
+        stronghold_level=stronghold_level,
+        condition_type=condition_type,
+    )
 
 
 def _make_mock_db(member: object = None) -> AsyncMock:
@@ -723,3 +729,134 @@ async def test_put_mixed_valid_and_invalid_post_condition_ids_is_atomic(
                 assert returned_ids == [1], f"Expected prefs unchanged ([1]), got {returned_ids}"
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+# ---------------------------------------------------------------------------
+# condition_type field serialization tests (#442)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_preferences_response_includes_condition_type(
+    monkeypatch,
+    service_token_headers,
+):
+    """GET /me/preferences response items must include condition_type field."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    member = _make_member()
+    prefs = [
+        _make_post_condition(
+            id=5,
+            description="Only HP Champions can be used.",
+            stronghold_level=1,
+            condition_type="role",
+        ),
+        _make_post_condition(
+            id=12,
+            description="Only Barbarian Champions can be used.",
+            stronghold_level=1,
+            condition_type="faction",
+        ),
+        _make_post_condition(
+            id=19,
+            description="Only Void Champions can be used.",
+            stronghold_level=2,
+            condition_type="affinity",
+        ),
+    ]
+
+    mock_db = _make_mock_db(member=member)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch(
+            "app.api.members.members_service.get_member_preferences",
+            new_callable=AsyncMock,
+        ) as mock_svc:
+            mock_svc.return_value = prefs
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.get(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": MEMBER_DISCORD_ID,
+                    },
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 3
+    for item in data:
+        assert "condition_type" in item, f"condition_type missing from response item: {item}"
+    assert data[0]["condition_type"] == "role"
+    assert data[1]["condition_type"] == "faction"
+    assert data[2]["condition_type"] == "affinity"
+
+
+@pytest.mark.asyncio
+async def test_put_preferences_response_includes_condition_type(
+    monkeypatch,
+    service_token_headers,
+):
+    """PUT /me/preferences response items must include condition_type field."""
+    monkeypatch.setattr("app.config.settings.auth_disabled", False)
+    monkeypatch.setattr("app.config.settings.bot_service_token", SERVICE_TOKEN)
+
+    member = _make_member()
+    prefs = [
+        _make_post_condition(
+            id=1,
+            description="Only Telerian League can be used.",
+            stronghold_level=1,
+            condition_type="league",
+        ),
+        _make_post_condition(
+            id=29,
+            description="Only Legendary Champions can be used.",
+            stronghold_level=3,
+            condition_type="rarity",
+        ),
+    ]
+
+    mock_db = _make_mock_db(member=member)
+
+    async def override_get_db():
+        yield mock_db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with patch(
+            "app.api.members.members_service.set_member_preferences",
+            new_callable=AsyncMock,
+        ) as mock_svc:
+            mock_svc.return_value = prefs
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.put(
+                    "/api/members/me/preferences",
+                    headers={
+                        **service_token_headers,
+                        "X-Acting-Discord-Id": MEMBER_DISCORD_ID,
+                    },
+                    json={"post_condition_ids": [1, 29]},
+                )
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 2
+    for item in data:
+        assert "condition_type" in item, f"condition_type missing from PUT response item: {item}"
+    assert data[0]["condition_type"] == "league"
+    assert data[1]["condition_type"] == "rarity"

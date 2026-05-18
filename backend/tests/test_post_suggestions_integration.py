@@ -93,8 +93,8 @@ async def _seed_siege(session: AsyncSession) -> tuple:
              pos1, pos2)
     """
     # Conditions
-    cond_a = PostCondition(description="Attack Lv1", stronghold_level=1)
-    cond_b = PostCondition(description="Defense Lv2", stronghold_level=2)
+    cond_a = PostCondition(description="Attack Lv1", stronghold_level=1, condition_type="role")
+    cond_b = PostCondition(description="Defense Lv2", stronghold_level=2, condition_type="faction")
     session.add_all([cond_a, cond_b])
     await session.flush()
 

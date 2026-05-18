@@ -39,37 +39,37 @@ from app.models.siege_member import SiegeMember
 
 DEMO_MEMBERS: list[tuple[str, MemberRole, str]] = [
     # Heavy Hitters (5) — gt_25m
-    ("Grimmaw",   MemberRole.heavy_hitter, "gt_25m"),
-    ("Valdris",   MemberRole.heavy_hitter, "gt_25m"),
-    ("Korath",    MemberRole.heavy_hitter, "gt_25m"),
+    ("Grimmaw", MemberRole.heavy_hitter, "gt_25m"),
+    ("Valdris", MemberRole.heavy_hitter, "gt_25m"),
+    ("Korath", MemberRole.heavy_hitter, "gt_25m"),
     ("Thornclaw", MemberRole.heavy_hitter, "gt_25m"),
-    ("Malakar",   MemberRole.heavy_hitter, "gt_25m"),
+    ("Malakar", MemberRole.heavy_hitter, "gt_25m"),
     # Advanced (7) — 3 at 21_25m, 4 at 16_20m
     ("Drakemoor", MemberRole.advanced, "21_25m"),
-    ("Sylvaris",  MemberRole.advanced, "21_25m"),
-    ("Varek",     MemberRole.advanced, "21_25m"),
-    ("Kaelith",   MemberRole.advanced, "16_20m"),
-    ("Morvain",   MemberRole.advanced, "16_20m"),
-    ("Rhogar",    MemberRole.advanced, "16_20m"),
-    ("Ashborne",  MemberRole.advanced, "16_20m"),
+    ("Sylvaris", MemberRole.advanced, "21_25m"),
+    ("Varek", MemberRole.advanced, "21_25m"),
+    ("Kaelith", MemberRole.advanced, "16_20m"),
+    ("Morvain", MemberRole.advanced, "16_20m"),
+    ("Rhogar", MemberRole.advanced, "16_20m"),
+    ("Ashborne", MemberRole.advanced, "16_20m"),
     # Medium (7) — 2 at 16_20m, 5 at 10_15m
-    ("Brennan",   MemberRole.medium, "16_20m"),
-    ("Tovik",     MemberRole.medium, "16_20m"),
-    ("Sellira",   MemberRole.medium, "10_15m"),
-    ("Jorund",    MemberRole.medium, "10_15m"),
-    ("Marek",     MemberRole.medium, "10_15m"),
-    ("Dravak",    MemberRole.medium, "10_15m"),
-    ("Linneth",   MemberRole.medium, "10_15m"),
+    ("Brennan", MemberRole.medium, "16_20m"),
+    ("Tovik", MemberRole.medium, "16_20m"),
+    ("Sellira", MemberRole.medium, "10_15m"),
+    ("Jorund", MemberRole.medium, "10_15m"),
+    ("Marek", MemberRole.medium, "10_15m"),
+    ("Dravak", MemberRole.medium, "10_15m"),
+    ("Linneth", MemberRole.medium, "10_15m"),
     # Novice (9) — lt_10m
-    ("Tamsin",    MemberRole.novice, "lt_10m"),
-    ("Wren",      MemberRole.novice, "lt_10m"),
-    ("Orrin",     MemberRole.novice, "lt_10m"),
-    ("Finnick",   MemberRole.novice, "lt_10m"),
-    ("Perrin",    MemberRole.novice, "lt_10m"),
-    ("Lira",      MemberRole.novice, "lt_10m"),
-    ("Kessen",    MemberRole.novice, "lt_10m"),
-    ("Brandis",   MemberRole.novice, "lt_10m"),
-    ("Noll",      MemberRole.novice, "lt_10m"),
+    ("Tamsin", MemberRole.novice, "lt_10m"),
+    ("Wren", MemberRole.novice, "lt_10m"),
+    ("Orrin", MemberRole.novice, "lt_10m"),
+    ("Finnick", MemberRole.novice, "lt_10m"),
+    ("Perrin", MemberRole.novice, "lt_10m"),
+    ("Lira", MemberRole.novice, "lt_10m"),
+    ("Kessen", MemberRole.novice, "lt_10m"),
+    ("Brandis", MemberRole.novice, "lt_10m"),
+    ("Noll", MemberRole.novice, "lt_10m"),
 ]
 
 # Building layout: (type, building_number, level, group_count, slots_per_group)
@@ -183,9 +183,7 @@ async def seed_buildings_and_positions(
         # Post-type buildings require a matching Post record.
         if building_type == BuildingType.post:
             ppc_result = await session.execute(
-                select(PostPriorityConfig).where(
-                    PostPriorityConfig.post_number == building_number
-                )
+                select(PostPriorityConfig).where(PostPriorityConfig.post_number == building_number)
             )
             ppc = ppc_result.scalar_one_or_none()
             session.add(
@@ -203,7 +201,10 @@ async def seed_buildings_and_positions(
 async def get_or_create_second_siege(session: AsyncSession, first_siege: Siege) -> Siege:
     """Return the existing planning siege or create one one week after the first."""
     result = await session.execute(
-        select(Siege).where(Siege.status == SiegeStatus.planning).order_by(Siege.date.desc()).limit(1)
+        select(Siege)
+        .where(Siege.status == SiegeStatus.planning)
+        .order_by(Siege.date.desc())
+        .limit(1)
     )
     siege = result.scalar_one_or_none()
     if siege is None:
