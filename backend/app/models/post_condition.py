@@ -17,11 +17,16 @@ class PostCondition(Base):
             "stronghold_level IN (1, 2, 3)",
             name="stronghold_level_valid",
         ),
+        CheckConstraint(
+            "condition_type IN ('role','affinity','faction','league','rarity','effect','other')",
+            name="condition_type_valid",
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     description: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     stronghold_level: Mapped[int] = mapped_column(Integer, nullable=False)
+    condition_type: Mapped[str] = mapped_column(String, nullable=False)
 
     posts: Mapped[list["Post"]] = relationship(
         secondary="post_active_condition", back_populates="active_conditions"
