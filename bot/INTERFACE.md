@@ -15,6 +15,49 @@ broader context live in
 
 ---
 
+## Quick start: implementing a sidecar bot
+
+A navigation checklist for anyone building an alternative sidecar (e.g. mom-bot or
+an integration-test stub). Each item links to the normative section that elaborates.
+
+- **Implement Bearer auth** — validate the shared `BOT_API_KEY` on every protected
+  endpoint. Two distinct failure modes are required: 401 when the `Authorization`
+  header is present with a wrong token, 403 when the header is absent entirely.
+  See [§ Authentication](#authentication).
+
+- **Implement the 7 sidecar endpoints** — `GET /api/version`, `GET /api/health`,
+  `POST /api/notify`, `POST /api/post-message`, `POST /api/post-image`,
+  `GET /api/members`, and `GET /api/members/{discord_user_id}` — with the exact
+  request and response shapes documented. See [§ Endpoint reference](#endpoint-reference).
+
+- **Match the `id` vs `discord_id` field naming** — `GET /api/members` returns `id`
+  for the Discord snowflake; `GET /api/members/{discord_user_id}` returns `discord_id`.
+  This distinction is load-bearing and not arbitrary; renaming either field breaks
+  existing consumers. See the [rationale note in § Endpoint reference](#get-apimembers).
+
+- **Honour the singleton Discord-token constraint** — the bundled bot and any
+  alternate sidecar sharing the same Discord token cannot coexist. Operators must
+  exclude the bundled bot when deploying an alternate sidecar.
+  See [§ Discord coupling](#discord-coupling).
+
+- **Translate Discord errors to HTTP status codes** — `discord.Forbidden` → 403,
+  Discord 4xx → 502, Discord 5xx or timeout → 503. Correct translation is required
+  for `BotClient` error-handling paths to behave as designed.
+  See [§ Error semantics](#error-semantics).
+
+- **Verify against the integration test suite** — `backend/tests/integration/sidecar/`
+  is the executable contract. When this document and the tests disagree, the tests win.
+
+- _(Optional)_ **Implement the 2 backend preference endpoint callers** —
+  `GET /api/members/me/preferences` and `PUT /api/members/me/preferences` live on the
+  backend, not the sidecar. If the sidecar exposes member-preference UI, implement the
+  callers; otherwise sidecar conformance does not require them.
+  See [§ Endpoint reference — preferences](#get-apimembersmepreferences-and-put-apimembersmepreferences).
+
+_For everything else (versioning, conformance table, glossary), see the full doc below._
+
+---
+
 ## Process model
 
 `SiegeBot` (discord.py client) and the FastAPI HTTP sidecar run concurrently in the
