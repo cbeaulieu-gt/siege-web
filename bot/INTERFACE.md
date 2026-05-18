@@ -662,10 +662,19 @@ An empty list clears all preferences:
 **Response — 200 OK.** `list[PostConditionResponse]` — the member's updated
 preference set (may be `[]`).
 
+`PostConditionResponse` fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | `int` | Stable identifier, never reused |
+| `description` | `string` | Human-readable condition text |
+| `stronghold_level` | `int` | One of: `1`, `2`, `3` |
+| `condition_type` | `string` | One of: `role`, `affinity`, `faction`, `league`, `rarity`, `effect`, `other` — enforced by a CHECK constraint; the set is closed |
+
 ```json
 [
-  {"id": 1, "description": "Day 1 attacker", "stronghold_level": 8},
-  {"id": 3, "description": "Reserve only", "stronghold_level": 8}
+  {"id": 5,  "description": "Only HP Champions can be used.",        "stronghold_level": 1, "condition_type": "role"},
+  {"id": 12, "description": "Only Barbarian Champions can be used.", "stronghold_level": 1, "condition_type": "faction"}
 ]
 ```
 
