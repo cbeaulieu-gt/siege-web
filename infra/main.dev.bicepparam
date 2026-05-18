@@ -5,7 +5,7 @@ using 'main.bicep'
 // Deploy command:
 //
 //   az deployment group create \
-//     --resource-group siege-rg-dev \
+//     --resource-group siege-web-dev \
 //     --template-file infra/main.bicep \
 //     --parameters infra/main.dev.bicepparam \
 //     --parameters postgresAdminPassword="$PG_ADMIN_PASSWORD" \
@@ -22,8 +22,8 @@ using 'main.bicep'
 // deploy time via environment variables or CLI --parameters flags.
 //
 // Resource group convention:
-//   dev  → siege-rg-dev
-//   prod → siege-rg-prod
+//   dev  → siege-web-dev
+//   prod → siege-web-prod
 // ─────────────────────────────────────────────────────────────────────────────
 
 param environment = 'dev'

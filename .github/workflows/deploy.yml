@@ -212,8 +212,8 @@ jobs:
 #
 # vars.RESOURCE_GROUP is an environment-scoped variable (not a secret).
 # GitHub resolves the correct value per environment automatically:
-#   dev  → siege-rg-dev
-#   prod → siege-rg-prod
+#   dev  → siege-web-dev
+#   prod → siege-web-prod
 
   deploy-api-dev:
     name: Deploy API (dev)

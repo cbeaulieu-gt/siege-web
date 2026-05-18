@@ -89,13 +89,13 @@ az login
 az account set --subscription "<your-subscription-id-or-name>"
 ```
 
-Create the production resource group. All examples in this guide use `siege-rg-prod` in `westus` — adjust the name and region to suit your preference:
+Create the production resource group. All examples in this guide use `siege-web-prod` in `westus` — adjust the name and region to suit your preference:
 
 ```powershell
-az group create --name siege-rg-prod --location westus
+az group create --name siege-web-prod --location westus
 ```
 
-> **Dev environment:** substitute `siege-rg-dev` and `westus` (or any region). Dev and prod can live in the same subscription in separate resource groups.
+> **Dev environment:** substitute `siege-web-dev` and `westus` (or any region). Dev and prod can live in the same subscription in separate resource groups.
 
 ---
 
@@ -177,7 +177,7 @@ Get-Content .env.deploy.prod |
 
 # Deploy (run from repo root)
 az deployment group create `
-    --resource-group siege-rg-prod `
+    --resource-group siege-web-prod `
     --template-file infra/main.bicep `
     --parameters infra/main.prod.bicepparam `
     --parameters postgresAdminPassword="$env:PG_ADMIN_PASSWORD" `
@@ -197,7 +197,7 @@ For bash/Linux/macOS:
 source .env.deploy.prod  # or export each variable manually
 
 az deployment group create \
-    --resource-group siege-rg-prod \
+    --resource-group siege-web-prod \
     --template-file infra/main.bicep \
     --parameters infra/main.prod.bicepparam \
     --parameters postgresAdminPassword="$PG_ADMIN_PASSWORD" \
@@ -216,7 +216,7 @@ The deployment takes 5–15 minutes on a cold resource group (PostgreSQL provisi
 ### Verify the resources were created
 
 ```powershell
-az resource list --resource-group siege-rg-prod --output table
+az resource list --resource-group siege-web-prod --output table
 ```
 
 You should see entries for: `Microsoft.ContainerRegistry/registries`, `Microsoft.DBforPostgreSQL/flexibleServers`, `Microsoft.KeyVault/vaults`, `Microsoft.App/managedEnvironments`, three `Microsoft.App/containerApps`, `Microsoft.OperationalInsights/workspaces`, and `Microsoft.Insights/components`.
@@ -226,7 +226,7 @@ You should see entries for: `Microsoft.ContainerRegistry/registries`, `Microsoft
 ```powershell
 az containerapp show `
     --name siege-web-frontend-prod `
-    --resource-group siege-rg-prod `
+    --resource-group siege-web-prod `
     --query "properties.configuration.ingress.fqdn" `
     --output tsv
 ```
@@ -244,7 +244,7 @@ The Bicep deployment creates Container Apps with `imageTag=latest` but no images
 ```
 
 This script:
-1. Looks up the ACR login server from the `siege-rg-prod` resource group
+1. Looks up the ACR login server from the `siege-web-prod` resource group
 2. Logs Docker in to ACR via `az acr login`
 3. Builds `siege-api`, `siege-frontend`, and `siege-bot` from their respective directories
 4. Pushes each image tagged with the current Git SHA and as `:latest`
@@ -254,7 +254,7 @@ After the script completes, verify all three Container Apps are running:
 
 ```powershell
 az containerapp list `
-    --resource-group siege-rg-prod `
+    --resource-group siege-web-prod `
     --query "[].{name:name, status:properties.runningStatus}" `
     --output table
 ```
@@ -280,7 +280,7 @@ The workflows authenticate to Azure using a service principal stored as `AZURE_C
 az ad sp create-for-rbac `
     --name "siege-web-github-actions" `
     --role Contributor `
-    --scopes "/subscriptions/<subscription-id>/resourceGroups/siege-rg-prod" `
+    --scopes "/subscriptions/<subscription-id>/resourceGroups/siege-web-prod" `
     --sdk-auth
 ```
 
@@ -288,7 +288,7 @@ az ad sp create-for-rbac `
 
 Copy the full JSON output — that's the value of `AZURE_CREDENTIALS`.
 
-> Add `"/subscriptions/<subscription-id>/resourceGroups/siege-rg-dev"` as a second `--scopes` entry if you're also setting up the dev environment.
+> Add `"/subscriptions/<subscription-id>/resourceGroups/siege-web-dev"` as a second `--scopes` entry if you're also setting up the dev environment.
 
 ### Configure GitHub Environments
 
@@ -316,11 +316,11 @@ For each environment, add the following **Secrets** and **Variables**:
 |---|---|
 | `ACR_NAME` | `siegeacrprod` (as provisioned by Bicep) |
 | `ACR_LOGIN_SERVER` | `siegeacrprod.azurecr.io` |
-| `RESOURCE_GROUP` | `siege-rg-prod` |
+| `RESOURCE_GROUP` | `siege-web-prod` |
 | `DISCORD_GUILD_ID` | Your Discord server ID |
 | `DISCORD_REDIRECT_URI` | `https://<frontend-fqdn>/api/auth/callback` |
 
-Repeat for `dev`, substituting `siege-rg-dev`, `siegeacrdev`, `siegeacrdev.azurecr.io`, and the dev FQDN.
+Repeat for `dev`, substituting `siege-web-dev`, `siegeacrdev`, `siegeacrdev.azurecr.io`, and the dev FQDN.
 
 ### Deploy model
 
@@ -353,7 +353,7 @@ Both phases run in a single `az deployment group create` call. On subsequent re-
 ```powershell
 az containerapp show `
     --name siege-web-frontend-prod `
-    --resource-group siege-rg-prod `
+    --resource-group siege-web-prod `
     --query "properties.configuration.ingress.fqdn" `
     --output tsv
 ```
@@ -399,7 +399,7 @@ Update `discordRedirectUri` to use the new domain. This is a plain Bicep paramet
 
    ```powershell
    az deployment group create `
-       --resource-group siege-rg-prod `
+       --resource-group siege-web-prod `
        --template-file infra/main.bicep `
        --parameters infra/main.prod.bicepparam
    ```
@@ -408,7 +408,7 @@ Update `discordRedirectUri` to use the new domain. This is a plain Bicep paramet
 
    ```powershell
    az deployment group create `
-       --resource-group siege-rg-prod `
+       --resource-group siege-web-prod `
        --template-file infra/main.bicep `
        --parameters infra/main.prod.bicepparam `
        --parameters discordRedirectUri="https://siege.yourclan.com/api/auth/callback"
@@ -431,7 +431,7 @@ Run through this checklist after the first deploy (and after any infra change):
 - [ ] All three Container Apps show `Running` status:
   ```powershell
   az containerapp list `
-      --resource-group siege-rg-prod `
+      --resource-group siege-web-prod `
       --query "[].{name:name, status:properties.runningStatus}" `
       --output table
   ```
@@ -439,13 +439,13 @@ Run through this checklist after the first deploy (and after any infra change):
   ```powershell
   az containerapp logs show `
       --name siege-web-api-prod `
-      --resource-group siege-rg-prod `
+      --resource-group siege-web-prod `
       --tail 50
   ```
 - [ ] PostgreSQL automated backups are enabled:
   ```powershell
   az postgres flexible-server show `
-      --resource-group siege-rg-prod `
+      --resource-group siege-web-prod `
       --name <db-server-name> `
       --query "backup" `
       --output json
@@ -455,7 +455,7 @@ Run through this checklist after the first deploy (and after any infra change):
 
 ## 10. Day-two operations
 
-For ongoing operations (log queries, secret rotation, rollbacks, database restores, scaling), see [RUNBOOK.md in the main repo](https://github.com/glitchwerks/rsl-siege-manager/blob/main/docs/RUNBOOK.md). That document assumes your environment is already deployed and uses `siege-rg-prod` and the actual resource names from your deployment.
+For ongoing operations (log queries, secret rotation, rollbacks, database restores, scaling), see [RUNBOOK.md in the main repo](https://github.com/glitchwerks/rsl-siege-manager/blob/main/docs/RUNBOOK.md). That document assumes your environment is already deployed and uses `siege-web-prod` and the actual resource names from your deployment.
 
 ### Quick reference: update a secret
 
@@ -471,7 +471,7 @@ az keyvault secret set `
 # 2. Force a new revision so the app picks up the change
 az containerapp update `
     --name siege-web-bot-prod `
-    --resource-group siege-rg-prod `
+    --resource-group siege-web-prod `
     --revision-suffix "secret-rotate-$(Get-Date -Format 'yyyyMMdd')"
 ```
 
@@ -494,7 +494,7 @@ Any change to `infra/` should be deployed via the `infra-deploy.yml` workflow (n
 > ```
 
 ```powershell
-az group delete --name siege-rg-prod --yes --no-wait
+az group delete --name siege-web-prod --yes --no-wait
 ```
 
 ---
