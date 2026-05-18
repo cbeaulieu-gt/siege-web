@@ -5,57 +5,68 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def seed_post_conditions(session: AsyncSession) -> None:
-    """Insert all 36 PostCondition rows. Safe to re-run (ON CONFLICT DO NOTHING)."""
+    """Insert all 36 PostCondition rows. Safe to re-run (ON CONFLICT DO NOTHING).
+
+    Each tuple is (id, description, stronghold_level, condition_type).
+    The condition_type values mirror the canonical frontend map in
+    ``frontend/src/lib/postConditionTypes.ts``.
+    """
     rows = [
         # Level 1 (18 conditions)
-        (1, "Only Champions from the Telerian League can be used.", 1),
-        (2, "Only Champions from the Gaellen Pact can be used.", 1),
-        (3, "Only Champions from The Corrupted can be used.", 1),
-        (4, "Only Champions from the Nyresan Union can be used.", 1),
-        (5, "Only HP Champions can be used.", 1),
-        (6, "Only DEF Champions can be used.", 1),
-        (7, "Only Support Champions can be used.", 1),
-        (8, "Only ATK Champions can be used.", 1),
-        (9, "Only Banner Lord Champions can be used.", 1),
-        (10, "Only High Elves Champions can be used.", 1),
-        (11, "Only Sacred Order Champions can be used.", 1),
-        (12, "Only Barbarian Champions can be used.", 1),
-        (13, "Only Ogryn Tribe Champions can be used.", 1),
-        (14, "Only Lizardmen Champions can be used.", 1),
-        (15, "Only Skinwalker Champions can be used.", 1),
-        (16, "Only Orc Champions can be used.", 1),
-        (17, "All Champions are immune to Turn Meter reduction effects.", 1),
-        (18, "All Champions are immune to Turn Meter fill effects.", 1),
+        (1, "Only Champions from the Telerian League can be used.", 1, "league"),
+        (2, "Only Champions from the Gaellen Pact can be used.", 1, "league"),
+        (3, "Only Champions from The Corrupted can be used.", 1, "league"),
+        (4, "Only Champions from the Nyresan Union can be used.", 1, "league"),
+        (5, "Only HP Champions can be used.", 1, "role"),
+        (6, "Only DEF Champions can be used.", 1, "role"),
+        (7, "Only Support Champions can be used.", 1, "role"),
+        (8, "Only ATK Champions can be used.", 1, "role"),
+        (9, "Only Banner Lord Champions can be used.", 1, "faction"),
+        (10, "Only High Elves Champions can be used.", 1, "faction"),
+        (11, "Only Sacred Order Champions can be used.", 1, "faction"),
+        (12, "Only Barbarian Champions can be used.", 1, "faction"),
+        (13, "Only Ogryn Tribe Champions can be used.", 1, "faction"),
+        (14, "Only Lizardmen Champions can be used.", 1, "faction"),
+        (15, "Only Skinwalker Champions can be used.", 1, "faction"),
+        (16, "Only Orc Champions can be used.", 1, "faction"),
+        (17, "All Champions are immune to Turn Meter reduction effects.", 1, "effect"),
+        (18, "All Champions are immune to Turn Meter fill effects.", 1, "effect"),
         # Level 2 (10 conditions)
-        (19, "Only Void Champions can be used.", 2),
-        (20, "Only Force Champions can be used.", 2),
-        (21, "Only Magic Champions can be used.", 2),
-        (22, "Only Spirit Champions can be used.", 2),
-        (23, "Only Demonspawn Champions can be used.", 2),
-        (24, "Only Undead Horde Champions can be used.", 2),
-        (25, "Only Dark Elves Champions can be used.", 2),
-        (26, "Only Knights Revenant Champions can be used.", 2),
-        (27, "All Champions are immune to cooldown increasing effects.", 2),
-        (28, "All Champions are immune to cooldown decreasing effects.", 2),
+        (19, "Only Void Champions can be used.", 2, "affinity"),
+        (20, "Only Force Champions can be used.", 2, "affinity"),
+        (21, "Only Magic Champions can be used.", 2, "affinity"),
+        (22, "Only Spirit Champions can be used.", 2, "affinity"),
+        (23, "Only Demonspawn Champions can be used.", 2, "faction"),
+        (24, "Only Undead Horde Champions can be used.", 2, "faction"),
+        (25, "Only Dark Elves Champions can be used.", 2, "faction"),
+        (26, "Only Knights Revenant Champions can be used.", 2, "faction"),
+        (27, "All Champions are immune to cooldown increasing effects.", 2, "effect"),
+        (28, "All Champions are immune to cooldown decreasing effects.", 2, "effect"),
         # Level 3 (8 conditions)
-        (29, "Only Legendary Champions can be used.", 3),
-        (30, "Only Epic Champions can be used.", 3),
-        (31, "Only Rare Champions can be used.", 3),
-        (32, "Only Dwarves Champions can be used.", 3),
-        (33, "Only Shadowkin Champions can be used.", 3),
-        (34, "Only Sylvan Watcher Champions can be used.", 3),
-        (35, "All Champions are immune to [Sheep] debuffs.", 3),
-        (36, "Champions cannot be revived.", 3),
+        (29, "Only Legendary Champions can be used.", 3, "rarity"),
+        (30, "Only Epic Champions can be used.", 3, "rarity"),
+        (31, "Only Rare Champions can be used.", 3, "rarity"),
+        (32, "Only Dwarves Champions can be used.", 3, "faction"),
+        (33, "Only Shadowkin Champions can be used.", 3, "faction"),
+        (34, "Only Sylvan Watcher Champions can be used.", 3, "faction"),
+        (35, "All Champions are immune to [Sheep] debuffs.", 3, "effect"),
+        (36, "Champions cannot be revived.", 3, "other"),
     ]
     await session.execute(
         text(
-            "INSERT INTO post_condition (id, description, stronghold_level) "
-            "VALUES (:id, :description, :stronghold_level) "
+            "INSERT INTO post_condition "
+            "(id, description, stronghold_level, condition_type) "
+            "VALUES (:id, :description, :stronghold_level, :condition_type) "
             "ON CONFLICT DO NOTHING"
         ),
         [
-            {"id": id_, "description": description, "stronghold_level": level}
-            for id_, description, level in rows
+            {
+                "id": id_,
+                "description": description,
+                "stronghold_level": level,
+                "condition_type": condition_type,
+            }
+            for id_, description, level, condition_type in rows
         ],
     )
 
