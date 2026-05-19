@@ -19,7 +19,12 @@ def _serialize_post(post: Post) -> dict:
         "priority": post.priority,
         "description": post.description,
         "active_conditions": [
-            {"id": c.id, "description": c.description, "stronghold_level": c.stronghold_level}
+            {
+                "id": c.id,
+                "description": c.description,
+                "stronghold_level": c.stronghold_level,
+                "condition_type": c.condition_type,
+            }
             for c in post.active_conditions
         ],
     }
